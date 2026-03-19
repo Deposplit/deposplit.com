@@ -186,6 +186,17 @@ Recovery uses **social recovery (k-of-n)**: the same threshold k used when the s
 
 Recipients who approve a re-association should be encouraged to verify Alice again in person (re-scan her new QR code) to restore the verified relationship.
 
+## Development Status
+
+### What is done
+
+- **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**. They are standalone libraries, not app projects.
+- **Design**: the full app layer is designed — Matrix protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
+
+### What is next
+
+Scaffold the Android and iOS **app** subprojects (separate from the existing SSS library modules) and begin the Matrix integration layer.
+
 ## Build & Test Commands
 
 ### Android/ (Kotlin/JVM library — Gradle 9.3.1, Kotlin 2.2, JVM 17 bytecode, runs on Java 25)
