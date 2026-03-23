@@ -71,6 +71,37 @@ Both ports are **complete and fully tested**:
 
 Both test suites contain three identical hand-derived test vectors (in `ShamirTest.kt` and `ShamirSecretSharingTests.swift`) that verify `combine()` byte-for-byte against the same inputs. The vectors use the polynomial `f(x) = secret_byte + 0x01·x` in GF(2⁸) with x-coordinates `[1, 2]` — the simplest non-trivial 2-of-2 case — and were verified by hand against the GF(2⁸) arithmetic tables.
 
+### Android App
+
+#### Minimum SDK: API 29 (Android 10)
+
+The Android app targets **`minSdk = 29`**, not the Android Studio default of API 24. This was a deliberate choice for a security-sensitive app:
+
+| API | Feature | Relevance |
+|---|---|---|
+| 28 | **`BiometricPrompt`** (native) | Gate secret reconstruction behind biometric auth |
+| 28 | **StrongBox Keymaster** (`setIsStrongBoxBacked(true)`) | Keys stored in dedicated security chip, not just TEE |
+| 28 | Cleartext traffic disabled by default | No accidental plaintext Matrix traffic |
+| 29 | **Scoped Storage** | Relevant for the file-upload secret input method |
+| 29 | **TLS 1.3** enabled by default | Baseline transport security for Matrix homeserver comms |
+
+API 29 still covers >90% of active Android devices, which is acceptable for a niche security app. Do not lower `minSdk` without revisiting these dependencies.
+
+Note: `BiometricPrompt` and StrongBox require runtime capability checks regardless of `minSdk` — `BiometricManager.canAuthenticate()` and `setIsStrongBoxBacked(true)` can throw `StrongBoxUnavailableException` on devices lacking the hardware.
+
+#### UI toolkit: Jetpack Compose + Material 3
+
+Use **Jetpack Compose** (not XML/Views) for all UI. The "Empty Activity" template in Android Studio is the Compose template and is the correct starting point for new app scaffolding.
+
+#### Build toolchain: AGP 9.x + Kotlin 2.x
+
+AGP 9.x integrates Kotlin compilation directly — it registers the `kotlin` Gradle extension itself. Do **not** apply `org.jetbrains.kotlin.android`; doing so causes a "extension already registered" conflict. The Android Studio template deliberately omits it.
+
+Consequences:
+- `kotlinOptions { }` is **not available** (it requires `kotlin.android`)
+- Set the Kotlin JVM target via `compileOptions` only — AGP 9.x propagates `targetCompatibility` to the Kotlin compiler automatically
+- `kotlin.plugin.compose` (the Compose compiler plugin) is still required and does not conflict
+
 ### App Protocol
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata — two secrets with the same label are distinguished by their UUIDs.
