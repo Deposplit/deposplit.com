@@ -9,10 +9,8 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 | Folder | Repository | Purpose |
 |---|---|---|
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, and cross-project documentation |
-| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin/JVM SSS library (and future Android app) |
-| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (and future iOS app) |
-
-Future Android and iOS app subprojects will live in `Android/` and `iOS/` respectively and depend on the existing SSS libraries.
+| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app |
+| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
 
 ## CLAUDE.md layout
 

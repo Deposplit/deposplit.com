@@ -18,6 +18,25 @@ The transport and contact management layer is **Matrix** (not Signal, Threema, o
 
 **Recipients must install Deposplit.** Generic Matrix clients (e.g., Element) are not supported as share holders. This is required to enable structured share management, automated retrieval, and the consent flows described below.
 
+### Matrix Client Library
+
+The Android app uses **`org.matrix.rustcomponents:sdk-android`** (matrix-rust-sdk), published by Element under the [matrix-org](https://github.com/matrix-org/matrix-rust-sdk) GitHub organisation. This is the library that powers Element X Android and is the active investment from the Matrix/Element team.
+
+Key facts:
+- The Rust core is pre-compiled; only `.so` files ship in the artifact — **no Rust toolchain is required on developer machines**
+- UniFFI generates Kotlin bindings; from a Kotlin perspective it looks like any other library
+- APK overhead: ~20 MB from native `.so` files (acceptable for a security app)
+- Version pinned in `Android/gradle/libs.versions.toml` as `matrixRustSdk`
+
+Rejected alternatives:
+
+| Option | Reason rejected |
+|---|---|
+| `org.matrix.android:matrix-android-sdk2` | Element is migrating away from it towards matrix-rust-sdk |
+| Trixnity (`net.folivo:trixnity-client`) | Kotlin Multiplatform — interesting for cross-platform code sharing, but smaller community; reconsidered if iOS app shares significant Matrix logic |
+
+The iOS app's Matrix client library is not yet chosen.
+
 ### Repository Structure
 
 The [Deposplit GitHub organization](https://github.com/Deposplit) contains independent repositories, each cloned into a corresponding subfolder of the local `Deposplit/` workspace (which is itself not a git repository):
@@ -25,10 +44,8 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 | Folder | Repository | Purpose |
 |---|---|---|
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, and cross-project documentation |
-| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin/JVM SSS library (and future Android app) |
-| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (and future iOS app) |
-
-Future Android and iOS app subprojects will live in `Android/` and `iOS/` respectively and depend on the existing SSS libraries.
+| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (single `:app` Gradle module) |
+| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
 
 ### CLAUDE.md Layout
 
@@ -88,6 +105,20 @@ The Android app targets **`minSdk = 29`**, not the Android Studio default of API
 API 29 still covers >90% of active Android devices, which is acceptable for a niche security app. Do not lower `minSdk` without revisiting these dependencies.
 
 Note: `BiometricPrompt` and StrongBox require runtime capability checks regardless of `minSdk` — `BiometricManager.canAuthenticate()` and `setIsStrongBoxBacked(true)` can throw `StrongBoxUnavailableException` on devices lacking the hardware.
+
+#### Authentication / Sign-In
+
+Sign-in is **OIDC-first**. Modern Matrix homeservers (including matrix.org) disable password login for new accounts and use OpenID Connect via the Matrix Authentication Service (MAS). The app does not handle credentials; the homeserver's own login page does.
+
+Flow:
+1. User enters a homeserver URL or a full Matrix ID (`@user:homeserver.tld`)
+2. App queries the homeserver and detects the login flow
+3. **OIDC path** (primary): app opens a **Chrome Custom Tab** to the homeserver's OIDC authorization URL. After the user authenticates, the browser redirects to `deposplit://auth/callback`. `MainActivity` receives this via `onNewIntent` (launch mode `singleTask`) and relays it to the `SignInViewModel`, which completes the OIDC exchange.
+4. **Password path** (fallback for self-hosted servers): not yet implemented.
+
+The OIDC redirect URI `deposplit://auth/callback` is registered as an intent filter in `AndroidManifest.xml`. Changing it requires updating the manifest and any OIDC client registrations on homeservers.
+
+Session state (the "is logged in" flag) is persisted via plain `SharedPreferences`. The sensitive data — access tokens, E2EE keys — is stored by the matrix-rust-sdk in its own encrypted SQLite database under `context.filesDir/matrix/session`. `androidx.security:security-crypto` is not a dependency.
 
 #### UI toolkit: Jetpack Compose + Material 3
 
@@ -221,21 +252,31 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 
 ### What is done
 
-- **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**. They are standalone libraries, not app projects.
+- **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**.
 - **Design**: the full app layer is designed — Matrix protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
+- **Android app scaffold**: Jetpack Compose + Material 3 app with a working sign-in screen. OIDC flow implemented end-to-end (Chrome Custom Tab → homeserver login → deep-link callback → session storage). Ports & Adapters skeleton in place: `AuthPort`, `MatrixAuthAdapter` (matrix-rust-sdk), `SignInViewModel`. Navigation Compose wired up with sign-in and placeholder home routes.
 
 ### What is next
 
-Scaffold the Android and iOS **app** subprojects (separate from the existing SSS library modules) and begin the Matrix integration layer.
+In rough priority order:
+
+1. **Android**: Matrix session management — start the sync loop post sign-in
+2. **Android**: Home screen — list secrets distributed / shares held
+3. **Android**: Implement the four Matrix protocol message types (deposit, list, retrieve, delete)
+4. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
+5. **Android**: Contact management backed by `com.deposplit.contacts` account data
+6. **iOS**: Scaffold the iOS app (SwiftUI + Matrix client library TBD)
+7. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
 
 ## Build & Test Commands
 
-### Android/ (Kotlin/JVM library — Gradle 9.3.1, Kotlin 2.2, JVM 17 bytecode, runs on Java 25)
+### Android/ (Kotlin 2.2, AGP 9.x, JVM 17 bytecode, runs on Java 25+)
 
 ```bash
 # from Android/
-./gradlew build          # compile + test
-./gradlew test           # run tests only
+./gradlew assembleDebug  # build debug APK
+./gradlew test           # JVM unit tests (no device needed)
+./gradlew connectedAndroidTest   # instrumented tests (requires device or emulator)
 ./gradlew test --tests "com.deposplit.shamir.ShamirTest"  # single test class
 ```
 
