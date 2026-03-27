@@ -113,10 +113,12 @@ Sign-in is **OIDC-first**. Modern Matrix homeservers (including matrix.org) disa
 Flow:
 1. User enters a homeserver URL or a full Matrix ID (`@user:homeserver.tld`)
 2. App queries the homeserver and detects the login flow
-3. **OIDC path** (primary): app opens a **Chrome Custom Tab** to the homeserver's OIDC authorization URL. After the user authenticates, the browser redirects to `deposplit://auth/callback`. `MainActivity` receives this via `onNewIntent` (launch mode `singleTask`) and relays it to the `SignInViewModel`, which completes the OIDC exchange.
+3. **OIDC path** (primary): app opens a **Chrome Custom Tab** to the homeserver's OIDC authorization URL. After the user authenticates, the browser redirects to the OIDC redirect URI. `MainActivity` receives this via `onNewIntent` (launch mode `singleTask`) and relays it to the `SignInViewModel`, which completes the OIDC exchange.
 4. **Password path** (fallback for self-hosted servers): not yet implemented.
 
-The OIDC redirect URI `deposplit://auth/callback` is registered as an intent filter in `AndroidManifest.xml`. Changing it requires updating the manifest and any OIDC client registrations on homeservers.
+The OIDC redirect URI is an **Android App Link** (`https://` scheme, `android:autoVerify="true"`) declared as an intent filter in `AndroidManifest.xml`. The final production URI will be `https://deposplit.com/auth/callback`; a temporary stand-in (`https://www.squeng.com/deposplit/auth/callback`) is used until deposplit.com is configured. Changing the URI requires updating the manifest intent filter, `OIDC_REDIRECT_URI` in `MatrixAuthAdapter.kt`, and the `assetlinks.json` hosted at the target domain.
+
+> **Open issue — matrix.org DCR:** matrix.org's MAS may not support open Dynamic Client Registration for arbitrary third-party clients at all, regardless of redirect URI scheme. Element X bypasses DCR by supplying a pre-registered client ID for matrix.org via `OidcConfiguration.staticRegistrations`. Deposplit will likely need the same treatment for matrix.org accounts. To be investigated once the build environment is stable.
 
 Session state (the "is logged in" flag) is persisted via plain `SharedPreferences`. The sensitive data — access tokens, E2EE keys — is stored by the matrix-rust-sdk in its own encrypted SQLite database under `context.filesDir/matrix/session`. `androidx.security:security-crypto` is not a dependency.
 
