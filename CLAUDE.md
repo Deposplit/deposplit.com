@@ -6,36 +6,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Deposplit** is a secret-sharing app based on **Shamir's Secret Sharing (SSS)**. A secret is split into *n* shares, of which *k* are required to reconstruct the original secret. The app sends each share to one of *n* contacts and later reassembles the secret when at least *k* holders cooperate.
 
+## How We Got Here
+
+Deposplit's architecture evolved through several design sessions:
+
+1. **The Signal question (Feb 2025):** The project started by exploring whether a third-party app could piggyback on Signal — its contacts, groups, and messaging infrastructure. Signal is intentionally an appliance, not a platform: it exposes no SDK or inter-app API.
+
+2. **Matrix adopted as transport (Feb–Mar 2026):** Matrix was identified as the natural fit — designed to be built upon, with Android/iOS SDKs, arbitrary custom message types, E2EE via Double Ratchet, and federation. The SSS libraries (Kotlin and Swift ports of the Privy TypeScript reference) were built and tested. An Android scaffold was completed with a working OIDC sign-in flow (Chrome Custom Tab → matrix.org → deep-link callback).
+
+3. **DCR friction with matrix.org (Mar 2026):** matrix.org's Matrix Authentication Service rejected Deposplit's Dynamic Client Registration attempts (`invalid_redirect_uri`). This triggered a re-evaluation of the transport layer.
+
+4. **Pivot to custom backend (Mar 2026):** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com backend with libsodium E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
+
 ## Architecture Decisions
 
-### Communication Layer: Matrix
+### Communication Layer: Custom Backend
 
-The transport and contact management layer is **Matrix** (not Signal, Threema, or similar). Key reasons:
-- Matrix is designed to be built upon — it has proper Android and iOS SDKs
-- Supports sending arbitrary structured/binary payloads as custom message types
-- Provides E2EE via Double Ratchet (same algorithm as Signal), contact/DM management, and group rooms
-- The Matrix.org Foundation (non-profit) stewards the protocol; Element (commercial) drives development
+The transport layer is a **custom deposplit.com REST/WebSocket API** with end-to-end encryption provided by **libsodium** (`crypto_box`: X25519 key agreement + XSalsa20-Poly1305 AEAD, ISC licence).
 
-**Recipients must install Deposplit.** Generic Matrix clients (e.g., Element) are not supported as share holders. This is required to enable structured share management, automated retrieval, and the consent flows described below.
-
-### Matrix Client Library
-
-The Android app uses **`org.matrix.rustcomponents:sdk-android`** (matrix-rust-sdk), published by Element under the [matrix-org](https://github.com/matrix-org/matrix-rust-sdk) GitHub organisation. This is the library that powers Element X Android and is the active investment from the Matrix/Element team.
-
-Key facts:
-- The Rust core is pre-compiled; only `.so` files ship in the artifact — **no Rust toolchain is required on developer machines**
-- UniFFI generates Kotlin bindings; from a Kotlin perspective it looks like any other library
-- APK overhead: ~20 MB from native `.so` files (acceptable for a security app)
-- Version pinned in `Android/gradle/libs.versions.toml` as `matrixRustSdk`
+Key design decisions:
+- **User identity is a keypair.** At first launch the device generates an X25519 keypair. The user picks a pseudonym (no email, no phone number required). Registration uploads only the pseudonym and public key to deposplit.com — the private key never leaves the device.
+- **Server blindness.** All share content is encrypted to the recipient's public key before leaving the sender's device. The backend stores only ciphertext and cannot read shares regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' private keys, which live only on their devices.
+- **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical backend at deposplit.com.
 
 Rejected alternatives:
 
 | Option | Reason rejected |
 |---|---|
-| `org.matrix.android:matrix-android-sdk2` | Element is migrating away from it towards matrix-rust-sdk |
-| Trixnity (`net.folivo:trixnity-client`) | Kotlin Multiplatform — interesting for cross-platform code sharing, but smaller community; reconsidered if iOS app shares significant Matrix logic |
-
-The iOS app's Matrix client library is not yet chosen.
+| Matrix | Heavyweight (sliding sync, room state, ~20 MB native SDK) for a 4-message protocol; matrix.org DCR restrictions create friction for third-party clients; federation adds no user value since recipients must install Deposplit |
+| XMPP + OMEMO | Similar to Matrix but older, more fragmented ecosystem, weaker mobile SDKs |
+| Signal Protocol (libsignal) | AGPL-3.0 licence — incompatible with a more permissive app licence; Double Ratchet is designed for continuous conversations; Deposplit's sparse one-shot share deposits do not benefit from per-message key ratcheting |
+| Nostr | NIP-44 E2EE is newer and less battle-tested; relay infrastructure reliability varies |
+| P2P (WebRTC, Bluetooth, DHT) | Async delivery requires persistent storage; true P2P without infrastructure cannot reliably hold shares for offline recipients over days or months |
 
 ### Repository Structure
 
@@ -46,6 +48,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, and cross-project documentation |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (single `:app` Gradle module) |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
+| `Backend/` | [Deposplit/Backend](https://github.com/Deposplit/Backend) | deposplit.com server (not yet scaffolded) |
 
 ### CLAUDE.md Layout
 
@@ -55,7 +58,7 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 - Secret splitting: **Shamir's Secret Sharing** (SSS)
 - Parameters: *n* total shares, *k*-of-*n* threshold for reconstruction
-- Transport encryption: provided by Matrix (Double Ratchet / E2EE)
+- Transport encryption: **libsodium** `crypto_box` (X25519 + XSalsa20-Poly1305)
 
 #### SSS Reference Implementation
 
@@ -75,14 +78,27 @@ Both the Kotlin (Android) and Swift (iOS) implementations are **hand-ports of th
 | Bouncy Castle (`org.bouncycastle.crypto.threshold`) | `ShamirSecretSplitter` exposes `Algorithm`/`Mode` enums (multiple variants); which variant matches Privy's exact GF/generator/table choices is not documented, risking silent cross-platform incompatibility. Also a heavyweight dependency for ~150 lines of arithmetic. |
 | [CharlZKP/shamirs-secret-sharing-swift-privyio](https://github.com/CharlZKP/shamirs-secret-sharing-swift-privyio) | Single-contributor repo, unknown maintenance status; acceptable as a reference while writing the Swift port, but not adopted as-is for a security-critical primitive. |
 
+#### Transport Encryption: libsodium
+
+libsodium's `crypto_box` is used for all share content encrypted in transit and at rest on the backend:
+
+- **Key agreement**: X25519 (Curve25519 Diffie-Hellman)
+- **Encryption**: XSalsa20-Poly1305 (authenticated encryption)
+- **Licence**: ISC (permissive)
+- **Rationale**: fits the actual threat model (one-shot encrypted payloads between known parties), battle-tested, easy to use correctly, no AGPL encumbrance
+
+Each share is encrypted by the sender to the recipient's public key before leaving the device. The backend stores ciphertext only. A full backend breach yields nothing without also compromising at least *k* recipients' private keys.
+
 #### Implementation Status
 
-Both ports are **complete and fully tested**:
+The SSS ports are **complete and fully tested**:
 
 | Library | Module | Public API |
 |---|---|---|
 | `Android/` | `com.deposplit.shamir` | `split(secret: ByteArray, shares: Int, threshold: Int): List<ByteArray>` / `combine(shares: List<ByteArray>): ByteArray` — throws `IllegalArgumentException` |
 | `iOS/` | `ShamirSecretSharing` | `split(secret: [UInt8], shares: Int, threshold: Int) throws -> [[UInt8]]` / `combine(shares: [[UInt8]]) throws -> [UInt8]` — throws `ShamirError` |
+
+The libsodium integration (Android + iOS + Backend) is **not yet implemented**.
 
 #### Cross-Platform Compatibility
 
@@ -98,29 +114,29 @@ The Android app targets **`minSdk = 29`**, not the Android Studio default of API
 |---|---|---|
 | 28 | **`BiometricPrompt`** (native) | Gate secret reconstruction behind biometric auth |
 | 28 | **StrongBox Keymaster** (`setIsStrongBoxBacked(true)`) | Keys stored in dedicated security chip, not just TEE |
-| 28 | Cleartext traffic disabled by default | No accidental plaintext Matrix traffic |
+| 28 | Cleartext traffic disabled by default | No accidental plaintext traffic to the backend |
 | 29 | **Scoped Storage** | Relevant for the file-upload secret input method |
-| 29 | **TLS 1.3** enabled by default | Baseline transport security for Matrix homeserver comms |
+| 29 | **TLS 1.3** enabled by default | Baseline transport security for backend comms |
 
 API 29 still covers >90% of active Android devices, which is acceptable for a niche security app. Do not lower `minSdk` without revisiting these dependencies.
 
 Note: `BiometricPrompt` and StrongBox require runtime capability checks regardless of `minSdk` — `BiometricManager.canAuthenticate()` and `setIsStrongBoxBacked(true)` can throw `StrongBoxUnavailableException` on devices lacking the hardware.
 
-#### Authentication / Sign-In
+#### Authentication / Registration
 
-Sign-in is **OIDC-first**. Modern Matrix homeservers (including matrix.org) disable password login for new accounts and use OpenID Connect via the Matrix Authentication Service (MAS). The app does not handle credentials; the homeserver's own login page does.
+Registration is **keypair-first** — no OIDC, no password, no email.
 
 Flow:
-1. User enters a homeserver URL or a full Matrix ID (`@user:homeserver.tld`)
-2. App queries the homeserver and detects the login flow
-3. **OIDC path** (primary): app opens a **Chrome Custom Tab** to the homeserver's OIDC authorization URL. After the user authenticates, the browser redirects to the OIDC redirect URI. `MainActivity` receives this via `onNewIntent` (launch mode `singleTask`) and relays it to the `SignInViewModel`, which completes the OIDC exchange.
-4. **Password path** (fallback for self-hosted servers): not yet implemented.
+1. On first launch the device generates an X25519 keypair via libsodium
+2. The user picks a pseudonym (display name only — no personal information required)
+3. The app registers with deposplit.com: pseudonym + public key
+4. The private key is stored in the Android Keystore and never leaves the device
 
-The OIDC redirect URI is an **Android App Link** (`https://` scheme, `android:autoVerify="true"`) declared as an intent filter in `AndroidManifest.xml`. The final production URI will be `https://deposplit.com/auth/callback`; a temporary stand-in (`https://www.squeng.com/deposplit/auth/callback`) is used until deposplit.com is configured. Changing the URI requires updating the manifest intent filter, `OIDC_REDIRECT_URI` in `MatrixAuthAdapter.kt`, and the `assetlinks.json` hosted at the target domain.
+Session state (the "is registered" flag) is persisted via plain `SharedPreferences`. The private key is managed by the Android Keystore — the app never handles raw key material directly.
 
-> **Open issue — matrix.org DCR:** matrix.org's MAS may not support open Dynamic Client Registration for arbitrary third-party clients at all, regardless of redirect URI scheme. Element X bypasses DCR by supplying a pre-registered client ID for matrix.org via `OidcConfiguration.staticRegistrations`. Deposplit will likely need the same treatment for matrix.org accounts. To be investigated once the build environment is stable.
+Identity *is* the keypair. This integrates directly with the k-of-n social recovery design: if Alice loses her device, she generates a new keypair on a new device and initiates a re-association request that existing contacts approve.
 
-Session state (the "is logged in" flag) is persisted via plain `SharedPreferences`. The sensitive data — access tokens, E2EE keys — is stored by the matrix-rust-sdk in its own encrypted SQLite database under `context.filesDir/matrix/session`. `androidx.security:security-crypto` is not a dependency.
+The `MatrixAuthAdapter` (OIDC-based, now obsolete) is to be replaced by a `DeposplitAuthAdapter` implementing the same `AuthPort` interface.
 
 #### UI toolkit: Jetpack Compose + Material 3
 
@@ -139,11 +155,11 @@ Consequences:
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata — two secrets with the same label are distinguished by their UUIDs.
 
-There are four Matrix message types:
+There are four message types exchanged via the deposplit.com backend API:
 
 | # | Direction | Payload | Purpose |
 |---|---|---|---|
-| 1 | Sender → recipient | `secret_id` (UUID), `label`, `created_at`, share bytes | **Deposit** a share with a recipient |
+| 1 | Sender → recipient | `secret_id` (UUID), `label`, `created_at`, share bytes (encrypted to recipient's public key) | **Deposit** a share with a recipient |
 | 2 | Sender → recipient → sender | Request: sender identity. Response: list of `{secret_id, label, created_at}` — **no share bytes** | **List** shares the recipient holds for the sender |
 | 3 | Sender → recipient → sender | Request: `secret_id`. Response: share bytes or denial | **Retrieve** a specific share |
 | 4 | Sender → recipient → sender | Request: `secret_id` (or all shares). Response: ack or denial | **Delete** a share (sender-initiated) |
@@ -166,7 +182,7 @@ Pure business logic — split/combine rules, share holder state machine, contact
 Interfaces defined by the domain for everything it needs from the outside world: a secrets store, a share transport, a contact repository, a notification service, etc.
 
 **Adapters** (implement the ports)
-Each infrastructure concern is a separate adapter: Matrix SDK, OS keychain, camera, file picker, NFC, document scanner, cloud storage picker. Swapping or adding an adapter never touches the domain.
+Each infrastructure concern is a separate adapter: deposplit.com API client, OS keystore, camera, file picker, NFC, document scanner, cloud storage picker. Swapping or adding an adapter never touches the domain.
 
 **UI layer**
 Compose (Android) / SwiftUI (iOS) with ViewModels sitting at the boundary between domain and UI. Treated separately from the hexagon — Compose/SwiftUI's reactive model doesn't map cleanly to a pure port/adapter shape, and the ceremony isn't justified there.
@@ -183,9 +199,9 @@ Before Alice can include a contact as a share holder, that contact must have Dep
 
 **Invitation flow:**
 1. Alice adds Bob to her Deposplit contacts
-2. Deposplit sends Bob a Matrix message explaining what Deposplit is, what holding a share entails, and inviting him to accept or decline
+2. Deposplit sends Bob a backend notification explaining what Deposplit is, what holding a share entails, and inviting him to accept or decline
 3. If Bob already has Deposplit, his app surfaces the pending invitation immediately
-4. If Bob doesn't have Deposplit yet, the message waits in his Matrix inbox; once he installs Deposplit the invitation surfaces automatically
+4. If Bob doesn't have Deposplit yet, the invitation waits in his backend inbox; once he installs Deposplit the invitation surfaces automatically
 5. Once Bob accepts, he appears as a ready (selectable) holder in Alice's contact list
 
 **Contact states in the "Split & Share" screen:**
@@ -217,15 +233,13 @@ There are many ways Alice can introduce a secret into Deposplit. Not all need to
 
 ### Contacts Management
 
-Matrix has no native address book. The closest built-in primitive is the **`m.direct` account data event** — a `{ userId → [roomId, …] }` map stored on the homeserver that marks certain rooms as DMs. It syncs to all devices automatically via the Matrix sync API.
+Deposplit maintains a contact list stored on the deposplit.com backend and cached locally on each device. Each contact is identified by their **X25519 public key**, which is the canonical identity anchor.
 
-Deposplit maintains its own curated contact list stored as a **`com.deposplit.contacts` custom account data event** on the homeserver (also synced automatically). The flow:
+Contact lookup:
+- **QR code scan (preferred):** encodes the contact's public key + pseudonym directly — no server intermediary, resistant to TOFU attacks
+- **Pseudonym search:** the backend resolves a pseudonym to a public key; the user should verify via subsequent QR scan or out-of-band confirmation
 
-1. When adding a contact, Deposplit reads `m.direct` and presents those Matrix users as candidates
-2. The user selects a subset → written to `com.deposplit.contacts`
-3. All Deposplit features (deposit, list, retrieve, delete, identity recovery) show only this curated list — never the full Matrix DM list
-
-Each contact record stores: Matrix ID, display name (may override Matrix profile), verification level, date verified.
+Each contact record stores: public key, pseudonym, verification level, date verified.
 
 Adding a contact is the natural moment to prompt for in-person QR verification.
 
@@ -235,14 +249,14 @@ Deposplit uses a two-level verification model inspired by Threema:
 
 | Level | How achieved | Meaning |
 |---|---|---|
-| **Unverified** | Contact added remotely (by Matrix ID, invite link, etc.) | "I believe this Matrix account belongs to this person, but I haven't confirmed it" |
-| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their Matrix account is theirs" |
+| **Unverified** | Contact added remotely (by pseudonym, invite link, etc.) | "I believe this Deposplit account belongs to this person, but I haven't confirmed it" |
+| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
 
-The in-person QR scan encodes the contact's Matrix ID (and optionally a fingerprint of their Matrix device keys). Verification level is stored per contact and is visible to the user when reviewing share holders or approving requests.
+The in-person QR scan encodes the contact's public key (and optionally the pseudonym). Verification level is stored per contact and is visible to the user when reviewing share holders or approving requests.
 
 ### Identity Recovery
 
-If Alice loses her phone and cannot recover her Matrix account, she creates a new account and initiates a **re-association request**: "please map my new Matrix ID to my old one."
+If Alice loses her phone and cannot recover her private key, she generates a new keypair on a new device and initiates a **re-association request**: "please map my new public key to my old one."
 
 Recovery uses **social recovery (k-of-n)**: the same threshold k used when the secret was split must approve the re-association before it takes effect. Verification level influences the trust calculus:
 - Approval from a **verified** contact (in-person QR scan) carries stronger assurance than approval from an unverified one
@@ -255,20 +269,21 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 ### What is done
 
 - **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**.
-- **Design**: the full app layer is designed — Matrix protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
-- **Android app scaffold**: Jetpack Compose + Material 3 app with a working sign-in screen. OIDC flow implemented end-to-end (Chrome Custom Tab → homeserver login → deep-link callback → session storage). Ports & Adapters skeleton in place: `AuthPort`, `MatrixAuthAdapter` (matrix-rust-sdk), `SignInViewModel`. Navigation Compose wired up with sign-in and placeholder home routes.
+- **Design**: the full app layer is designed — backend protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
+- **Android app scaffold**: Jetpack Compose + Material 3 app with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `SignInViewModel`, `SignInScreen`, `HomeScreen` placeholder, NavHost). The `MatrixAuthAdapter` (OIDC-based) is present but **obsolete** — it is to be replaced by a `DeposplitAuthAdapter` for keypair-based registration.
 
 ### What is next
 
 In rough priority order:
 
-1. **Android**: Matrix session management — start the sync loop post sign-in
-2. **Android**: Home screen — list secrets distributed / shares held
-3. **Android**: Implement the four Matrix protocol message types (deposit, list, retrieve, delete)
-4. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
-5. **Android**: Contact management backed by `com.deposplit.contacts` account data
-6. **iOS**: Scaffold the iOS app (SwiftUI + Matrix client library TBD)
-7. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
+1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — keypair generation via libsodium, pseudonym registration against the deposplit.com API; remove `matrix-rust-sdk` dependency
+2. **Backend**: Scaffold the deposplit.com server — user registration (pseudonym + public key), share storage and retrieval (ciphertext only)
+3. **Android**: Home screen — list secrets distributed / shares held
+4. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
+5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
+6. **Android**: Contact management backed by the deposplit.com contacts API
+7. **iOS**: Scaffold the iOS app (SwiftUI + deposplit.com API client)
+8. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
 
 ## Build & Test Commands
 
