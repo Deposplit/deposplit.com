@@ -25,9 +25,11 @@ Deposplit's architecture evolved through several design sessions:
 The transport layer is a **custom deposplit.com REST/WebSocket API** with end-to-end encryption provided by **libsodium** (`crypto_box`: X25519 key agreement + XSalsa20-Poly1305 AEAD, ISC licence).
 
 Key design decisions:
-- **User identity is a keypair.** At first launch the device generates an X25519 keypair. The user picks a pseudonym (no email, no phone number required). Registration uploads only the pseudonym and public key to deposplit.com — the private key never leaves the device.
-- **Server blindness.** All share content is encrypted to the recipient's public key before leaving the sender's device. The backend stores only ciphertext and cannot read shares regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' private keys, which live only on their devices.
+- **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (no email, no phone number required). Registration uploads only the pseudonym and both public keys to deposplit.com — the private keys never leave the device.
+- **Server is an opaque relay.** The backend stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' X25519 private keys, which live only on their devices.
+- **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation (`nonce || method || path || body_hash`). Mobile clients sign with libsodium (`crypto_sign_detached`); the backend verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The backend therefore needs no libsodium.
 - **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical backend at deposplit.com.
+- **No practical client exclusivity.** There is no cryptographically sound way to restrict the API to the two official native apps. Hardcoded secrets are extractable from binaries; certificate pinning proves the connection is not intercepted but not which software is running; Play Integrity / App Attest are bypassable on rooted/jailbroken devices and introduce Google/Apple as gatekeepers. This is not a gap — the security model does not rely on client exclusivity. Because the server is cryptographically blind, a rogue client can only act within the bounds of the keypair it controls; it cannot read other users' shares or impersonate other users. The only realistic abuse vector (spam, resource exhaustion) is addressed by rate limiting and storage quotas, as with any public API. An open, auditable protocol is consistent with Deposplit's trust-minimizing philosophy.
 
 Rejected alternatives:
 
@@ -45,10 +47,31 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 | Folder | Repository | Purpose |
 |---|---|---|
-| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, and cross-project documentation |
+| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (single `:app` Gradle module) |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
-| `Backend/` | [Deposplit/Backend](https://github.com/Deposplit/Backend) | deposplit.com server (not yet scaffolded) |
+
+### Backend Tech Stack: Scala + Play
+
+The `deposplit.com` repository is a **Play Framework (Scala)** application built with **sbt**. It serves two distinct concerns:
+
+- **Landing page / GUI**: server-side rendered with **Twirl** templates
+- **REST/WebSocket API**: consumed by the Android and iOS apps
+
+Architecture follows **Ports & Adapters** enforced by sbt's multi-project build, mirroring the approach in the global CLAUDE.md:
+
+| sbt subproject | Role |
+|---|---|
+| `domain` | Pure Scala library — business logic, port interfaces, no Play/framework imports |
+| root (Play app) | Adapters (DB, libsodium, backend API controllers), Twirl views, routes |
+
+The `domain` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `domain`; `domain` must never depend on the root. This enforces the hexagonal boundary at the build level.
+
+**Key library choices:**
+- **sbt** build tool (Kotlin build files are not applicable to sbt — use standard `build.sbt` and `project/` Scala/sbt files)
+- **Play JSON** (`play-json`) for API serialisation
+- **Twirl** (built into Play) for the landing page
+- **BouncyCastle** for Ed25519 signature verification (API authentication); no native libsodium on the server — share content passes through as opaque bytes
 
 ### CLAUDE.md Layout
 
@@ -58,7 +81,8 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 - Secret splitting: **Shamir's Secret Sharing** (SSS)
 - Parameters: *n* total shares, *k*-of-*n* threshold for reconstruction
-- Transport encryption: **libsodium** `crypto_box` (X25519 + XSalsa20-Poly1305)
+- Share encryption: **libsodium** `crypto_box` (X25519 + XSalsa20-Poly1305) — mobile only; backend never decrypts
+- API authentication: **Ed25519** signatures (RFC 8032) — libsodium on mobile, BouncyCastle on backend
 
 #### SSS Reference Implementation
 
@@ -98,7 +122,7 @@ The SSS ports are **complete and fully tested**:
 | `Android/` | `com.deposplit.shamir` | `split(secret: ByteArray, shares: Int, threshold: Int): List<ByteArray>` / `combine(shares: List<ByteArray>): ByteArray` — throws `IllegalArgumentException` |
 | `iOS/` | `ShamirSecretSharing` | `split(secret: [UInt8], shares: Int, threshold: Int) throws -> [[UInt8]]` / `combine(shares: [[UInt8]]) throws -> [UInt8]` — throws `ShamirError` |
 
-The libsodium integration (Android + iOS + Backend) is **not yet implemented**.
+The libsodium integration (Android + iOS) is **not yet implemented**. The backend uses BouncyCastle for Ed25519 verification and passes share ciphertext through opaquely — no libsodium on the server.
 
 #### Cross-Platform Compatibility
 
@@ -127,14 +151,16 @@ Note: `BiometricPrompt` and StrongBox require runtime capability checks regardle
 Registration is **keypair-first** — no OIDC, no password, no email.
 
 Flow:
-1. On first launch the device generates an X25519 keypair via libsodium
+1. On first launch the device generates two keypairs via libsodium: an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication)
 2. The user picks a pseudonym (display name only — no personal information required)
-3. The app registers with deposplit.com: pseudonym + public key
-4. The private key is stored in the Android Keystore and never leaves the device
+3. The app registers with deposplit.com: pseudonym + X25519 public key + Ed25519 public key
+4. Both private keys are stored in the Android Keystore and never leave the device
 
-Session state (the "is registered" flag) is persisted via plain `SharedPreferences`. The private key is managed by the Android Keystore — the app never handles raw key material directly.
+Subsequent API requests are authenticated by signing a canonical request representation with the Ed25519 private key; the backend verifies with the stored Ed25519 public key.
 
-Identity *is* the keypair. This integrates directly with the k-of-n social recovery design: if Alice loses her device, she generates a new keypair on a new device and initiates a re-association request that existing contacts approve.
+Session state (the "is registered" flag) is persisted via plain `SharedPreferences`. Private keys are managed by the Android Keystore — the app never handles raw key material directly.
+
+Identity *is* the keypair pair. This integrates directly with the k-of-n social recovery design: if Alice loses her device, she generates new keypairs on a new device and initiates a re-association request that existing contacts approve.
 
 The `MatrixAuthAdapter` (OIDC-based, now obsolete) is to be replaced by a `DeposplitAuthAdapter` implementing the same `AuthPort` interface.
 
@@ -276,8 +302,8 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 
 In rough priority order:
 
-1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — keypair generation via libsodium, pseudonym registration against the deposplit.com API; remove `matrix-rust-sdk` dependency
-2. **Backend**: Scaffold the deposplit.com server — user registration (pseudonym + public key), share storage and retrieval (ciphertext only)
+1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, register pseudonym + both public keys against the deposplit.com API; remove `matrix-rust-sdk` dependency
+2. **deposplit.com**: Scaffold the Play (Scala/sbt) backend — `domain` subproject + root Play app, Twirl landing page, user registration endpoint (pseudonym + public key), share storage and retrieval (ciphertext only)
 3. **Android**: Home screen — list secrets distributed / shares held
 4. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
@@ -286,6 +312,17 @@ In rough priority order:
 8. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
 
 ## Build & Test Commands
+
+### deposplit.com/ (Scala + Play + sbt)
+
+```bash
+# from deposplit.com/
+sbt run          # start the Play dev server (auto-reloads on file change)
+sbt test         # run all tests (domain + root)
+sbt compile      # compile without running
+sbt "project domain" test   # test domain subproject only
+sbt dist         # produce a production distribution zip
+```
 
 ### Android/ (Kotlin 2.2, AGP 9.x, JVM 17 bytecode, runs on Java 25+)
 
