@@ -1,6 +1,6 @@
 # Deposplit
 
-A secret-sharing app based on **Shamir's Secret Sharing (SSS)**. A secret is split into *n* shares, of which *k* are required to reconstruct it. Each share is sent to one of *n* contacts via **Matrix**; the secret is reassembled when at least *k* holders cooperate.
+A secret-sharing app based on **Shamir's Secret Sharing (SSS)**. A secret is split into *n* shares, of which *k* are required to reconstruct it. Each share is sent to one of *n* contacts via the **deposplit.com backend**; the secret is reassembled when at least *k* holders cooperate.
 
 ## Repository structure
 
@@ -8,7 +8,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 | Folder | Repository | Purpose |
 |---|---|---|
-| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, and cross-project documentation |
+| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
 
@@ -16,16 +16,28 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 Claude Code discovers `CLAUDE.md` files by walking up the directory tree from the working directory. The cross-project guidance lives in this repo (`deposplit.com/CLAUDE.md`) and is the source of truth. The workspace root (`Deposplit/CLAUDE.md`) contains a single `@`-import that loads it, so launching `claude` from `Deposplit/` automatically picks up the full context. Platform-specific guidance lives in `Android/CLAUDE.md` and `iOS/CLAUDE.md` respectively.
 
-## Why Matrix?
+## Why a custom backend?
 
-- Designed to be built upon — proper Android and iOS SDKs
-- Supports arbitrary structured/binary payloads as custom message types
-- E2EE via Double Ratchet (same algorithm as Signal)
-- Stewarded by the non-profit Matrix.org Foundation
+Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST/WebSocket API with libsodium end-to-end encryption is the right fit:
+
+- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The backend stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
+- **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
+- **Lean.** The protocol needs four message types; heavier transports (Matrix, XMPP) bring megabytes of SDK for features Deposplit does not use.
+- **libsodium** (`crypto_box`: X25519 + XSalsa20-Poly1305, ISC licence) fits the actual threat model — one-shot encrypted payloads between known parties — and is easy to use correctly.
+
+Rejected alternatives:
+
+| Option | Reason rejected |
+|---|---|
+| Matrix | Heavyweight for a 4-message protocol; matrix.org DCR restrictions create friction; federation adds no value since recipients must install Deposplit |
+| XMPP + OMEMO | Older, more fragmented ecosystem; weaker mobile SDKs |
+| Signal Protocol (libsignal) | AGPL-3.0 — incompatible with a more permissive app licence; Double Ratchet is designed for continuous conversations; Deposplit's one-shot deposits do not benefit from per-message key ratcheting |
+| Nostr | NIP-44 E2EE is newer and less battle-tested; relay reliability varies |
+| P2P (WebRTC, Bluetooth, DHT) | Async delivery requires persistent storage; true P2P cannot reliably hold shares for offline recipients over days or months |
 
 ## Why native apps, not a web app?
 
-Element Web shows that a full-featured Matrix client *can* run in the browser. For Deposplit specifically, however, the native-vs-web trade-off breaks down as follows.
+For Deposplit specifically, the native-vs-web trade-off breaks down as follows.
 
 **Where a web app works well**
 
@@ -35,9 +47,9 @@ Element Web shows that a full-featured Matrix client *can* run in the browser. F
 
 **Where a web app falls short**
 
-- *Persistent key storage*: Matrix E2EE keys live in IndexedDB, which users routinely clear. Native apps write to the OS keychain/secure enclave. An app where losing your keys means losing your secret is a poor fit for ephemeral browser storage.
+- *Persistent key storage*: Private keys live in IndexedDB on the web, which users routinely clear. Native apps write to the OS keychain/secure enclave. An app where losing your keys means losing access to your secret is a poor fit for ephemeral browser storage.
 - *Background reception*: If Deposplit needs to receive an incoming reconstruction request while the app isn't open, a browser tab can't do that. Service workers help but are fragile and limited on mobile.
-- *Security posture*: Browser-based crypto is exposed to XSS, malicious extensions, and the shared JS execution environment — a meaningful concern for a secret-splitting app specifically. Native apps benefit from OS-level process isolation.
+- *Security posture*: Browser-based crypto is exposed to XSS, malicious extensions, and the shared JS execution environment — a meaningful concern for a secret-splitting app. Native apps benefit from OS-level process isolation.
 - *Mobile UX*: A PWA for something security-critical is a notably worse experience than a native app with biometric unlock, background tasks, and keychain integration.
 
 **Practical breakdown by scenario**
@@ -53,7 +65,7 @@ The architectural sweet spot is native apps for the persistent/receiver role, wi
 
 ## Share holder experience
 
-**Recipients must install Deposplit.** Generic Matrix clients (e.g., Element) are not supported as share holders. This enables:
+**Recipients must install Deposplit.** This enables:
 
 - Structured share storage — the recipient's app organises shares by sender and label
 - Automated retrieval — the app can respond to a reconstruction request without the human needing to locate the right share manually
@@ -85,7 +97,7 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 
 **Ports** — interfaces defined by the domain for everything it needs from outside: secrets store, share transport, contact repository, notification service, etc.
 
-**Adapters** — implement the ports for specific infrastructure: Matrix SDK, OS keychain, camera, file picker, NFC, document scanner, cloud storage. Swapping or adding an adapter never touches the domain.
+**Adapters** — implement the ports for specific infrastructure: deposplit.com API client, OS keychain, camera, file picker, NFC, document scanner, cloud storage. Swapping or adding an adapter never touches the domain.
 
 **UI layer** — Compose (Android) / SwiftUI (iOS) with ViewModels at the boundary. Treated separately from the hexagon; Compose/SwiftUI's reactive model doesn't map cleanly to port/adapter shapes and the ceremony isn't justified there. Navigation is also left as a platform concern.
 
@@ -99,8 +111,8 @@ Before Alice can include a contact as a share holder, that contact must have Dep
 
 **Invitation flow:**
 1. Alice adds Bob to her Deposplit contacts
-2. Deposplit sends Bob a Matrix message explaining Deposplit, what holding a share means, and inviting him to accept or decline
-3. If Bob already has Deposplit, his app surfaces the invitation immediately; if not, it waits in his Matrix inbox and surfaces once he installs Deposplit
+2. Deposplit sends Bob a backend notification explaining Deposplit, what holding a share means, and inviting him to accept or decline
+3. If Bob already has Deposplit, his app surfaces the invitation immediately; if not, it waits in his backend inbox and surfaces once he installs Deposplit
 4. Once Bob accepts, he appears as ready in Alice's contact list
 
 **Contact states in the "Split & Share" screen:**
@@ -135,11 +147,13 @@ Deposplit supports multiple ways for Alice to introduce a secret. Not all are pl
 
 ## Contacts management
 
-Matrix has no native address book. The closest built-in primitive is the **`m.direct` account data event** — a map of Matrix user IDs to DM room IDs, stored on the homeserver and synced to all devices automatically.
+Deposplit maintains a contact list stored on the deposplit.com backend and cached locally on each device. Each contact is identified by their **X25519 public key**, which is the canonical identity anchor.
 
-Deposplit maintains its own curated list as a **`com.deposplit.contacts` custom account data event** (also homeserver-synced). When adding a contact, Deposplit reads `m.direct` and presents those users as candidates; the user selects a subset. All Deposplit features then show only this curated list, not the full Matrix DM roster.
+Contact lookup:
+- **QR code scan (preferred):** encodes the contact's public key + pseudonym directly — no server intermediary, resistant to TOFU attacks
+- **Pseudonym search:** the backend resolves a pseudonym to a public key; the user should verify via subsequent QR scan or out-of-band confirmation
 
-Each contact record stores: Matrix ID, display name, verification level, and date verified. Adding a contact is the natural moment to prompt for in-person QR verification.
+Each contact record stores: public key, pseudonym, verification level, date verified. Adding a contact is the natural moment to prompt for in-person QR verification.
 
 ## Contact verification
 
@@ -147,14 +161,14 @@ Deposplit uses a two-level model inspired by Threema:
 
 | Level | How achieved | Meaning |
 |---|---|---|
-| **Unverified** | Contact added remotely (Matrix ID, invite link, …) | "I believe this account belongs to this person" |
-| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their account is theirs" |
+| **Unverified** | Contact added remotely (by pseudonym, invite link, etc.) | "I believe this account belongs to this person" |
+| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
 
 Verification level is stored per contact and visible when reviewing share holders or approving requests.
 
 ## Identity recovery
 
-If Alice loses her phone and cannot recover her Matrix account, she creates a new one and sends a re-association request to her recipients: "please map my new Matrix ID to my old one."
+If Alice loses her phone and cannot recover her private key, she generates a new keypair on a new device and sends a re-association request to her recipients: "please map my new public key to my old one."
 
 Recovery requires **k-of-n social approval** — the same threshold k as the original secret split. Verification level informs the trust decision: a single in-person-verified recipient approving the request carries stronger assurance than multiple unverified approvals. The exact quorum rule is TBD.
 
