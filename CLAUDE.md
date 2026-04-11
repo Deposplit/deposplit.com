@@ -18,16 +18,22 @@ Deposplit's architecture evolved through several design sessions:
 
 4. **Pivot to custom backend (Mar 2026):** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com backend with libsodium E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
 
+5. **Backend redesigned as a stateless relay (Apr 2026):** The initial backend design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The backend was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
+
 ## Architecture Decisions
 
 ### Communication Layer: Custom Backend
 
-The transport layer is a **custom deposplit.com REST/WebSocket API** with end-to-end encryption provided by **libsodium** (`crypto_box`: X25519 key agreement + XSalsa20-Poly1305 AEAD, ISC licence).
+The transport layer is a **custom deposplit.com REST API** with end-to-end encryption provided by **libsodium** (`crypto_box`: X25519 key agreement + XSalsa20-Poly1305 AEAD, ISC licence).
 
 Key design decisions:
-- **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (no email, no phone number required). Registration uploads only the pseudonym and both public keys to deposplit.com — the private keys never leave the device.
+- **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (display name only, stored locally on the device — never sent to the backend). No server registration is required: the keypair IS the identity. Contacts exchange both public keys out-of-band — ideally in person via QR code, or via a trusted third-party channel (Signal, Threema, email).
 - **Server is an opaque relay.** The backend stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' X25519 private keys, which live only on their devices.
-- **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation (`nonce || method || path || body_hash`). Mobile clients sign with libsodium (`crypto_sign_detached`); the backend verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The backend therefore needs no libsodium.
+- **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation. Mobile clients sign with libsodium (`crypto_sign_detached`); the backend verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The backend therefore needs no libsodium. The canonical signing string is:
+  ```
+  nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA-256(body))
+  ```
+  where `body` is the empty string for requests without a body. Three request headers carry the authentication material: `X-Deposplit-Public-Key` (caller's Ed25519 public key, base64url), `X-Deposplit-Nonce` (per-request unique string in the form `<unix-ms>.<random>`; server rejects requests whose embedded timestamp is more than 5 minutes old), `X-Deposplit-Signature` (base64url-encoded signature).
 - **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical backend at deposplit.com.
 - **No practical client exclusivity.** There is no cryptographically sound way to restrict the API to the two official native apps. Hardcoded secrets are extractable from binaries; certificate pinning proves the connection is not intercepted but not which software is running; Play Integrity / App Attest are bypassable on rooted/jailbroken devices and introduce Google/Apple as gatekeepers. This is not a gap — the security model does not rely on client exclusivity. Because the server is cryptographically blind, a rogue client can only act within the bounds of the keypair it controls; it cannot read other users' shares or impersonate other users. The only realistic abuse vector (spam, resource exhaustion) is addressed by rate limiting and storage quotas, as with any public API. An open, auditable protocol is consistent with Deposplit's trust-minimizing philosophy.
 
@@ -56,22 +62,34 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 The `deposplit.com` repository is a **Play Framework (Scala)** application built with **sbt**. It serves two distinct concerns:
 
 - **Landing page / GUI**: server-side rendered with **Twirl** templates
-- **REST/WebSocket API**: consumed by the Android and iOS apps
+- **REST API**: consumed by the Android and iOS apps (spec at `conf/openapi.yaml`)
 
 Architecture follows **Ports & Adapters** enforced by sbt's multi-project build, mirroring the approach in the global CLAUDE.md:
 
 | sbt subproject | Role |
 |---|---|
-| `domain` | Pure Scala library — business logic, port interfaces, no Play/framework imports |
+| `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports |
 | root (Play app) | Adapters (DB, libsodium, backend API controllers), Twirl views, routes |
 
-The `domain` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `domain`; `domain` must never depend on the root. This enforces the hexagonal boundary at the build level.
+The `hexagon` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagon`; `hexagon` must never depend on the root. This enforces the hexagonal boundary at the build level.
 
 **Key library choices:**
 - **sbt** build tool (Kotlin build files are not applicable to sbt — use standard `build.sbt` and `project/` Scala/sbt files)
 - **Play JSON** (`play-json`) for API serialisation
 - **Twirl** (built into Play) for the landing page
 - **BouncyCastle** for Ed25519 signature verification (API authentication); no native libsodium on the server — share content passes through as opaque bytes
+- **PostgreSQL** for persistent storage — see rationale below
+- **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
+- **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (two tables: `shares`, `share_requests`)
+- **OpenAPI 3.0** spec at `conf/openapi.yaml` — covers all REST endpoints; kept in sync with the Play routes file
+
+**Why PostgreSQL over MongoDB:**
+Deposplit's data model is relational: shares and consent requests are entities with typed, stable relationships. MongoDB's schema flexibility is not needed and would give up meaningful guarantees:
+- **Relational integrity**: foreign keys and cascading deletes prevent orphaned share records (a data-integrity concern for a security app)
+- **ACID transactions**: the consent state machine (approve retrieval, approve sender-initiated deletion) requires atomicity — approving a request and releasing share bytes must be one transaction
+- **`bytea` type**: maps directly to opaque share ciphertext; structured metadata lives in typed columns alongside it
+- **Native UUID type**: fits `secret_id` exactly
+- **Row-level security (RLS)**: enforces at the DB layer that a session can only see its own rows — defense-in-depth if the application layer has a bug
 
 ### CLAUDE.md Layout
 
@@ -152,13 +170,13 @@ Registration is **keypair-first** — no OIDC, no password, no email.
 
 Flow:
 1. On first launch the device generates two keypairs via libsodium: an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication)
-2. The user picks a pseudonym (display name only — no personal information required)
-3. The app registers with deposplit.com: pseudonym + X25519 public key + Ed25519 public key
-4. Both private keys are stored in the Android Keystore and never leave the device
+2. The user picks a pseudonym (display name only — stored locally, never sent to the backend)
+3. Both private keys are stored in the Android Keystore and never leave the device
+4. Both public keys are shared with contacts out-of-band (QR code scan, share link via Signal/Threema, etc.) — the backend never stores or indexes them
 
-Subsequent API requests are authenticated by signing a canonical request representation with the Ed25519 private key; the backend verifies with the stored Ed25519 public key.
+Subsequent API requests are authenticated by signing a canonical request representation with the Ed25519 private key; the backend verifies against the Ed25519 public key supplied in the `X-Deposplit-Public-Key` header. No pre-registration is required.
 
-Session state (the "is registered" flag) is persisted via plain `SharedPreferences`. Private keys are managed by the Android Keystore — the app never handles raw key material directly.
+Session state (the "has completed onboarding" flag) is persisted via plain `SharedPreferences`. Private keys are managed by the Android Keystore — the app never handles raw key material directly.
 
 Identity *is* the keypair pair. This integrates directly with the k-of-n social recovery design: if Alice loses her device, she generates new keypairs on a new device and initiates a re-association request that existing contacts approve.
 
@@ -197,6 +215,9 @@ There are four message types exchanged via the deposplit.com backend API:
 - *Sender-initiated deletion* — the recipient must approve. The sender cannot force deletion.
 - *Recipient-initiated deletion* — unilateral, no approval needed.
 
+**Notification delivery — polling only (v0.1):**
+There is no WebSocket or push notification channel. Clients poll for pending events on app open and periodically while foregrounded (`GET /share-requests?role=recipient&state=pending`, etc.). Event frequency is low enough that polling is sufficient. Background push via FCM/APNs is deferred — it would introduce a Google/Apple dependency and some metadata leakage, which conflicts with Deposplit's trust-minimising philosophy.
+
 ### App Architecture: Ports & Adapters (Hexagonal)
 
 Both the Android and iOS apps follow the **Ports & Adapters (Hexagonal Architecture)** pattern, applied strictly to the domain and infrastructure layers; the UI layer uses MVVM/MVI as is conventional on each platform.
@@ -221,25 +242,26 @@ Compose (Android) / SwiftUI (iOS) with ViewModels sitting at the boundary betwee
 
 ### Share Holder Onboarding
 
-Before Alice can include a contact as a share holder, that contact must have Deposplit installed **and** have explicitly accepted a share holder invitation from Alice. Only then do they appear as selectable in the "Split & Share" flow.
+Before Alice can include a contact as a share holder, that contact must have Deposplit installed and Alice must have their public keys. There is no server-mediated invitation flow — contact establishment happens entirely out-of-band (QR code in person, or via a trusted third-party channel such as Signal or Threema).
 
-**Invitation flow:**
-1. Alice adds Bob to her Deposplit contacts
-2. Deposplit sends Bob a backend notification explaining what Deposplit is, what holding a share entails, and inviting him to accept or decline
-3. If Bob already has Deposplit, his app surfaces the pending invitation immediately
-4. If Bob doesn't have Deposplit yet, the invitation waits in his backend inbox; once he installs Deposplit the invitation surfaces automatically
-5. Once Bob accepts, he appears as a ready (selectable) holder in Alice's contact list
+**Key exchange (adding a contact):**
+1. Bob generates his keypairs on first launch of his Deposplit app
+2. Bob shares both his public keys with Alice out-of-band — ideally Alice scans Bob's QR code in person, or Bob sends a share link via Signal/Threema
+3. Alice adds Bob to her local contact list — the backend is not involved
+4. Alice can now deposit shares for Bob
 
 **Contact states in the "Split & Share" screen:**
-- **Ready** — has Deposplit, has accepted Alice's invitation → selectable
-- **Pending** — invited but no response yet → shown greyed out/disabled so Alice knows they exist but can't be selected yet
-- **Declined / not invited** — not shown, or shown separately
 
-**All n holders must be ready before Alice can split.** There is no queuing of shares for pending holders.
+| State | Condition | Selectable? |
+|---|---|---|
+| **Ready** | Alice has Bob's Ed25519 + X25519 public keys | Yes |
+| **Not added** | Alice has not yet exchanged keys with Bob | No |
 
-If a ready holder later withdraws consent (deletes Alice's shares and revokes acceptance), they drop back to a non-ready state. Existing distributed shares are unaffected, but Alice cannot include that contact in new splits until they re-accept.
+**All n holders must be ready (keys exchanged) before Alice can split.** There is no queuing of shares for contacts not yet added.
 
-**In-person verification is encouraged but not required** as a prerequisite for holding shares. Verification level is visible when Alice selects contacts, so she can make an informed choice. Unverified contacts can hold shares; verified contacts carry more weight in identity recovery.
+If a holder later withdraws consent, they do so by deleting Alice's shares locally (recipient-initiated deletion). Existing distributed shares are unaffected; Alice retains Bob's keys and can deposit new shares unless Bob explicitly asks to be removed from her contacts.
+
+**In-person QR verification is the preferred key exchange method** — it is the only method that eliminates TOFU (trust-on-first-use) risk. Verification level is visible when Alice selects contacts and carries weight in identity recovery decisions.
 
 ### Secret Input Methods
 
@@ -259,13 +281,15 @@ There are many ways Alice can introduce a secret into Deposplit. Not all need to
 
 ### Contacts Management
 
-Deposplit maintains a contact list stored on the deposplit.com backend and cached locally on each device. Each contact is identified by their **X25519 public key**, which is the canonical identity anchor.
+Deposplit maintains a contact list stored **exclusively on the device** — the backend never stores or indexes user identities or contact relationships.
 
-Contact lookup:
-- **QR code scan (preferred):** encodes the contact's public key + pseudonym directly — no server intermediary, resistant to TOFU attacks
-- **Pseudonym search:** the backend resolves a pseudonym to a public key; the user should verify via subsequent QR scan or out-of-band confirmation
+Each contact is identified by their **Ed25519 public key** (routing identity on the backend) and **X25519 public key** (used by the sender to encrypt shares client-side). Both must be obtained out-of-band before Alice can deposit shares for that contact.
 
-Each contact record stores: public key, pseudonym, verification level, date verified.
+Contact addition methods:
+- **QR code scan (preferred):** encodes both Ed25519 + X25519 public keys and the pseudonym directly — no server intermediary, eliminates TOFU risk
+- **Out-of-band link:** the app generates a shareable link carrying both public keys; Alice receives it via Signal, Threema, email, etc. Weaker TOFU assurance than an in-person QR scan, but convenient for remote contacts
+
+Each contact record stores: Ed25519 public key, X25519 public key, pseudonym, verification level, date verified. All stored locally on the device.
 
 Adding a contact is the natural moment to prompt for in-person QR verification.
 
@@ -302,12 +326,12 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 
 In rough priority order:
 
-1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, register pseudonym + both public keys against the deposplit.com API; remove `matrix-rust-sdk` dependency
-2. **deposplit.com**: Scaffold the Play (Scala/sbt) backend — `domain` subproject + root Play app, Twirl landing page, user registration endpoint (pseudonym + public key), share storage and retrieval (ciphertext only)
+1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, persist private keys in Android Keystore, store pseudonym locally; remove `matrix-rust-sdk` dependency
+2. **deposplit.com**: Scaffold the Play (Scala/sbt) backend — `hexagon` subproject + root Play app, Twirl landing page, share deposit/retrieval endpoints (ciphertext only; no user registration)
 3. **Android**: Home screen — list secrets distributed / shares held
 4. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
-6. **Android**: Contact management backed by the deposplit.com contacts API
+6. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
 7. **iOS**: Scaffold the iOS app (SwiftUI + deposplit.com API client)
 8. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
 

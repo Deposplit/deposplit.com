@@ -35,6 +35,19 @@ Rejected alternatives:
 | Nostr | NIP-44 E2EE is newer and less battle-tested; relay reliability varies |
 | P2P (WebRTC, Bluetooth, DHT) | Async delivery requires persistent storage; true P2P cannot reliably hold shares for offline recipients over days or months |
 
+## Backend tech stack
+
+| Concern | Choice | Notes |
+|---|---|---|
+| Language / framework | Scala + Play 3 | sbt build; `hexagon` subproject (pure Scala, no Play) + root Play app (adapters, controllers, Twirl views) |
+| Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
+| DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
+| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | Two tables: `shares`, `share_requests` |
+| API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
+| API serialisation | Play JSON (`play-json`) | |
+| Landing page templating | Twirl (built into Play) | |
+| Ed25519 verification | BouncyCastle | API authentication only; no libsodium on the server — share content is forwarded as opaque bytes |
+
 ## Why native apps, not a web app?
 
 For Deposplit specifically, the native-vs-web trade-off breaks down as follows.
@@ -89,6 +102,10 @@ Recipient-initiated deletion is purely local — no message required. The recipi
 - *Sender-initiated deletion* — recipient must approve. The sender cannot force deletion.
 - *Recipient-initiated deletion* — unilateral.
 
+**Notifications (v0.1):** clients poll for pending events on app open and periodically while foregrounded. There is no WebSocket or push channel. Background push via FCM/APNs is deferred.
+
+The full REST API is specified in `conf/openapi.yaml` (OpenAPI 3.0).
+
 ## App architecture: Ports & Adapters (Hexagonal)
 
 Both apps follow the **Ports & Adapters** pattern, applied strictly to the domain and infrastructure layers. The UI layer uses MVVM/MVI as is conventional on each platform.
@@ -107,27 +124,26 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 
 ## Share holder onboarding
 
-Before Alice can include a contact as a share holder, that contact must have Deposplit installed and have explicitly accepted a share holder invitation from Alice.
+Before Alice can include a contact as a share holder, that contact must have Deposplit installed and Alice must have their public keys. There is no server-mediated invitation flow — contact establishment happens entirely out-of-band (QR code in person, or via a trusted third-party channel such as Signal or Threema).
 
-**Invitation flow:**
-1. Alice adds Bob to her Deposplit contacts
-2. Deposplit sends Bob a backend notification explaining Deposplit, what holding a share means, and inviting him to accept or decline
-3. If Bob already has Deposplit, his app surfaces the invitation immediately; if not, it waits in his backend inbox and surfaces once he installs Deposplit
-4. Once Bob accepts, he appears as ready in Alice's contact list
+**Key exchange (adding a contact):**
+1. Bob generates his keypairs on first launch of his Deposplit app
+2. Bob shares both his public keys with Alice out-of-band — ideally Alice scans Bob's QR code in person, or Bob sends a share link via Signal/Threema
+3. Alice adds Bob to her local contact list — the backend is not involved
+4. Alice can now deposit shares for Bob
 
 **Contact states in the "Split & Share" screen:**
 
 | State | Condition | Selectable? |
 |---|---|---|
-| **Ready** | Has Deposplit, accepted Alice's invitation | Yes |
-| **Pending** | Invited, no response yet | No — shown greyed out so Alice knows they haven't been forgotten |
-| **Declined / not invited** | — | Not shown (or shown separately) |
+| **Ready** | Alice has Bob's Ed25519 + X25519 public keys | Yes |
+| **Not added** | Alice has not yet exchanged keys with Bob | No |
 
-All n holders must be ready before Alice can split — no queuing of shares for pending holders.
+All n holders must be ready (keys exchanged) before Alice can split — no queuing of shares for contacts not yet added.
 
-If a ready holder later withdraws consent, they drop back to non-ready. Existing distributed shares are unaffected; Alice cannot include them in new splits until they re-accept.
+If a holder later withdraws consent, they do so by deleting Alice's shares locally (recipient-initiated deletion). Existing distributed shares are unaffected.
 
-In-person verification is encouraged but not required to hold shares. Verification level is visible when selecting contacts and carries weight in identity recovery.
+In-person QR verification is the preferred key exchange method — it is the only method that eliminates TOFU risk. Verification level is visible when selecting contacts and carries weight in identity recovery.
 
 ## Secret input methods
 
@@ -147,13 +163,15 @@ Deposplit supports multiple ways for Alice to introduce a secret. Not all are pl
 
 ## Contacts management
 
-Deposplit maintains a contact list stored on the deposplit.com backend and cached locally on each device. Each contact is identified by their **X25519 public key**, which is the canonical identity anchor.
+Deposplit maintains a contact list stored **exclusively on the device** — the backend never stores or indexes user identities or contact relationships.
 
-Contact lookup:
-- **QR code scan (preferred):** encodes the contact's public key + pseudonym directly — no server intermediary, resistant to TOFU attacks
-- **Pseudonym search:** the backend resolves a pseudonym to a public key; the user should verify via subsequent QR scan or out-of-band confirmation
+Each contact is identified by their **Ed25519 public key** (routing identity on the backend) and **X25519 public key** (share encryption). Both are obtained out-of-band before Alice can deposit shares for a contact.
 
-Each contact record stores: public key, pseudonym, verification level, date verified. Adding a contact is the natural moment to prompt for in-person QR verification.
+Contact addition:
+- **QR code scan (preferred):** encodes both public keys + pseudonym directly — no server intermediary, eliminates TOFU risk
+- **Out-of-band link:** a shareable link carrying both public keys, sent via Signal, Threema, email, etc.
+
+Each contact record stores: Ed25519 public key, X25519 public key, pseudonym, verification level, date verified. All stored locally on the device. Adding a contact is the natural moment to prompt for in-person QR verification.
 
 ## Contact verification
 
@@ -161,7 +179,7 @@ Deposplit uses a two-level model inspired by Threema:
 
 | Level | How achieved | Meaning |
 |---|---|---|
-| **Unverified** | Contact added remotely (by pseudonym, invite link, etc.) | "I believe this account belongs to this person" |
+| **Unverified** | Contact added via an out-of-band link (Signal, Threema, email, etc.) | "I believe this account belongs to this person" |
 | **Verified** | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
 
 Verification level is stored per contact and visible when reviewing share holders or approving requests.
