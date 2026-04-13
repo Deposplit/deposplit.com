@@ -119,8 +119,8 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 **UI layer** — Compose (Android) / SwiftUI (iOS) with ViewModels at the boundary. Treated separately from the hexagon; Compose/SwiftUI's reactive model doesn't map cleanly to port/adapter shapes and the ceremony isn't justified there. Navigation is also left as a platform concern.
 
 **Structural enforcement:**
-- Android: domain is a pure Kotlin Gradle module — infrastructure modules depend on it, never the reverse
-- iOS: domain is a plain Swift package with no UIKit/SwiftUI imports
+- Android: the hexagon is a pure Kotlin Gradle module — infrastructure modules depend on it, never the reverse
+- iOS: the hexagon is a plain Swift package with no UIKit/SwiftUI imports
 
 ## Share holder onboarding
 

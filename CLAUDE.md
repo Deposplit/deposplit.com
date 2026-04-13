@@ -237,8 +237,8 @@ Compose (Android) / SwiftUI (iOS) with ViewModels sitting at the boundary betwee
 **Navigation** is left as a platform concern and is not forced into the hexagon model.
 
 **Structural enforcement:**
-- Android: the domain is a pure Kotlin Gradle module; infrastructure modules depend on it, never the reverse
-- iOS: the domain is a plain Swift package (no UIKit/SwiftUI imports); infrastructure in separate packages or targets
+- Android: the hexagon is a pure Kotlin Gradle module; infrastructure modules depend on it, never the reverse
+- iOS: the hexagon is a plain Swift package (no UIKit/SwiftUI imports); infrastructure in separate packages or targets
 
 ### Share Holder Onboarding
 
@@ -333,7 +333,7 @@ In rough priority order:
 5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
 6. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
 7. **iOS**: Scaffold the iOS app (SwiftUI + deposplit.com API client)
-8. **Android**: Domain module extraction — split `:app` into `:domain` + `:app`
+8. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 
 ## Build & Test Commands
 
@@ -342,9 +342,9 @@ In rough priority order:
 ```bash
 # from deposplit.com/
 sbt run          # start the Play dev server (auto-reloads on file change)
-sbt test         # run all tests (domain + root)
+sbt test         # run all tests (hexagon + root)
 sbt compile      # compile without running
-sbt "project domain" test   # test domain subproject only
+sbt "project hexagon" test   # test hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 
