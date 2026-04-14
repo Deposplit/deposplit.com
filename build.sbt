@@ -17,5 +17,8 @@ libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "7.0.2
 // Adds additional packages into Twirl
 //TwirlKeys.templateImports += "com.deposplit.controllers._"
 
+libraryDependencies += "org.webjars.npm" % "popperjs__core" % "2.11.8"
+libraryDependencies += "org.webjars.npm" % "bootstrap" % "5.3.8"
+
 // Adds additional packages into conf/routes
 // play.sbt.routes.RoutesKeys.routesImport += "com.deposplit.binders._"

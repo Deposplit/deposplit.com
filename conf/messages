@@ -1,1 +1,20 @@
 locale = en
+
+notFound.title = Not Found
+notFound.page = The page that you have requested has not been found.
+
+legalese = Legalese
+legalese.masthead = Imprint
+legalese.pp = Privacy Policy
+legalese.tos = Terms of Service
+legalese.cya = I have read the Privacy Policy as well as the Terms of Service and understand and accept them.
+
+acknowledgements = Acknowledgements
+prices = Prices
+
+yes = Yes
+no = No
+ifNeedBe = If need be
+save = Save
+cancel = Cancel
+revert = Revert
