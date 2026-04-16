@@ -81,7 +81,7 @@ The hexagon and root both programme **synchronously (blocking)** — no Scala `F
 - **Twirl** (built into Play) for the landing page
 - **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
-- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally)
+- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `SharesService` instead and must be added to production PostgreSQL manually (see comment in `1.sql`)
 - **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
 - **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (two tables: `shares`, `share_requests`)
 - **OpenAPI 3.0** spec at `conf/openapi.yaml` — covers all REST endpoints; kept in sync with the Play routes file
@@ -347,9 +347,10 @@ In rough priority order:
 ```bash
 # from deposplit.com/
 sbt run          # start the Play dev server (auto-reloads on file change)
+sbt run -Dconfig.file=conf/localhost.conf # with the dev config
 sbt test         # run all tests (hexagon + root)
 sbt compile      # compile without running
-sbt hexagon/test             # test hexagon subproject only
+sbt hexagon/test # test hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 
