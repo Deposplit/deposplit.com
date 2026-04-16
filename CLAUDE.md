@@ -55,7 +55,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 |---|---|---|
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (single `:app` Gradle module) |
-| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
+| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library + iOS app (SwiftUI, iOS 26+) |
 
 ### Backend Tech Stack: Scala + Play
 
@@ -68,17 +68,20 @@ Architecture follows **Ports & Adapters** enforced by sbt's multi-project build,
 
 | sbt subproject | Role |
 |---|---|
-| `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports |
-| root (Play app) | Adapters (DB, libsodium, backend API controllers), Twirl views, routes |
+| `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
+| root (Play app) | Adapters (DB, backend API controllers), Twirl views, routes |
 
 The `hexagon` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagon`; `hexagon` must never depend on the root. This enforces the hexagonal boundary at the build level.
 
+The hexagon and root both programme **synchronously (blocking)** — no Scala `Future`s. This keeps the code straightforward and stack traces readable; with Java virtual threads becoming mainstream, blocking I/O will carry negligible cost.
+
 **Key library choices:**
 - **sbt** build tool (Kotlin build files are not applicable to sbt — use standard `build.sbt` and `project/` Scala/sbt files)
-- **Play JSON** (`play-json`) for API serialisation
+- **Play JSON** (`play-json`) for API serialisation — bundled with Play, not declared as an explicit dependency
 - **Twirl** (built into Play) for the landing page
-- **BouncyCastle** for Ed25519 signature verification (API authentication); no native libsodium on the server — share content passes through as opaque bytes
+- **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
+- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally)
 - **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
 - **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (two tables: `shares`, `share_requests`)
 - **OpenAPI 3.0** spec at `conf/openapi.yaml` — covers all REST endpoints; kept in sync with the Play routes file
@@ -321,18 +324,20 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**.
 - **Design**: the full app layer is designed — backend protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
 - **Android app scaffold**: Jetpack Compose + Material 3 app with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `SignInViewModel`, `SignInScreen`, `HomeScreen` placeholder, NavHost). The `MatrixAuthAdapter` (OIDC-based) is present but **obsolete** — it is to be replaced by a `DeposplitAuthAdapter` for keypair-based registration.
+- **iOS app scaffold**: SwiftUI app targeting iOS 26+ with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `DeposplitAuthAdapter`, `SignInViewModel`, `SignInView`, `HomeView` placeholder). `ShamirSecretSharing.swift` is compiled directly into the app target.
+- **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 38 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
 
 ### What is next
 
 In rough priority order:
 
 1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, persist private keys in Android Keystore, store pseudonym locally; remove `matrix-rust-sdk` dependency
-2. **deposplit.com**: Scaffold the Play (Scala/sbt) backend — `hexagon` subproject + root Play app, Twirl landing page, share deposit/retrieval endpoints (ciphertext only; no user registration)
+2. **deposplit.com**: Implement the root Play app's REST API — `ShareRepository` adapter (Anorm + PostgreSQL/H2), Play controllers wiring auth header verification (`PublicKey.verify`, `Nonce.isExpired`) to the `Shares` driving port, and Play routes / OpenAPI spec
 3. **Android**: Home screen — list secrets distributed / shares held
 4. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
 6. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
-7. **iOS**: Scaffold the iOS app (SwiftUI + deposplit.com API client)
+7. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 8. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 
 ## Build & Test Commands
@@ -344,7 +349,7 @@ In rough priority order:
 sbt run          # start the Play dev server (auto-reloads on file change)
 sbt test         # run all tests (hexagon + root)
 sbt compile      # compile without running
-sbt "project hexagon" test   # test hexagon subproject only
+sbt hexagon/test             # test hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 

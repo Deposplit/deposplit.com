@@ -10,7 +10,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 |---|---|---|
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app |
-| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library (iOS app not yet scaffolded) |
+| `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library + iOS app (SwiftUI, iOS 26+) |
 
 ## CLAUDE.md layout
 
@@ -43,10 +43,11 @@ Rejected alternatives:
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
 | DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | Two tables: `shares`, `share_requests` |
+| Dev / test DB | H2 (in-memory) | No PostgreSQL instance required locally |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
-| API serialisation | Play JSON (`play-json`) | |
+| API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
 | Landing page templating | Twirl (built into Play) | |
-| Ed25519 verification | BouncyCastle | API authentication only; no libsodium on the server — share content is forwarded as opaque bytes |
+| Ed25519 verification | BouncyCastle (`hexagon` subproject) | Signature verification is a domain concern; no libsodium on the server — share content is forwarded as opaque bytes |
 
 ## Why native apps, not a web app?
 
