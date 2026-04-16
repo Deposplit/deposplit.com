@@ -1,0 +1,81 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Seite-1" id="y52RpI-_wOppjgg-_0kI">
+    <mxGraphModel dx="1414" dy="779" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-4" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-5" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-4" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;div&gt;splits secret and shares it with n holders&lt;/div&gt;" vertex="1">
+          <mxGeometry relative="1" x="0.0143" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-10" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-11" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-10" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="established contact with holder&amp;nbsp;…" vertex="1">
+          <mxGeometry relative="1" x="0.564" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <object placeholders="1" c4Name="Secret Sharer" c4Type="Person" c4Description="has a secret" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="oRvW3H0xVQLKYdp4ZTMm-1">
+          <mxCell parent="1" style="html=1;fontSize=11;dashed=0;whiteSpace=wrap;fillColor=#083F75;strokeColor=#06315C;fontColor=#ffffff;shape=mxgraph.c4.person2;align=center;metaEdit=1;points=[[0.5,0,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0]];resizable=0;" vertex="1">
+            <mxGeometry height="180" width="200" x="300" y="100" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-6" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-7" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-6" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;div&gt;receives split for safekeeping&lt;/div&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.0143" y="-4" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <object placeholders="1" c4Name="Deposplit" c4Type="Software System" c4Description="allows users to share and/or hold secrets" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="oRvW3H0xVQLKYdp4ZTMm-2">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];" vertex="1">
+            <mxGeometry height="120" width="240" x="280" y="360" as="geometry" />
+          </mxCell>
+        </object>
+        <object placeholders="1" c4Name="Share Holder" c4Type="Person" c4Description="has a secret split" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="oRvW3H0xVQLKYdp4ZTMm-3">
+          <mxCell parent="1" style="html=1;fontSize=11;dashed=0;whiteSpace=wrap;fillColor=#083F75;strokeColor=#06315C;fontColor=#ffffff;shape=mxgraph.c4.person2;align=center;metaEdit=1;points=[[0.5,0,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0]];resizable=0;" vertex="1">
+            <mxGeometry height="180" width="200" x="300" y="560" as="geometry" />
+          </mxCell>
+        </object>
+        <object placeholders="1" c4Name="Messaging" c4Type="Software System" c4Description="e-mail, Signal, Threema, you name it" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="oRvW3H0xVQLKYdp4ZTMm-8">
+          <mxCell parent="1" style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#8C8496;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#736782;metaEdit=1;resizable=0;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];" vertex="1">
+            <mxGeometry height="120" width="240" x="560" y="360" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-9" parent="1" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/png,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;" value="" vertex="1">
+          <mxGeometry height="132" width="132" x="70" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-12" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-13" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-12" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="… in person" vertex="1">
+          <mxGeometry relative="1" x="-0.4496" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-14" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-16" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-14" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="established contact with holder&amp;nbsp;…" vertex="1">
+          <mxGeometry relative="1" x="0.6" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-17" edge="1" parent="1" source="oRvW3H0xVQLKYdp4ZTMm-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;" target="oRvW3H0xVQLKYdp4ZTMm-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="oRvW3H0xVQLKYdp4ZTMm-18" connectable="0" parent="oRvW3H0xVQLKYdp4ZTMm-17" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="… via third-party communication channel" vertex="1">
+          <mxGeometry relative="1" x="-0.4937" y="-4" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
