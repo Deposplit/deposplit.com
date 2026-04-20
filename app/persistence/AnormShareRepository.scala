@@ -41,6 +41,17 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   // Note: UUID parameters are passed as strings; both H2 and PostgreSQL auto-cast.
   // ---------------------------------------------------------------------------
 
+  // H2 in PostgreSQL mode returns TIMESTAMP WITH TIME ZONE as java.time.OffsetDateTime.
+  // Anorm's built-in Column[Instant] only handles java.sql.Timestamp and java.util.Date.
+  private given Column[Instant] = Column.nonNull { (value, meta) =>
+    value match
+      case ts:  java.sql.Timestamp       => Right(ts.toInstant)
+      case odt: java.time.OffsetDateTime => Right(odt.toInstant)
+      case d:   java.util.Date           => Right(d.toInstant)
+      case _ =>
+        Left(TypeDoesNotMatch(s"Cannot convert $value: ${value.getClass.getName} to Instant for column ${meta.column}"))
+  }
+
   private def parseKey(bytes: Array[Byte]): PublicKey =
     PublicKey.fromBytes(bytes).getOrElse(sys.error(s"corrupt public key in DB (${bytes.length} bytes)"))
 
@@ -153,7 +164,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
         "recipientKey" -> share.recipientKey.toBytes,
         "ciphertext"   -> share.ciphertext,
         "createdAt"    -> share.createdAt
-      ).executeInsert()
+      ).executeUpdate()
     }
 
   override def getShareById(id: UUID): Option[Share] =
@@ -241,7 +252,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           case ShareRequestType.Retrieve => "retrieve"
           case ShareRequestType.Delete   => "delete"),
         "requestedAt" -> request.createdAt
-      ).executeInsert()
+      ).executeUpdate()
     }
 
   override def getShareRequestById(requestId: UUID): Option[ShareRequest] =
