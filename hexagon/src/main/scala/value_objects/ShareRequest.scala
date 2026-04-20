@@ -29,15 +29,15 @@ import java.util.UUID
 
 /** A consent request created by the sender and awaiting the recipient's response.
   *
-  * For `Delete` requests, `secretId = None` means "delete all shares the sender has deposited with this recipient". For
-  * `Retrieve` requests, `secretId` is always `Some`.
+  * `ciphertext` is non-None only when `requestType == Retrieve && state == Approved`; it is populated by the service
+  * at query time (fetched from the share) and is never stored in the `share_requests` table.
   */
 case class ShareRequest(
     id: UUID,
+    share: ShareMetadata,
     requestType: ShareRequestType,
-    secretId: Option[SecretId],
-    senderKey: PublicKey,
-    recipientKey: PublicKey,
     state: ShareRequestState,
-    createdAt: Instant
+    createdAt: Instant,
+    respondedAt: Option[Instant],
+    ciphertext: Option[Array[Byte]]
 )

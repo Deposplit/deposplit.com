@@ -3,8 +3,18 @@
 # https://www.playframework.com/documentation/latest/ScalaRouting
 # ~~~~
 
-# An example controller showing a sample home page
+# Landing page
 GET     /                           controllers.HomeController.index()
 
-# Map static resources from the /public folder to the /assets URL path
+# REST API
+POST    /shares                     api.SharesController.depositShare()
+GET     /shares                     api.SharesController.listShares()
+DELETE  /shares/:shareId            api.SharesController.deleteShare(shareId: String)
+
+POST    /share-requests             api.ShareRequestsController.openShareRequest()
+GET     /share-requests             api.ShareRequestsController.listShareRequests()
+GET     /share-requests/:requestId  api.ShareRequestsController.getShareRequest(requestId: String)
+PATCH   /share-requests/:requestId  api.ShareRequestsController.respondToShareRequest(requestId: String)
+
+# Static assets
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)

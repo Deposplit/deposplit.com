@@ -38,10 +38,12 @@ info:
 
     The server never sees X25519 keys.
 
-    ## Ciphertext encoding
+    ## Binary encoding
 
-    All binary fields (`ciphertext`, `senderKey`, `recipientKey`) are
-    standard base64-encoded strings (`format: byte`).
+    - **Public key fields** (`senderKey`, `recipientKey` in responses; `recipientKey`
+      in deposit requests) use **base64url encoding without padding**, matching the
+      encoding used in the `X-Deposplit-Public-Key` auth header.
+    - **`ciphertext`** uses **standard base64 encoding with padding** (`format: byte`).
 
     ## Notifications
 
@@ -75,8 +77,7 @@ components:
 
     PublicKey:
       type: string
-      format: byte
-      description: Base64-encoded Ed25519 public key (32 bytes) — used for API authentication and as the routing identity.
+      description: Base64url-encoded Ed25519 public key (32 bytes, no padding) — used for API authentication and as the routing identity.
 
     # ── Shares ───────────────────────────────────────────────────────────────
 

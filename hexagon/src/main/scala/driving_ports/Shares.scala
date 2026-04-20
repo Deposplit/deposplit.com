@@ -39,50 +39,70 @@ trait Shares:
       label: Label,
       createdAt: Instant,
       ciphertext: Array[Byte]
-  ): Either[Error, Unit]
+  ): Either[Error, ShareMetadata]
 
+  /** Lists shares.
+    *
+    * `asSender = true`  — shares deposited by `callerKey`, optionally filtered by recipient.
+    * `asSender = false` — shares held by `callerKey`, optionally filtered by sender.
+    */
   def listShares(
-      senderKey: PublicKey,
-      recipientKey: PublicKey
+      callerKey: PublicKey,
+      asSender: Boolean,
+      counterpartyKey: Option[PublicKey]
   ): Either[Error, Seq[ShareMetadata]]
 
-  def requestRetrieval(
-      senderKey: PublicKey,
-      recipientKey: PublicKey,
-      secretId: SecretId
-  ): Either[Error, UUID]
-
-  /** Requests consent to delete shares. `secretId = None` means delete all shares the sender has deposited with the
-    * recipient.
+  /** Opens a retrieve or delete consent request for the share identified by `shareId`.
+    * The caller must be the share's sender. Returns `Forbidden` otherwise.
+    * Returns `Conflict` if a pending request of the same type already exists.
     */
-  def requestDeletion(
+  def openShareRequest(
       senderKey: PublicKey,
-      recipientKey: PublicKey,
-      secretId: Option[SecretId]
-  ): Either[Error, UUID]
+      shareId: UUID,
+      requestType: ShareRequestType
+  ): Either[Error, ShareRequest]
 
   // --- Recipient operations ---
 
-  def listPendingRequests(recipientKey: PublicKey): Either[Error, Seq[ShareRequest]]
+  /** Lists share requests.
+    *
+    * `asSender = true`  — requests opened by `callerKey` (sender polling for resolution).
+    * `asSender = false` — requests directed at `callerKey` (recipient deciding).
+    */
+  def listShareRequests(
+      callerKey: PublicKey,
+      asSender: Boolean,
+      state: Option[ShareRequestState]
+  ): Either[Error, Seq[ShareRequest]]
 
-  /** Approves a retrieval request and returns the share ciphertext. */
-  def approveRetrieval(
-      recipientKey: PublicKey,
+  /** Returns the request if the caller is either the sender or the recipient.
+    * Returns `Forbidden` otherwise. Populates `ciphertext` for approved retrieve requests.
+    */
+  def getShareRequest(
+      callerKey: PublicKey,
       requestId: UUID
-  ): Either[Error, Array[Byte]]
+  ): Either[Error, ShareRequest]
 
-  /** Approves a deletion request and deletes the targeted share(s). */
-  def approveDeletion(
+  /** Approves or denies a pending consent request. The caller must be the recipient.
+    * Approving a delete request deletes the targeted share(s) immediately.
+    * Approving a retrieve request populates `ciphertext` in the returned request.
+    */
+  def respondToShareRequest(
       recipientKey: PublicKey,
-      requestId: UUID
+      requestId: UUID,
+      approved: Boolean
+  ): Either[Error, ShareRequest]
+
+  /** Recipient-initiated deletion — unilateral, no sender consent required. */
+  def deleteShareById(
+      recipientKey: PublicKey,
+      shareId: UUID
   ): Either[Error, Unit]
 
-  def denyRequest(
-      recipientKey: PublicKey,
-      requestId: UUID
-  ): Either[Error, Unit]
-
-  /** Recipient-initiated deletion — unilateral, no consent required. */
+  /** Bulk recipient-initiated deletion — unilateral, no sender consent required.
+    * `senderKey = None` deletes all of the recipient's shares regardless of sender.
+    * `secretId  = None` deletes all shares from the given sender.
+    */
   def deleteShares(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],

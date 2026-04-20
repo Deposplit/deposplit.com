@@ -32,6 +32,7 @@ import java.time.Instant
   * leaving the sender's device, so the server cannot read it regardless of a breach.
   */
 case class Share(
+    id: java.util.UUID,
     secretId: SecretId,
     senderKey: PublicKey,
     recipientKey: PublicKey,

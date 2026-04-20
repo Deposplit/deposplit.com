@@ -25,6 +25,7 @@
 package driven_ports.persistence
 
 import value_objects.*
+import java.time.Instant
 import java.util.UUID
 
 trait ShareRepository:
@@ -33,13 +34,17 @@ trait ShareRepository:
 
   def saveShare(share: Share): Unit
 
-  def getShareMetadata(senderKey: PublicKey, recipientKey: PublicKey): Seq[ShareMetadata]
+  def getShareById(id: UUID): Option[Share]
 
   def getShare(secretId: SecretId, senderKey: PublicKey, recipientKey: PublicKey): Option[Share]
 
-  /** Deletes shares held by `recipientKey`, optionally filtered by `senderKey` and/or `secretId`. Passing neither
-    * filter deletes all shares held by the recipient (use with care).
-    */
+  /** Shares deposited by `senderKey`, optionally filtered to a specific recipient. */
+  def getSharesAsSender(senderKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
+
+  /** Shares held by `recipientKey`, optionally filtered to a specific sender. */
+  def getSharesAsRecipient(recipientKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
+
+  /** Deletes shares held by `recipientKey`, optionally filtered by `senderKey` and/or `secretId`. */
   def deleteShares(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],
@@ -50,9 +55,15 @@ trait ShareRepository:
 
   def saveShareRequest(request: ShareRequest): Unit
 
-  /** Returns the request only if `recipientKey` matches, preventing cross-recipient access. */
-  def getShareRequest(requestId: UUID, recipientKey: PublicKey): Option[ShareRequest]
+  def getShareRequestById(requestId: UUID): Option[ShareRequest]
 
-  def getPendingShareRequests(recipientKey: PublicKey): Seq[ShareRequest]
+  /** Requests opened by `senderKey`, optionally filtered by state. */
+  def getShareRequestsAsSender(senderKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest]
 
-  def updateShareRequestState(requestId: UUID, state: ShareRequestState): Unit
+  /** Requests directed at `recipientKey`, optionally filtered by state. */
+  def getShareRequestsAsRecipient(recipientKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest]
+
+  /** True if a Pending request of the given type already exists for this share. */
+  def hasPendingRequest(shareId: UUID, requestType: ShareRequestType): Boolean
+
+  def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant): Unit

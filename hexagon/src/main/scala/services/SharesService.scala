@@ -33,6 +33,17 @@ import java.util.UUID
 
 class SharesService @Inject() (repository: ShareRepository) extends Shares:
 
+  private def sameKey(a: PublicKey, b: PublicKey): Boolean =
+    a.toBase64Url == b.toBase64Url
+
+  private def toMetadata(s: Share): ShareMetadata =
+    ShareMetadata(s.id, s.secretId, s.senderKey, s.recipientKey, s.label, s.createdAt)
+
+  private def withCiphertext(req: ShareRequest): ShareRequest =
+    if req.requestType == ShareRequestType.Retrieve && req.state == ShareRequestState.Approved then
+      req.copy(ciphertext = repository.getShareById(req.share.id).map(_.ciphertext))
+    else req
+
   override def depositShare(
       senderKey: PublicKey,
       recipientKey: PublicKey,
@@ -40,104 +51,96 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
       label: Label,
       createdAt: Instant,
       ciphertext: Array[Byte]
-  ): Either[Error, Unit] =
+  ): Either[Error, ShareMetadata] =
     repository.getShare(secretId, senderKey, recipientKey) match
       case Some(_) => Left(Error.Conflict)
-      case None    =>
-        repository.saveShare(Share(secretId, senderKey, recipientKey, label, createdAt, ciphertext))
-        Right(())
+      case None =>
+        val share = Share(UUID.randomUUID(), secretId, senderKey, recipientKey, label, createdAt, ciphertext)
+        repository.saveShare(share)
+        Right(toMetadata(share))
 
   override def listShares(
-      senderKey: PublicKey,
-      recipientKey: PublicKey
+      callerKey: PublicKey,
+      asSender: Boolean,
+      counterpartyKey: Option[PublicKey]
   ): Either[Error, Seq[ShareMetadata]] =
-    Right(repository.getShareMetadata(senderKey, recipientKey))
+    if asSender then Right(repository.getSharesAsSender(callerKey, counterpartyKey))
+    else Right(repository.getSharesAsRecipient(callerKey, counterpartyKey))
 
-  override def requestRetrieval(
+  override def openShareRequest(
       senderKey: PublicKey,
-      recipientKey: PublicKey,
-      secretId: SecretId
-  ): Either[Error, UUID] =
-    repository.getShare(secretId, senderKey, recipientKey) match
-      case None    => Left(Error.NotFound)
-      case Some(_) =>
-        val request = ShareRequest(
-          id = UUID.randomUUID(),
-          requestType = ShareRequestType.Retrieve,
-          secretId = Some(secretId),
-          senderKey = senderKey,
-          recipientKey = recipientKey,
-          state = ShareRequestState.Pending,
-          createdAt = Instant.now()
-        )
-        repository.saveShareRequest(request)
-        Right(request.id)
+      shareId: UUID,
+      requestType: ShareRequestType
+  ): Either[Error, ShareRequest] =
+    repository.getShareById(shareId) match
+      case None => Left(Error.NotFound)
+      case Some(share) if !sameKey(share.senderKey, senderKey) => Left(Error.Forbidden)
+      case Some(share) =>
+        if repository.hasPendingRequest(shareId, requestType) then Left(Error.Conflict)
+        else
+          val request = ShareRequest(
+            id = UUID.randomUUID(),
+            share = toMetadata(share),
+            requestType = requestType,
+            state = ShareRequestState.Pending,
+            createdAt = Instant.now(),
+            respondedAt = None,
+            ciphertext = None
+          )
+          repository.saveShareRequest(request)
+          Right(request)
 
-  override def requestDeletion(
-      senderKey: PublicKey,
-      recipientKey: PublicKey,
-      secretId: Option[SecretId]
-  ): Either[Error, UUID] =
-    val exists = secretId match
-      case None      => true
-      case Some(sid) => repository.getShare(sid, senderKey, recipientKey).isDefined
-    if !exists then Left(Error.NotFound)
-    else
-      val request = ShareRequest(
-        id = UUID.randomUUID(),
-        requestType = ShareRequestType.Delete,
-        secretId = secretId,
-        senderKey = senderKey,
-        recipientKey = recipientKey,
-        state = ShareRequestState.Pending,
-        createdAt = Instant.now()
-      )
-      repository.saveShareRequest(request)
-      Right(request.id)
+  override def listShareRequests(
+      callerKey: PublicKey,
+      asSender: Boolean,
+      state: Option[ShareRequestState]
+  ): Either[Error, Seq[ShareRequest]] =
+    val requests =
+      if asSender then repository.getShareRequestsAsSender(callerKey, state)
+      else repository.getShareRequestsAsRecipient(callerKey, state)
+    Right(requests.map(withCiphertext))
 
-  override def listPendingRequests(recipientKey: PublicKey): Either[Error, Seq[ShareRequest]] =
-    Right(repository.getPendingShareRequests(recipientKey))
-
-  override def approveRetrieval(
-      recipientKey: PublicKey,
+  override def getShareRequest(
+      callerKey: PublicKey,
       requestId: UUID
-  ): Either[Error, Array[Byte]] =
-    repository.getShareRequest(requestId, recipientKey) match
-      case None                                                      => Left(Error.NotFound)
-      case Some(req) if req.requestType != ShareRequestType.Retrieve => Left(Error.NotFound)
-      case Some(req) if req.state != ShareRequestState.Pending       => Left(Error.NotFound)
-      case Some(req)                                                 =>
-        req.secretId match
-          case None      => Left(Error.NotFound) // invariant: Retrieve always has a secretId
-          case Some(sid) =>
-            repository.getShare(sid, req.senderKey, req.recipientKey) match
-              case None        => Left(Error.NotFound)
-              case Some(share) =>
-                repository.updateShareRequestState(requestId, ShareRequestState.Approved)
-                Right(share.ciphertext)
+  ): Either[Error, ShareRequest] =
+    repository.getShareRequestById(requestId) match
+      case None => Left(Error.NotFound)
+      case Some(req)
+        if !sameKey(req.share.senderKey, callerKey) && !sameKey(req.share.recipientKey, callerKey) =>
+        Left(Error.Forbidden)
+      case Some(req) => Right(withCiphertext(req))
 
-  override def approveDeletion(
+  override def respondToShareRequest(
       recipientKey: PublicKey,
-      requestId: UUID
+      requestId: UUID,
+      approved: Boolean
+  ): Either[Error, ShareRequest] =
+    repository.getShareRequestById(requestId) match
+      case None => Left(Error.NotFound)
+      case Some(req) if !sameKey(req.share.recipientKey, recipientKey) => Left(Error.Forbidden)
+      case Some(req) if req.state != ShareRequestState.Pending         => Left(Error.Conflict)
+      case Some(req) =>
+        val now      = Instant.now()
+        val newState = if approved then ShareRequestState.Approved else ShareRequestState.Denied
+        repository.updateShareRequest(requestId, newState, now)
+        if approved && req.requestType == ShareRequestType.Delete then
+          repository.deleteShares(req.share.recipientKey, Some(req.share.senderKey), Some(req.share.secretId))
+        val ciphertext: Option[Array[Byte]] =
+          if approved && req.requestType == ShareRequestType.Retrieve then
+            repository.getShareById(req.share.id).map(_.ciphertext)
+          else None
+        Right(req.copy(state = newState, respondedAt = Some(now), ciphertext = ciphertext))
+
+  override def deleteShareById(
+      recipientKey: PublicKey,
+      shareId: UUID
   ): Either[Error, Unit] =
-    repository.getShareRequest(requestId, recipientKey) match
-      case None                                                    => Left(Error.NotFound)
-      case Some(req) if req.requestType != ShareRequestType.Delete => Left(Error.NotFound)
-      case Some(req) if req.state != ShareRequestState.Pending     => Left(Error.NotFound)
-      case Some(req)                                               =>
-        repository.updateShareRequestState(requestId, ShareRequestState.Approved)
-        repository.deleteShares(req.recipientKey, Some(req.senderKey), req.secretId)
-        Right(())
-
-  override def denyRequest(
-      recipientKey: PublicKey,
-      requestId: UUID
-  ): Either[Error, Unit] =
-    repository.getShareRequest(requestId, recipientKey) match
-      case None                                                => Left(Error.NotFound)
-      case Some(req) if req.state != ShareRequestState.Pending => Left(Error.NotFound)
-      case Some(_)                                             =>
-        repository.updateShareRequestState(requestId, ShareRequestState.Denied)
+    repository.getShareById(shareId) match
+      case None                                                       => Left(Error.NotFound)
+      case Some(share) if !sameKey(share.recipientKey, recipientKey) => Left(Error.Forbidden)
+      case Some(share) =>
+        repository.deleteShares(recipientKey, Some(share.senderKey), Some(share.secretId))
         Right(())
 
   override def deleteShares(

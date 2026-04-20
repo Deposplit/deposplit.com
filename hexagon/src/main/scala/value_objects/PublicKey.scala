@@ -43,8 +43,13 @@ object PublicKey:
       else Right(bytes)
     catch case _: IllegalArgumentException => Left(s"invalid base64url: $s")
 
+  def fromBytes(bytes: Array[Byte]): Either[String, PublicKey] =
+    if bytes.length != KeyLength then Left(s"Ed25519 public key must be $KeyLength bytes")
+    else Right(bytes)
+
   extension (pk: PublicKey)
     def toBase64Url: String = encoder.encodeToString(pk)
+    def toBytes: Array[Byte] = pk
 
     /** Verifies an Ed25519 `signature` over `message`. Returns false on any error. */
     def verify(message: Array[Byte], signature: Signature): Boolean =

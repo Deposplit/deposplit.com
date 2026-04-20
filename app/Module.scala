@@ -22,17 +22,13 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+import com.google.inject.AbstractModule
+import driven_ports.persistence.ShareRepository
+import driving_ports.Shares
+import persistence.AnormShareRepository
+import services.SharesService
 
-import java.time.Instant
-import java.util.UUID
-
-/** Share metadata returned when listing — no ciphertext. */
-case class ShareMetadata(
-    id: UUID,
-    secretId: SecretId,
-    senderKey: PublicKey,
-    recipientKey: PublicKey,
-    label: Label,
-    createdAt: Instant
-)
+class Module extends AbstractModule:
+  override def configure(): Unit =
+    bind(classOf[ShareRepository]).to(classOf[AnormShareRepository])
+    bind(classOf[Shares]).to(classOf[SharesService])

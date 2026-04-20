@@ -27,3 +27,6 @@ libraryDependencies += "org.webjars.npm" % "bootstrap" % "5.3.8"
 
 // Adds additional packages into conf/routes
 // play.sbt.routes.RoutesKeys.routesImport += "com.deposplit.binders._"
+
+Test / javaOptions += "-Dconfig.file=conf/test.conf"
+fork := true

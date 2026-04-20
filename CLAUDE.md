@@ -325,20 +325,20 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Design**: the full app layer is designed — backend protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
 - **Android app scaffold**: Jetpack Compose + Material 3 app with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `SignInViewModel`, `SignInScreen`, `HomeScreen` placeholder, NavHost). The `MatrixAuthAdapter` (OIDC-based) is present but **obsolete** — it is to be replaced by a `DeposplitAuthAdapter` for keypair-based registration.
 - **iOS app scaffold**: SwiftUI app targeting iOS 26+ with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `DeposplitAuthAdapter`, `SignInViewModel`, `SignInView`, `HomeView` placeholder). `ShamirSecretSharing.swift` is compiled directly into the app target.
-- **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 38 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
+- **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 47 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
+- **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. All 50 tests pass (47 hexagon + 3 root). OpenAPI spec at `conf/openapi.yaml`.
 
 ### What is next
 
 In rough priority order:
 
 1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, persist private keys in Android Keystore, store pseudonym locally; remove `matrix-rust-sdk` dependency
-2. **deposplit.com**: Implement the root Play app's REST API — `ShareRepository` adapter (Anorm + PostgreSQL/H2), Play controllers wiring auth header verification (`PublicKey.verify`, `Nonce.isExpired`) to the `Shares` driving port, and Play routes / OpenAPI spec
-3. **Android**: Home screen — list secrets distributed / shares held
-4. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
-5. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
-6. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
-7. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
-8. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
+2. **Android**: Home screen — list secrets distributed / shares held
+3. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
+4. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
+5. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
+6. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
+7. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 
 ## Build & Test Commands
 
