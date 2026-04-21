@@ -323,22 +323,23 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 
 - **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**.
 - **Design**: the full app layer is designed — backend protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
-- **Android app scaffold**: Jetpack Compose + Material 3 app with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `SignInViewModel`, `SignInScreen`, `HomeScreen` placeholder, NavHost). The `MatrixAuthAdapter` (OIDC-based) is present but **obsolete** — it is to be replaced by a `DeposplitAuthAdapter` for keypair-based registration.
+- **Android registration**: `DeposplitAuthAdapter` generates X25519 + Ed25519 keypairs via libsodium at first launch; private keys are wrapped with an AES-256-GCM master key in the Android Keystore (`deposplit_master`) and stored encrypted in `SharedPreferences`; pseudonym stored plaintext. `SignInScreen` / `SignInViewModel` collect a pseudonym and call `register()`. `MatrixAuthAdapter` deleted; `matrix-rust-sdk` dependency removed.
 - **iOS app scaffold**: SwiftUI app targeting iOS 26+ with a sign-in screen and Ports & Adapters skeleton (`AuthPort`, `DeposplitAuthAdapter`, `SignInViewModel`, `SignInView`, `HomeView` placeholder). `ShamirSecretSharing.swift` is compiled directly into the app target.
 - **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 47 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
 - **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. All 50 tests pass (47 hexagon + 3 root). OpenAPI spec at `conf/openapi.yaml`.
+- **Android home screen**: two-tab screen (Distributed / Held) backed by `HomeViewModel`, which calls `listShares(SENDER)` and `listShares(RECIPIENT)` on load and on refresh; loading, error, and empty states handled.
+- **Android API adapter**: `DeposplitApiAdapter` implements all 7 operations (`depositShare`, `listShares`, `deleteShare`, `openShareRequest`, `listShareRequests`, `getShareRequest`, `respondToShareRequest`) via `HttpURLConnection`; Ed25519 request signing with canonical string `nonce\nMETHOD\npath_with_query\nhex(sha256(body))`; `kotlinx.serialization` JSON; base64url for keys, standard base64 for ciphertext. Wired into `DeposplitApp` as `shareTransport`.
+- **Android contact management**: `Contact` domain model + `ContactRepository` port interface; `LocalContactRepository` stores contacts as JSON in `filesDir` with `@Synchronized` thread safety; `ContactsScreen` (list + delete per item, FAB navigates to add), `AddContactScreen` (manual pseudonym + Ed25519/X25519 base64url key entry with validation). Contacts icon in `HomeScreen` TopAppBar navigates to the list.
+- **Android deposit flow**: `AuthPort.encrypt()` wraps libsodium `crypto_box_easy` (X25519 key agreement, nonce prepended to ciphertext); `DepositScreen` / `DepositViewModel` collect label, secret text, contact selection (≥2), and threshold (≥2), call `Shamir.split()` then `auth.encrypt()` per share then `transport.depositShare()` for each recipient. FAB on `HomeScreen` navigates to the deposit screen.
 
 ### What is next
 
 In rough priority order:
 
-1. **Android**: Replace `MatrixAuthAdapter` with `DeposplitAuthAdapter` — generate X25519 + Ed25519 keypairs via libsodium, persist private keys in Android Keystore, store pseudonym locally; remove `matrix-rust-sdk` dependency
-2. **Android**: Home screen — list secrets distributed / shares held
-3. **Android**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
-4. **Android**: Wire `Shamir.split()` / `Shamir.combine()` into the secret distribution flow
-5. **Android**: Contact management — local contact list with QR-scan/share-link onboarding and contact verification UI
-6. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
-7. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
+1. **Android**: Retrieve / delete consent flows — `listShareRequests`, `respondToShareRequest`, `openShareRequest`
+2. **Android**: QR contact onboarding — scan a contact's QR code to exchange Ed25519 + X25519 keys in person
+3. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
+4. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 
 ## Build & Test Commands
 
