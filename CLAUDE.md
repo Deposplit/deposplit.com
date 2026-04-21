@@ -331,13 +331,15 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Android API adapter**: `DeposplitApiAdapter` implements all 7 operations (`depositShare`, `listShares`, `deleteShare`, `openShareRequest`, `listShareRequests`, `getShareRequest`, `respondToShareRequest`) via `HttpURLConnection`; Ed25519 request signing with canonical string `nonce\nMETHOD\npath_with_query\nhex(sha256(body))`; `kotlinx.serialization` JSON; base64url for keys, standard base64 for ciphertext. Wired into `DeposplitApp` as `shareTransport`.
 - **Android contact management**: `Contact` domain model + `ContactRepository` port interface; `LocalContactRepository` stores contacts as JSON in `filesDir` with `@Synchronized` thread safety; `ContactsScreen` (list + delete per item, FAB navigates to add), `AddContactScreen` (manual pseudonym + Ed25519/X25519 base64url key entry with validation). Contacts icon in `HomeScreen` TopAppBar navigates to the list.
 - **Android deposit flow**: `AuthPort.encrypt()` wraps libsodium `crypto_box_easy` (X25519 key agreement, nonce prepended to ciphertext); `DepositScreen` / `DepositViewModel` collect label, secret text, contact selection (≥2), and threshold (≥2), call `Shamir.split()` then `auth.encrypt()` per share then `transport.depositShare()` for each recipient. FAB on `HomeScreen` navigates to the deposit screen.
+- **Android recipient consent flows**: `RequestsViewModel` polls `listShareRequests(RECIPIENT, PENDING)` and `contactRepository.getAll()` on load; `respond()` calls `respondToShareRequest()` then reloads. `RecipientRequestsTab` shows a per-request card with type badge (Retrieve/Delete), sender pseudonym (looked up by Ed25519 key), and Deny/Approve buttons with per-request in-progress state. Surfaced as a third "Requests" tab in `HomeScreen` alongside Distributed/Held; Refresh button calls the active tab's ViewModel.
+- **Android sender-side consent flows**: `AuthPort.decrypt()` / `DeposplitAuthAdapter` wraps `crypto_box_open_easy` (splits nonce prefix, decrypts to plaintext). `ShareDetailScreen` / `ShareDetailViewModel` opened by tapping a Distributed share: shows recipient name, request state (Pending/Approved/Denied) per type, buttons to open RETRIEVE/DELETE requests (re-open on Denied), and a Reconstruct section (shown when ≥2 approved retrieve shares exist for the secretId) that decrypts each approved ciphertext via `auth.decrypt()`, calls `Shamir.combine()`, and displays the secret.
 
 ### What is next
 
 In rough priority order:
 
-1. **Android**: Retrieve / delete consent flows — `listShareRequests`, `respondToShareRequest`, `openShareRequest`
-2. **Android**: QR contact onboarding — scan a contact's QR code to exchange Ed25519 + X25519 keys in person
+1. **Android**: QR contact onboarding — scan a contact's QR code to exchange Ed25519 + X25519 keys in person
+2. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 3. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 4. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
 
