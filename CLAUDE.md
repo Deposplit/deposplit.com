@@ -54,7 +54,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 | Folder | Repository | Purpose |
 |---|---|---|
 | `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
-| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (single `:app` Gradle module) |
+| `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (`:hexagon` + `:app` Gradle modules) |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library + iOS app (SwiftUI, iOS 26+) |
 
 ### Backend Tech Stack: Scala + Play
@@ -334,14 +334,12 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Android recipient consent flows**: `RequestsViewModel` polls `listShareRequests(RECIPIENT, PENDING)` and `contactRepository.getAll()` on load; `respond()` calls `respondToShareRequest()` then reloads. `RecipientRequestsTab` shows a per-request card with type badge (Retrieve/Delete), sender pseudonym (looked up by Ed25519 key), and Deny/Approve buttons with per-request in-progress state. Surfaced as a third "Requests" tab in `HomeScreen` alongside Distributed/Held; Refresh button calls the active tab's ViewModel.
 - **Android sender-side consent flows**: `AuthPort.decrypt()` / `DeposplitAuthAdapter` wraps `crypto_box_open_easy` (splits nonce prefix, decrypts to plaintext). `ShareDetailScreen` / `ShareDetailViewModel` opened by tapping a Distributed share: shows recipient name, request state (Pending/Approved/Denied) per type, buttons to open RETRIEVE/DELETE requests (re-open on Denied), and a Reconstruct section (shown when ≥2 approved retrieve shares exist for the secretId) that decrypts each approved ciphertext via `auth.decrypt()`, calls `Shamir.combine()`, and displays the secret.
 - **Android QR contact onboarding**: `QrPayload` encodes/decodes `{"v":1,"pseudonym":"...","ed":"...","x":"..."}` (base64url keys, ZXing 3.5.3). `QrDisplayScreen` / `QrDisplayViewModel` generate a 512×512 `QRCodeWriter` bitmap of the user's own public keys on `Dispatchers.Default`; reachable via QR icon in `HomeScreen` TopAppBar. `QrScanScreen` / `QrScanViewModel` use CameraX 1.6.0 `PreviewView` + `ImageAnalysis` with `PlanarYUVLuminanceSource` → `QRCodeReader` per YUV frame; `AtomicBoolean hasScanned` prevents duplicate saves; successfully scanned contacts are saved with `VerificationLevel.VERIFIED`. Scanner reachable via icon in `ContactsScreen` TopAppBar. Runtime CAMERA permission requested on first open.
+- **Android hexagon module**: `:app` split into `:hexagon` (pure Kotlin/JVM, `org.jetbrains.kotlin.jvm` plugin, JVM 21) + `:app` (AGP, depends on `:hexagon`). Moved to `:hexagon`: `Shamir`, `AuthPort`, `ShareTransport` (incl. `Role`/`ShareRequestType`/`ShareRequestState`/`ShareMetadata`/`ShareRequest`), `Contact`/`VerificationLevel`/`ContactRepository`, and `ShamirTest`. Adapters (`DeposplitAuthAdapter`, `DeposplitApiAdapter`, `LocalContactRepository`) and all UI stay in `:app`. Package names unchanged. 18 hexagon tests pass; `:app:assembleDebug` green.
+- **Android biometric unlock**: `ShareDetailScreen` gates `viewModel.reconstruct()` behind `BiometricPrompt` via a `com.deposplit.ui.biometric.BiometricGate` helper (suspend `authenticate(activity, title, subtitle)` built on `suspendCancellableCoroutine`). Authenticators are `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` on API 30+ and `BIOMETRIC_STRONG` on API 29 (combination unsupported there). Availability is probed on screen entry; `NoneEnrolled`/`NoHardware`/`Unavailable` each render an explanatory message in place of the Reconstruct button. `MainActivity` promoted from `ComponentActivity` to `FragmentActivity` (required by `BiometricPrompt`). Dependency: `androidx.biometric:biometric:1.1.0`; `USE_BIOMETRIC` permission added.
 
 ### What is next
 
-In rough priority order:
-
-1. **Android**: Hexagon module extraction — split `:app` into `:hexagon` + `:app`
-2. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
-3. **Android**: Biometric unlock — gate secret reconstruction behind `BiometricPrompt`
+1. **iOS**: Implement the four backend protocol message types (deposit, list, retrieve, delete)
 
 ## Build & Test Commands
 
@@ -357,7 +355,7 @@ sbt hexagon/test # test hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 
-### Android/ (Kotlin 2.2, AGP 9.x, JVM 17 bytecode, runs on Java 25+)
+### Android/ (Kotlin 2.3, AGP 9.x, JVM 21 bytecode, runs on Java 25+)
 
 ```bash
 # from Android/
