@@ -34,7 +34,7 @@ info:
 
     The QR code / share link carries both keys:
     - **Ed25519 public key** — used for API authentication and as the routing identity on the server
-    - **X25519 public key** — used by the sender to encrypt shares client-side (`crypto_box`)
+    - **X25519 public key** — used by the sender to encrypt shares client-side (X25519+HKDF-SHA-256+ChaCha20-Poly1305)
 
     The server never sees X25519 keys.
 
@@ -52,7 +52,7 @@ info:
     Background push (FCM/APNs) is not part of v0.1.
 
 servers:
-  - url: https://api.deposplit.com/v1
+  - url: https://api.deposplit.com
 
 security:
   - ed25519Auth: []

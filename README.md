@@ -23,7 +23,7 @@ Deposplit's protocol consists of exactly four message types (deposit / list / re
 - **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The backend stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
 - **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
 - **Lean.** The protocol needs four message types; heavier transports (Matrix, XMPP) bring megabytes of SDK for features Deposplit does not use.
-- **libsodium** (`crypto_box`: X25519 + XSalsa20-Poly1305, ISC licence) fits the actual threat model — one-shot encrypted payloads between known parties — and is easy to use correctly.
+- **Share encryption uses X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — one-shot encrypted payloads between known parties. Implemented with BouncyCastle on Android/JVM and Swift Crypto on iOS; no native libsodium.
 
 Rejected alternatives:
 
@@ -43,7 +43,7 @@ Rejected alternatives:
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
 | DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | Two tables: `shares`, `share_requests` |
-| Dev / test DB | H2 (in-memory) | No PostgreSQL instance required locally |
+| Dev / test DB | H2 (file-backed, `./target/deposplit-dev`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
 | Landing page templating | Twirl (built into Play) | |
