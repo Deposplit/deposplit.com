@@ -85,7 +85,21 @@ class SharesController @Inject() (
     result.merge
   }
 
-  /** DELETE /shares/:shareId — recipient-initiated deletion without consent. */
+  /** GET /shares/:shareId — pick up a deposited share (recipient, one-time delivery). */
+  def pickUpShare(shareId: String) = Action { (request: Request[AnyContent]) =>
+    val result = for
+      callerKey <- AuthHelper.verify(request, Array.empty)
+      id        <- parseUuid(shareId)
+                     .toRight(BadRequest(errorJson("invalid_param", "shareId must be a UUID")))
+      ct        <- shares.pickUpShare(callerKey, id)
+                     .left.map(domainErrorToResult)
+    yield Ok(Json.obj("ciphertext" -> java.util.Base64.getEncoder.encodeToString(ct)))
+    result.merge
+  }
+
+  /** DELETE /shares/:shareId — delete a share row from the relay.
+    * Recipient: always allowed. Sender: allowed only after the recipient has picked up the share.
+    */
   def deleteShare(shareId: String) = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)

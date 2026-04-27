@@ -29,8 +29,9 @@ import java.util.UUID
 
 /** A consent request created by the sender and awaiting the recipient's response.
   *
-  * `ciphertext` is non-None only when `requestType == Retrieve && state == Approved`; it is populated by the service
-  * at query time (fetched from the share) and is never stored in the `share_requests` table.
+  * `ciphertext` is non-None only when `requestType == Retrieve && state == Approved`. The recipient's
+  * app provides it in the approve response body (from local storage, since the relay no longer holds it
+  * after pickup); it is stored in the `share_requests` table until the sender deletes the shares row.
   */
 case class ShareRequest(
     id: UUID,

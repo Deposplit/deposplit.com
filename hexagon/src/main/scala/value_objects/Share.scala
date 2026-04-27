@@ -26,10 +26,13 @@ package value_objects
 
 import java.time.Instant
 
-/** A deposited share as stored by the relay.
+/** A deposited share row in the relay.
   *
-  * `ciphertext` is opaque to the server: it is encrypted by the sender to the recipient's X25519 public key before
-  * leaving the sender's device, so the server cannot read it regardless of a breach.
+  * `ciphertext` is opaque to the server and is present only while the share is in the recipient's
+  * inbox (before pickup). Once the recipient picks up the share, `ciphertext` is set to `None` and
+  * `pickedUpAt` is set to the pickup timestamp — the ciphertext now lives only on the recipient's
+  * device. The row is retained for routing and listing purposes until the sender or recipient
+  * explicitly deletes it.
   */
 case class Share(
     id: java.util.UUID,
@@ -38,5 +41,6 @@ case class Share(
     recipientKey: PublicKey,
     label: Label,
     createdAt: Instant,
-    ciphertext: Array[Byte]
+    ciphertext: Option[Array[Byte]],
+    pickedUpAt: Option[Instant]
 )

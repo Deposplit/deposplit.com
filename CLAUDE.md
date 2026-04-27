@@ -81,7 +81,7 @@ The hexagon and root both programme **synchronously (blocking)** — no Scala `F
 - **Twirl** (built into Play) for the landing page
 - **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
-- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `SharesService` instead and must be added to production PostgreSQL manually (see comment in `1.sql`)
+- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `SharesService` instead and must be added to production PostgreSQL manually (see comment in `1.sql`). The `NULL`-able `ciphertext` and `picked_up_at` columns in `shares`, and the `ciphertext` column in `share_requests`, use standard nullable `BYTEA` / `TIMESTAMP WITH TIME ZONE` — H2 handles these without special treatment
 - **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
 - **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (two tables: `shares`, `share_requests`)
 - **OpenAPI 3.0** spec at `conf/openapi.yaml` — covers all REST endpoints; kept in sync with the Play routes file
@@ -223,6 +223,18 @@ There are four message types exchanged via the deposplit.com backend API:
 
 **Recipient-initiated deletion** is purely local — no message is needed. The recipient can unilaterally delete individual shares or all shares from a given sender at any time.
 
+**The backend is a pure relay — ciphertext is ephemeral:**
+
+Message 1 has two sub-phases, both mediated by the relay:
+- **Deposit sub-phase** (sender → relay): Alice posts the ciphertext; the relay stores it temporarily.
+- **Pickup sub-phase** (relay → recipient): Bob explicitly fetches his share (`GET /shares/:shareId`); the relay delivers the ciphertext once, then clears it (`shares.ciphertext` set to NULL, `shares.picked_up_at` recorded). The ciphertext now lives only on Bob's device.
+
+Message 3 (Retrieve) is symmetric:
+- **Request sub-phase** (sender → relay): Alice opens a retrieve request; the relay stores it as pending.
+- **Response sub-phase** (recipient → relay → sender): Bob approves and **sends the ciphertext from his local storage** in the response body; the relay stores it temporarily in `share_requests.ciphertext`. Alice polls, fetches the ciphertext, then deletes the share row (which cascade-deletes the request row) to clean up the relay.
+
+Consequence: a relay database wipe after all recipients have picked up their shares does not destroy the secret — the shares live on the recipients' devices. The relay is a mailbox, not a store.
+
 **Consent model:**
 - *Retrieval* — the recipient must approve. This allows out-of-band verification (e.g. a phone call) that the sender genuinely requested reconstruction and is not an attacker who stole their device.
 - *Sender-initiated deletion* — the recipient must approve. The sender cannot force deletion.
@@ -336,7 +348,7 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Android registration**: `DeposplitAuthAdapter` generates X25519 + Ed25519 keypairs via BouncyCastle (`bcprov-jdk18on`); private keys are wrapped with an AES-256-GCM master key in the Android Keystore (`deposplit_master`) and stored encrypted in `SharedPreferences`; pseudonym stored plaintext. `SignInScreen` / `SignInViewModel` collect a pseudonym and call `register()`. `MatrixAuthAdapter` deleted; `matrix-rust-sdk` dependency removed.
 - **iOS app**: Full feature-parity implementation with Android. SwiftUI app targeting iOS 26+ with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. All screens implemented: registration (`SignInView`), home with three tabs (Distributed/Held/Requests), contacts management with QR scan (`DataScannerViewController`) and manual entry, deposit flow (`Shamir.split` + `auth.encrypt` + `transport.depositShare`), recipient consent flows (approve/deny), sender-side reconstruction (`auth.decrypt` + `Shamir.combine`), QR display (CoreImage). Crypto via CryptoKit: X25519 key agreement + `hkdfDerivedSymmetricKey(using: SHA256.self, ...)` + `ChaChaPoly`. Ed25519 signing via `Curve25519.Signing.PrivateKey`. Private keys in Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). API adapter uses `URLSession` + `SHA256.hash(data:)` for body hash. Uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+): no need to edit `project.pbxproj` when adding files.
 - **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 47 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
-- **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. All 50 tests pass (47 hexagon + 3 root). OpenAPI spec at `conf/openapi.yaml`.
+- **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. The backend implements the **pure relay model**: `shares.ciphertext` is cleared on recipient pickup (`GET /shares/:shareId`); `share_requests.ciphertext` holds the ciphertext the recipient sends back when approving a retrieve request; `shares.picked_up_at` records delivery. `Error.BadRequest` maps to HTTP 400. All 87 tests pass (56 hexagon + 31 root). OpenAPI spec at `conf/openapi.yaml`.
 - **Android home screen**: three-tab screen (Distributed / Held / Requests) backed by `HomeViewModel` and `RequestsViewModel`; `LifecycleEventEffect(Lifecycle.Event.ON_RESUME)` reloads both ViewModels each time the screen resumes (including on return from sub-screens, where `init` does not re-run because the ViewModel is already alive). Loading, error, and empty states handled per tab.
 - **Android API adapter**: `DeposplitApiAdapter` implements all 7 operations (`depositShare`, `listShares`, `deleteShare`, `openShareRequest`, `listShareRequests`, `getShareRequest`, `respondToShareRequest`) via `HttpURLConnection`; Ed25519 request signing with canonical string `nonce\nMETHOD\npath_with_query\nhex(sha256(body))`; `kotlinx.serialization` JSON; base64url for keys, standard base64 for ciphertext. Wired into `DeposplitApp` as `shareTransport`.
 - **Android contact management**: `Contact` domain model + `ContactRepository` port interface; `LocalContactRepository` stores contacts as JSON in `filesDir` with `@Synchronized` thread safety; `ContactsScreen` (list + delete per item, FAB navigates to add), `AddContactScreen` (manual pseudonym + Ed25519/X25519 base64url key entry with validation). Contacts icon in `HomeScreen` TopAppBar navigates to the list.
@@ -351,9 +363,16 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 
 ### What is next
 
-1. **Android UX — group Distributed tab by `secretId`**: The Distributed tab currently shows one entry per share (one per recipient), so a 2-of-2 deposit to Bob and Carol produces two entries. A future improvement is to group shares by `secretId` and show a single row per logical secret, expanding to show per-holder status on tap.
-2. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
-3. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` backend.
+1. **Android relay protocol implementation**: The backend now enforces the pure relay model, but the Android app has not yet been updated to match. Required changes:
+   - Add `pickUpShare(shareId)` to `ShareTransport` port and implement in `DeposplitApiAdapter` (`GET /shares/:shareId`).
+   - Store each picked-up share's ciphertext locally (e.g., encrypted file in `filesDir`, keyed by share ID) so it survives across app sessions.
+   - The **Held** tab must switch from listing relay rows (`GET /shares?role=recipient`) to displaying locally stored shares — the relay listing now only shows shares not yet picked up (inbox items).
+   - `respondToShareRequest` for retrieve approvals must read the ciphertext from local storage and include it in the PATCH body; the backend returns `400` if it is absent.
+   - After reconstructing a secret, Alice's app should delete the share rows from the relay (`DELETE /shares/:shareId` as sender — allowed after pickup) to clean up.
+2. **iOS relay protocol implementation**: Same changes as Android above, adapted for Swift/CryptoKit and the iOS `ShareTransport` protocol.
+3. **Android UX — group Distributed tab by `secretId`**: The Distributed tab currently shows one entry per share (one per recipient), so a 2-of-2 deposit to Bob and Carol produces two entries. A future improvement is to group shares by `secretId` and show a single row per logical secret, expanding to show per-holder status on tap.
+4. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
+5. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` backend. Blocked on items 1 and 2 above.
 
 ## Build & Test Commands
 

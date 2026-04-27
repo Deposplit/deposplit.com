@@ -96,15 +96,30 @@ class SharesApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
-  "DELETE /shares/:shareId" should {
+  "GET /shares/:shareId" should {
 
-    "reject deletion by the sender (who is not the recipient)" in {
-      val result = route(app, alice.delete(s"/shares/$shareId")).get
-      status(result) mustBe FORBIDDEN
+    "allow the recipient to pick up their share (one-time delivery)" in {
+      val result = route(app, bob.get(s"/shares/$shareId")).get
+      status(result)      mustBe OK
+      contentType(result) mustBe Some("application/json")
+      (contentAsJson(result) \ "ciphertext").asOpt[String] must not be empty
     }
 
-    "allow the recipient to delete their share" in {
-      val result = route(app, bob.delete(s"/shares/$shareId")).get
+    "return 409 when the share has already been picked up" in {
+      val result = route(app, bob.get(s"/shares/$shareId")).get
+      status(result) mustBe CONFLICT
+    }
+
+    "return 403 when the caller is not the recipient" in {
+      val result = route(app, alice.get(s"/shares/$shareId")).get
+      status(result) mustBe FORBIDDEN
+    }
+  }
+
+  "DELETE /shares/:shareId" should {
+
+    "allow the sender to delete the share row after pickup" in {
+      val result = route(app, alice.delete(s"/shares/$shareId")).get
       status(result) mustBe NO_CONTENT
     }
 

@@ -9,6 +9,7 @@ GET     /                           controllers.HomeController.index()
 # REST API
 POST    /shares                     api.SharesController.depositShare()
 GET     /shares                     api.SharesController.listShares()
+GET     /shares/:shareId            api.SharesController.pickUpShare(shareId: String)
 DELETE  /shares/:shareId            api.SharesController.deleteShare(shareId: String)
 
 POST    /share-requests             api.ShareRequestsController.openShareRequest()

@@ -100,6 +100,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        pickedUpAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Set once the recipient has picked up the share from the relay inbox.
+            Always null in recipient-role listings (which only show undelivered shares).
+            May be null or non-null in sender-role listings.
 
     ShareDeposit:
       type: object
@@ -116,8 +124,8 @@ components:
           type: string
           format: byte
           description: >
-            Share bytes encrypted to the recipient's X25519 public key via
-            libsodium crypto_box (X25519 + XSalsa20-Poly1305). Opaque to the server.
+            Share bytes encrypted to the recipient's X25519 public key
+            (X25519 + HKDF-SHA-256 + ChaCha20-Poly1305). Opaque to the server.
 
     # ── Share requests (consent model) ───────────────────────────────────────
 
@@ -236,13 +244,62 @@ paths:
                   $ref: '#/components/schemas/ShareMetadata'
 
   /shares/{shareId}:
-    delete:
-      operationId: deleteShareAsRecipient
-      summary: Recipient-initiated deletion — no consent required
+    get:
+      operationId: pickUpShare
+      summary: "Message 1 (recipient side) — Pick up a deposited share"
       description: >
-        The authenticated recipient deletes a share they hold. Unilateral — no sender
-        approval required, and the sender is not notified. The recipient may delete any
-        or all of their held shares at any time.
+        The authenticated recipient retrieves the ciphertext of a deposited share.
+        This is a one-time delivery: the server clears the ciphertext from the relay and
+        records the pickup timestamp. The ciphertext now lives only on the recipient's device.
+        Returns `409` if the share has already been picked up.
+      tags: [Shares]
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ciphertext delivered; cleared from relay.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ciphertext]
+                properties:
+                  ciphertext:
+                    type: string
+                    format: byte
+        '403':
+          description: Caller is not the recipient of this share.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Share not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Share has already been picked up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteShare
+      summary: Delete a share row from the relay
+      description: >
+        Deletes the share row (and any associated consent requests) from the relay.
+
+        - **Recipient**: always allowed — unilateral inbox management, no sender approval required.
+        - **Sender**: allowed only after the recipient has picked up the share (`409` otherwise).
+          Use a `delete` consent request (Message 4) to ask the recipient to delete their local copy.
       tags: [Shares]
       parameters:
         - name: shareId
@@ -253,15 +310,21 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Share deleted.
+          description: Share row deleted.
         '403':
-          description: Caller is not the recipient of this share.
+          description: Caller is neither the sender nor the recipient.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Share not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Sender tried to delete before the recipient picked up the share.
           content:
             application/json:
               schema:
@@ -386,7 +449,11 @@ paths:
       summary: "Messages 3 & 4 (recipient side) — Approve or deny a consent request"
       description: >
         Called by the recipient (share holder) to approve or deny a pending request.
-        Approving a `delete` request causes the share to be deleted server-side.
+
+        - Approving a `retrieve` request requires the recipient to include `ciphertext` in the body
+          (the share bytes from their local storage). The server stores this temporarily so the sender
+          can retrieve it. Returns `400` if `ciphertext` is absent for a retrieve approval.
+        - Approving a `delete` request causes the share row to be deleted server-side.
       tags: [ShareRequests]
       parameters:
         - name: requestId
@@ -406,6 +473,12 @@ paths:
                 state:
                   type: string
                   enum: [approved, denied]
+                ciphertext:
+                  type: string
+                  format: byte
+                  description: >
+                    Required when approving a `retrieve` request. The encrypted share bytes
+                    from the recipient's local storage.
       responses:
         '200':
           description: Decision recorded.

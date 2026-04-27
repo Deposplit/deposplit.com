@@ -139,14 +139,19 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(result) mustBe FORBIDDEN
     }
 
-    "allow the recipient to approve a retrieve request and include ciphertext in the response" in {
+    "return 400 when the recipient approves a retrieve request without providing ciphertext" in {
       val body   = """{"state":"approved"}""".getBytes("UTF-8")
+      val result = route(app, bob.patch(s"/share-requests/$requestId", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    "allow the recipient to approve a retrieve request with ciphertext from local storage" in {
+      val body   = """{"state":"approved","ciphertext":"AQID"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$requestId", body)).get
       status(result) mustBe OK
       val json = contentAsJson(result)
       (json \ "state").as[String]          mustBe "approved"
       (json \ "respondedAt").asOpt[String] must not be empty
-      // ciphertext is returned only for approved retrieve requests
       (json \ "ciphertext").as[String]     mustBe "AQID"
     }
 

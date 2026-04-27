@@ -27,12 +27,18 @@ package value_objects
 import java.time.Instant
 import java.util.UUID
 
-/** Share metadata returned when listing — no ciphertext. */
+/** Share metadata returned when listing — no ciphertext.
+  *
+  * `pickedUpAt` is set once the recipient has picked up the share from the relay inbox.
+  * It is always `None` in recipient-role listings (which only show shares not yet picked up)
+  * and may be `None` or `Some` in sender-role listings.
+  */
 case class ShareMetadata(
     id: UUID,
     secretId: SecretId,
     senderKey: PublicKey,
     recipientKey: PublicKey,
     label: Label,
-    createdAt: Instant
+    createdAt: Instant,
+    pickedUpAt: Option[Instant]
 )

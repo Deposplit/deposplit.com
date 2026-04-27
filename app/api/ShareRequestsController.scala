@@ -94,25 +94,32 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** PATCH /share-requests/:requestId — approve or deny a pending request (recipient). */
+  /** PATCH /share-requests/:requestId — approve or deny a pending request (recipient).
+    * When approving a retrieve request, the body must include `ciphertext` (base64-encoded share
+    * bytes from the recipient's local storage).
+    */
   def respondToShareRequest(requestId: String) = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
     val result = for
-      callerKey <- AuthHelper.verify(request, bodyBytes)
-      id        <- parseUuid(requestId)
-                     .toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
-      json      <- parseJson(bodyBytes)
-      stateStr  <- (json \ "state").asOpt[String]
-                     .toRight(BadRequest(errorJson("missing_field", "state is required")))
-      approved  <- stateStr match
+      callerKey  <- AuthHelper.verify(request, bodyBytes)
+      id         <- parseUuid(requestId)
+                      .toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
+      json       <- parseJson(bodyBytes)
+      stateStr   <- (json \ "state").asOpt[String]
+                      .toRight(BadRequest(errorJson("missing_field", "state is required")))
+      approved   <- stateStr match
         case "approved" => Right(true)
         case "denied"   => Right(false)
         case _          => Left(BadRequest(errorJson("invalid_field", "state must be 'approved' or 'denied'")))
-      req       <- shares.respondToShareRequest(callerKey, id, approved)
-                     .left.map(domainErrorToResult)
+      ciphertext  = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
+      req        <- shares.respondToShareRequest(callerKey, id, approved, ciphertext)
+                      .left.map(domainErrorToResult)
     yield Ok(shareRequestJson(req))
     result.merge
   }
+
+  private def decodeBase64(s: String): Option[Array[Byte]] =
+    try Some(java.util.Base64.getDecoder.decode(s)) catch case _: Exception => None
 
   private def parseJson(bytes: Array[Byte]): Either[Result, JsValue] =
     try Right(Json.parse(bytes))

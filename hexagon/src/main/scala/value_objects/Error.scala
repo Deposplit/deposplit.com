@@ -25,6 +25,7 @@
 package value_objects
 
 enum Error:
-  case NotFound  // resource doesn't exist, or caller isn't authorised to know it exists
-  case Conflict  // resource already exists, or state transition is invalid
-  case Forbidden // caller is authenticated but not authorised to act on this resource
+  case NotFound   // resource doesn't exist, or caller isn't authorised to know it exists
+  case Conflict   // resource already exists, or state transition is invalid
+  case Forbidden  // caller is authenticated but not authorised to act on this resource
+  case BadRequest // caller provided semantically invalid input

@@ -16,8 +16,9 @@ CREATE TABLE shares (
     label          TEXT        NOT NULL,
     sender_key     BYTEA       NOT NULL,
     recipient_key  BYTEA       NOT NULL,
-    ciphertext     BYTEA       NOT NULL,
+    ciphertext     BYTEA,
     created_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    picked_up_at   TIMESTAMP WITH TIME ZONE,
     UNIQUE (secret_id, recipient_key)
 );
 
@@ -31,11 +32,16 @@ CREATE TABLE share_requests (
     share_id     UUID                NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
     request_type share_request_type  NOT NULL,
     state        share_request_state NOT NULL DEFAULT 'pending',
+    ciphertext   BYTEA,
     requested_at TIMESTAMP WITH TIME ZONE         NOT NULL DEFAULT now(),
     responded_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Indexes for common query paths
+-- shares.ciphertext is NULL after the recipient picks up the share (relay clears it once delivered).
+-- share_requests.ciphertext is populated by the recipient when approving a retrieve request
+-- (the recipient's app sends the ciphertext back from local storage) and cleared when the
+-- sender deletes the shares row.
 -- Note: a partial unique index on (share_id, request_type) WHERE state = 'pending'
 -- would add defence-in-depth but H2 does not support partial indexes.
 -- The application layer (SharesService) enforces this constraint instead.

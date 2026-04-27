@@ -43,8 +43,8 @@ trait Shares:
 
   /** Lists shares.
     *
-    * `asSender = true`  — shares deposited by `callerKey`, optionally filtered by recipient.
-    * `asSender = false` — shares held by `callerKey`, optionally filtered by sender.
+    * `asSender = true`  — all shares deposited by `callerKey`, including picked-up ones.
+    * `asSender = false` — shares in `callerKey`'s inbox (not yet picked up).
     */
   def listShares(
       callerKey: PublicKey,
@@ -64,6 +64,15 @@ trait Shares:
 
   // --- Recipient operations ---
 
+  /** Picks up a deposited share: returns the ciphertext and clears it from the relay.
+    * The ciphertext now lives only on the recipient's device.
+    * Returns `Conflict` if the share has already been picked up.
+    */
+  def pickUpShare(
+      recipientKey: PublicKey,
+      shareId: UUID
+  ): Either[Error, Array[Byte]]
+
   /** Lists share requests.
     *
     * `asSender = true`  — requests opened by `callerKey` (sender polling for resolution).
@@ -76,7 +85,8 @@ trait Shares:
   ): Either[Error, Seq[ShareRequest]]
 
   /** Returns the request if the caller is either the sender or the recipient.
-    * Returns `Forbidden` otherwise. Populates `ciphertext` for approved retrieve requests.
+    * Returns `Forbidden` otherwise. For approved retrieve requests the `ciphertext` field
+    * carries the bytes the recipient deposited when approving.
     */
   def getShareRequest(
       callerKey: PublicKey,
@@ -84,18 +94,25 @@ trait Shares:
   ): Either[Error, ShareRequest]
 
   /** Approves or denies a pending consent request. The caller must be the recipient.
-    * Approving a delete request deletes the targeted share(s) immediately.
-    * Approving a retrieve request populates `ciphertext` in the returned request.
+    * Approving a delete request deletes the share row immediately.
+    * Approving a retrieve request requires the recipient to supply the ciphertext from local
+    * storage; `BadRequest` is returned if it is absent.
     */
   def respondToShareRequest(
       recipientKey: PublicKey,
       requestId: UUID,
-      approved: Boolean
+      approved: Boolean,
+      ciphertext: Option[Array[Byte]]
   ): Either[Error, ShareRequest]
 
-  /** Recipient-initiated deletion — unilateral, no sender consent required. */
+  /** Deletes a share row from the relay.
+    * - Recipient: always allowed (unilateral inbox management).
+    * - Sender: allowed only after the share has been picked up (`Conflict` otherwise).
+    *   Use Message 4 (delete consent request) to ask the recipient to delete their local copy.
+    * Returns `Forbidden` for any other caller.
+    */
   def deleteShareById(
-      recipientKey: PublicKey,
+      callerKey: PublicKey,
       shareId: UUID
   ): Either[Error, Unit]
 

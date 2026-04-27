@@ -38,9 +38,10 @@ trait ApiSupport { self: BaseController =>
     Json.obj("code" -> code, "message" -> message)
 
   protected def domainErrorToResult(err: Error): Result = err match
-    case Error.NotFound  => NotFound(errorJson("not_found", "Resource not found"))
-    case Error.Conflict  => Conflict(errorJson("conflict", "Resource conflict"))
-    case Error.Forbidden => Forbidden(errorJson("forbidden", "Access denied"))
+    case Error.NotFound   => NotFound(errorJson("not_found", "Resource not found"))
+    case Error.Conflict   => Conflict(errorJson("conflict", "Resource conflict"))
+    case Error.Forbidden  => Forbidden(errorJson("forbidden", "Access denied"))
+    case Error.BadRequest => BadRequest(errorJson("bad_request", "Invalid request"))
 
   protected def shareMetadataJson(meta: ShareMetadata): JsValue = Json.obj(
     "id"           -> meta.id.toString,
@@ -48,7 +49,8 @@ trait ApiSupport { self: BaseController =>
     "senderKey"    -> meta.senderKey.toBase64Url,
     "recipientKey" -> meta.recipientKey.toBase64Url,
     "label"        -> meta.label.value,
-    "createdAt"    -> meta.createdAt.toString
+    "createdAt"    -> meta.createdAt.toString,
+    "pickedUpAt"   -> meta.pickedUpAt.map(_.toString)
   )
 
   protected def shareRequestJson(req: ShareRequest): JsValue =

@@ -62,7 +62,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Array[Byte]]("recipient_key") ~
       get[String]("label") ~
       get[java.time.Instant]("created_at") ~
-      get[Array[Byte]]("ciphertext") map { case id ~ sid ~ sk ~ rk ~ lbl ~ ts ~ ct =>
+      get[Option[Array[Byte]]]("ciphertext") ~
+      get[Option[java.time.Instant]]("picked_up_at") map { case id ~ sid ~ sk ~ rk ~ lbl ~ ts ~ ct ~ pu =>
         Share(
           id           = id,
           secretId     = SecretId(sid),
@@ -70,7 +71,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           recipientKey = parseKey(rk),
           label        = Label(lbl),
           createdAt    = ts,
-          ciphertext   = ct
+          ciphertext   = ct,
+          pickedUpAt   = pu
         )
       }
 
@@ -80,23 +82,26 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Array[Byte]]("sender_key") ~
       get[Array[Byte]]("recipient_key") ~
       get[String]("label") ~
-      get[java.time.Instant]("created_at") map { case id ~ sid ~ sk ~ rk ~ lbl ~ ts =>
+      get[java.time.Instant]("created_at") ~
+      get[Option[java.time.Instant]]("picked_up_at") map { case id ~ sid ~ sk ~ rk ~ lbl ~ ts ~ pu =>
         ShareMetadata(
           id           = id,
           secretId     = SecretId(sid),
           senderKey    = parseKey(sk),
           recipientKey = parseKey(rk),
           label        = Label(lbl),
-          createdAt    = ts
+          createdAt    = ts,
+          pickedUpAt   = pu
         )
       }
 
   // Parses a share_requests row JOINed with its parent share.
-  // Column aliases: sr_id, s_id, s_secret_id, s_sender_key, s_recipient_key, s_label, s_created_at
+  // Column aliases: sr_id, sr_ciphertext, s_id, s_secret_id, s_sender_key, s_recipient_key, s_label, s_created_at, s_picked_up_at
   private val shareRequestParser: RowParser[ShareRequest] =
     get[UUID]("sr_id") ~
       get[String]("request_type") ~
       get[String]("state") ~
+      get[Option[Array[Byte]]]("sr_ciphertext") ~
       get[java.time.Instant]("requested_at") ~
       get[Option[java.time.Instant]]("responded_at") ~
       get[UUID]("s_id") ~
@@ -104,8 +109,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Array[Byte]]("s_sender_key") ~
       get[Array[Byte]]("s_recipient_key") ~
       get[String]("s_label") ~
-      get[java.time.Instant]("s_created_at") map {
-        case srId ~ rt ~ st ~ reqAt ~ resAt ~ sId ~ sSid ~ sSk ~ sRk ~ sLbl ~ sTs =>
+      get[java.time.Instant]("s_created_at") ~
+      get[Option[java.time.Instant]]("s_picked_up_at") map {
+        case srId ~ rt ~ st ~ srCt ~ reqAt ~ resAt ~ sId ~ sSid ~ sSk ~ sRk ~ sLbl ~ sTs ~ sPu =>
           ShareRequest(
             id          = srId,
             share       = ShareMetadata(
@@ -114,7 +120,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
               senderKey    = parseKey(sSk),
               recipientKey = parseKey(sRk),
               label        = Label(sLbl),
-              createdAt    = sTs
+              createdAt    = sTs,
+              pickedUpAt   = sPu
             ),
             requestType = rt match
               case "retrieve" => ShareRequestType.Retrieve
@@ -127,7 +134,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
               case other      => sys.error(s"unknown state: $other"),
             createdAt   = reqAt,
             respondedAt = resAt,
-            ciphertext  = None // populated by SharesService.withCiphertext when required
+            ciphertext  = srCt
           )
       }
 
@@ -136,6 +143,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     """sr.id           AS sr_id,
       |sr.request_type,
       |sr.state,
+      |sr.ciphertext   AS sr_ciphertext,
       |sr.requested_at,
       |sr.responded_at,
       |s.id            AS s_id,
@@ -143,7 +151,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       |s.sender_key    AS s_sender_key,
       |s.recipient_key AS s_recipient_key,
       |s.label         AS s_label,
-      |s.created_at    AS s_created_at""".stripMargin
+      |s.created_at    AS s_created_at,
+      |s.picked_up_at  AS s_picked_up_at""".stripMargin
 
   private val requestJoin = "FROM share_requests sr JOIN shares s ON sr.share_id = s.id"
 
@@ -162,7 +171,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
         "label"        -> share.label.value,
         "senderKey"    -> share.senderKey.toBytes,
         "recipientKey" -> share.recipientKey.toBytes,
-        "ciphertext"   -> share.ciphertext,
+        "ciphertext"   -> share.ciphertext.orNull,
         "createdAt"    -> share.createdAt
       ).executeUpdate()
     }
@@ -170,7 +179,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   override def getShareById(id: UUID): Option[Share] =
     db.withConnection { implicit conn =>
       SQL("""
-        SELECT id, secret_id, sender_key, recipient_key, label, created_at, ciphertext
+        SELECT id, secret_id, sender_key, recipient_key, label, created_at, ciphertext, picked_up_at
         FROM shares WHERE id = {id}::uuid
       """).on("id" -> id.toString)
         .as(shareParser.singleOpt)
@@ -179,7 +188,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   override def getShare(secretId: SecretId, senderKey: PublicKey, recipientKey: PublicKey): Option[Share] =
     db.withConnection { implicit conn =>
       SQL("""
-        SELECT id, secret_id, sender_key, recipient_key, label, created_at, ciphertext
+        SELECT id, secret_id, sender_key, recipient_key, label, created_at, ciphertext, picked_up_at
         FROM shares
         WHERE secret_id = {sid}::uuid AND sender_key = {sk} AND recipient_key = {rk}
       """).on(
@@ -193,12 +202,12 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       counterpartyKey match
         case None =>
-          SQL("SELECT id, secret_id, sender_key, recipient_key, label, created_at FROM shares WHERE sender_key = {sk}")
+          SQL("SELECT id, secret_id, sender_key, recipient_key, label, created_at, picked_up_at FROM shares WHERE sender_key = {sk}")
             .on("sk" -> senderKey.toBytes)
             .as(shareMetaParser.*)
         case Some(ck) =>
           SQL("""
-            SELECT id, secret_id, sender_key, recipient_key, label, created_at
+            SELECT id, secret_id, sender_key, recipient_key, label, created_at, picked_up_at
             FROM shares WHERE sender_key = {sk} AND recipient_key = {ck}
           """).on("sk" -> senderKey.toBytes, "ck" -> ck.toBytes)
             .as(shareMetaParser.*)
@@ -208,15 +217,29 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       counterpartyKey match
         case None =>
-          SQL("SELECT id, secret_id, sender_key, recipient_key, label, created_at FROM shares WHERE recipient_key = {rk}")
-            .on("rk" -> recipientKey.toBytes)
+          SQL("""
+            SELECT id, secret_id, sender_key, recipient_key, label, created_at, picked_up_at
+            FROM shares WHERE recipient_key = {rk} AND picked_up_at IS NULL
+          """).on("rk" -> recipientKey.toBytes)
             .as(shareMetaParser.*)
         case Some(ck) =>
           SQL("""
-            SELECT id, secret_id, sender_key, recipient_key, label, created_at
-            FROM shares WHERE recipient_key = {rk} AND sender_key = {ck}
+            SELECT id, secret_id, sender_key, recipient_key, label, created_at, picked_up_at
+            FROM shares WHERE recipient_key = {rk} AND sender_key = {ck} AND picked_up_at IS NULL
           """).on("rk" -> recipientKey.toBytes, "ck" -> ck.toBytes)
             .as(shareMetaParser.*)
+    }
+
+  override def pickUpShare(shareId: UUID): Unit =
+    db.withConnection { implicit conn =>
+      SQL("""
+        UPDATE shares SET ciphertext = NULL, picked_up_at = {now} WHERE id = {id}::uuid
+      """).on("id" -> shareId.toString, "now" -> Instant.now()).executeUpdate()
+    }
+
+  override def deleteShareByPK(shareId: UUID): Unit =
+    db.withConnection { implicit conn =>
+      SQL("DELETE FROM shares WHERE id = {id}::uuid").on("id" -> shareId.toString).executeUpdate()
     }
 
   override def deleteShares(recipientKey: PublicKey, senderKey: Option[PublicKey], secretId: Option[SecretId]): Unit =
@@ -298,14 +321,16 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       count > 0
     }
 
-  override def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant): Unit =
+  override def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant, ciphertext: Option[Array[Byte]]): Unit =
     db.withConnection { implicit conn =>
       SQL("""
-        UPDATE share_requests SET state = {state}, responded_at = {respondedAt} WHERE id = {id}::uuid
+        UPDATE share_requests SET state = {state}, responded_at = {respondedAt}, ciphertext = {ciphertext}
+        WHERE id = {id}::uuid
       """).on(
         "id"          -> requestId.toString,
         "state"       -> stateStr(state),
-        "respondedAt" -> respondedAt
+        "respondedAt" -> respondedAt,
+        "ciphertext"  -> ciphertext
       ).executeUpdate()
     }
 

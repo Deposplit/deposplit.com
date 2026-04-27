@@ -38,13 +38,23 @@ trait ShareRepository:
 
   def getShare(secretId: SecretId, senderKey: PublicKey, recipientKey: PublicKey): Option[Share]
 
-  /** Shares deposited by `senderKey`, optionally filtered to a specific recipient. */
+  /** Shares deposited by `senderKey`, optionally filtered to a specific recipient.
+    * Returns all rows regardless of pickup status so the sender can track delivery.
+    */
   def getSharesAsSender(senderKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
 
-  /** Shares held by `recipientKey`, optionally filtered to a specific sender. */
+  /** Shares in `recipientKey`'s inbox (not yet picked up), optionally filtered to a specific sender. */
   def getSharesAsRecipient(recipientKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
 
-  /** Deletes shares held by `recipientKey`, optionally filtered by `senderKey` and/or `secretId`. */
+  /** Clears the ciphertext from a share row and records the pickup timestamp.
+    * The service reads the ciphertext from the share before calling this.
+    */
+  def pickUpShare(shareId: UUID): Unit
+
+  /** Deletes a share row by primary key. Auth checks are the caller's responsibility. */
+  def deleteShareByPK(shareId: UUID): Unit
+
+  /** Bulk recipient-initiated deletion — filtered by `recipientKey` plus optional `senderKey`/`secretId`. */
   def deleteShares(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],
@@ -66,4 +76,7 @@ trait ShareRepository:
   /** True if a Pending request of the given type already exists for this share. */
   def hasPendingRequest(shareId: UUID, requestType: ShareRequestType): Boolean
 
-  def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant): Unit
+  /** Updates the state and response timestamp of a request.
+    * `ciphertext` is stored for approved retrieve requests (provided by the recipient's app).
+    */
+  def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant, ciphertext: Option[Array[Byte]]): Unit
