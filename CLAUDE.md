@@ -10,15 +10,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Deposplit's architecture evolved through several design sessions:
 
-1. **The Signal question (Feb 2025):** The project started by exploring whether a third-party app could piggyback on Signal — its contacts, groups, and messaging infrastructure. Signal is intentionally an appliance, not a platform: it exposes no SDK or inter-app API.
+1. **The Signal question:** The project started by exploring whether a third-party app could piggyback on Signal — its contacts, groups, and messaging infrastructure. Signal is intentionally an appliance, not a platform: it exposes no SDK or inter-app API.
 
-2. **Matrix adopted as transport (Feb–Mar 2026):** Matrix was identified as the natural fit — designed to be built upon, with Android/iOS SDKs, arbitrary custom message types, E2EE via Double Ratchet, and federation. The SSS libraries (Kotlin and Swift ports of the Privy TypeScript reference) were built and tested. An Android scaffold was completed with a working OIDC sign-in flow (Chrome Custom Tab → matrix.org → deep-link callback).
+2. **Matrix adopted as transport:** Matrix was identified as the natural fit — designed to be built upon, with Android/iOS SDKs, arbitrary custom message types, E2EE via Double Ratchet, and federation. The SSS libraries (Kotlin and Swift ports of the Privy TypeScript reference) were built and tested. An Android scaffold was completed with a working OIDC sign-in flow (Chrome Custom Tab → matrix.org → deep-link callback).
 
-3. **DCR friction with matrix.org (Mar 2026):** matrix.org's Matrix Authentication Service rejected Deposplit's Dynamic Client Registration attempts (`invalid_redirect_uri`). This triggered a re-evaluation of the transport layer.
+3. **DCR friction with matrix.org:** matrix.org's Matrix Authentication Service rejected Deposplit's Dynamic Client Registration attempts (`invalid_redirect_uri`). This triggered a re-evaluation of the transport layer.
 
-4. **Pivot to custom backend (Mar 2026):** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com backend with E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
+4. **Pivot to custom backend:** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com backend with E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
 
-5. **Backend redesigned as a stateless relay (Apr 2026):** The initial backend design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The backend was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
+5. **Backend redesigned as a stateless relay:** The initial backend design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The backend was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
 
 ## Architecture Decisions
 
@@ -76,8 +76,8 @@ The `hexagon` subproject has **no dependency on Play** or any infrastructure lib
 The hexagon and root both programme **synchronously (blocking)** — no Scala `Future`s. This keeps the code straightforward and stack traces readable; with Java virtual threads becoming mainstream, blocking I/O will carry negligible cost.
 
 **Key library choices:**
-- **sbt** build tool (Kotlin build files are not applicable to sbt — use standard `build.sbt` and `project/` Scala/sbt files)
-- **Play JSON** (`play-json`) for API serialisation — bundled with Play, not declared as an explicit dependency
+- **sbt** build tool (use standard `build.sbt` and `project/` Scala/sbt files)
+- **Play JSON** (`play-json`) for API serialisation — bundled with Play
 - **Twirl** (built into Play) for the landing page
 - **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
@@ -160,53 +160,6 @@ The Android `DeposplitAuthAdapter` uses **BouncyCastle** (`bcprov-jdk18on`) for 
 #### Cross-Platform Compatibility
 
 Both test suites contain three identical hand-derived test vectors (in `ShamirTest.kt` and `ShamirSecretSharingTests.swift`) that verify `combine()` byte-for-byte against the same inputs. The vectors use the polynomial `f(x) = secret_byte + 0x01·x` in GF(2⁸) with x-coordinates `[1, 2]` — the simplest non-trivial 2-of-2 case — and were verified by hand against the GF(2⁸) arithmetic tables.
-
-### Android App
-
-#### Minimum SDK: API 29 (Android 10)
-
-The Android app targets **`minSdk = 29`**, not the Android Studio default of API 24. This was a deliberate choice for a security-sensitive app:
-
-| API | Feature | Relevance |
-|---|---|---|
-| 28 | **`BiometricPrompt`** (native) | Gate secret reconstruction behind biometric auth |
-| 28 | **StrongBox Keymaster** (`setIsStrongBoxBacked(true)`) | Keys stored in dedicated security chip, not just TEE |
-| 28 | Cleartext traffic disabled by default | No accidental plaintext traffic to the backend |
-| 29 | **Scoped Storage** | Relevant for the file-upload secret input method |
-| 29 | **TLS 1.3** enabled by default | Baseline transport security for backend comms |
-
-API 29 still covers >90% of active Android devices, which is acceptable for a niche security app. Do not lower `minSdk` without revisiting these dependencies.
-
-Note: `BiometricPrompt` and StrongBox require runtime capability checks regardless of `minSdk` — `BiometricManager.canAuthenticate()` and `setIsStrongBoxBacked(true)` can throw `StrongBoxUnavailableException` on devices lacking the hardware.
-
-#### Authentication / Registration
-
-Registration is **keypair-first** — no OIDC, no password, no email.
-
-Flow:
-1. On first launch the device generates two keypairs via BouncyCastle (Android) / Swift Crypto (iOS): an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication)
-2. The user picks a pseudonym (display name only — stored locally, never sent to the backend)
-3. Both private keys are stored in the Android Keystore (wrapped with AES-256-GCM) and never leave the device
-4. Both public keys are shared with contacts out-of-band (QR code scan, share link via Signal/Threema, etc.) — the backend never stores or indexes them
-
-Subsequent API requests are authenticated by signing a canonical request representation with the Ed25519 private key; the backend verifies against the Ed25519 public key supplied in the `X-Deposplit-Public-Key` header. No pre-registration is required.
-
-Session state (the "has completed onboarding" flag) is persisted via plain `SharedPreferences`. Private keys are managed by the Android Keystore — the app never handles raw key material directly.
-
-Identity *is* the keypair pair. This integrates directly with the k-of-n social recovery design: if Alice loses her device, she generates new keypairs on a new device and initiates a re-association request that existing contacts approve.
-
-#### UI toolkit: Jetpack Compose + Material 3
-
-Use **Jetpack Compose** (not XML/Views) for all UI. The "Empty Activity" template in Android Studio is the Compose template and is the correct starting point for new app scaffolding.
-
-#### Build toolchain: AGP 9.x + Kotlin 2.x
-
-AGP 9.x integrates Kotlin compilation directly — it registers the `kotlin` Gradle extension itself. Do **not** apply `org.jetbrains.kotlin.android`; doing so causes a "extension already registered" conflict. The Android Studio template deliberately omits it.
-
-Consequences:
-- `kotlinOptions { }` is **not available** (it requires `kotlin.android`)
-- Set the Kotlin JVM target via `compileOptions` only — AGP 9.x propagates `targetCompatibility` to the Kotlin compiler automatically
-- `kotlin.plugin.compose` (the Compose compiler plugin) is still required and does not conflict
 
 ### App Protocol
 
@@ -362,12 +315,12 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Backend config fixes (Apr 2026 end-to-end testing)**: `application.conf` AllowedHostsFilter corrected from `"10.0.2.2"` to `"10.0.2.2:9000"` — Play matches the full `Host` header including port for non-standard ports. Base URL in `DeposplitApp` corrected from `http://10.0.2.2:9000/v1` to `http://10.0.2.2:9000` (routes have no `/v1` prefix). `localhost.conf` changed from in-memory H2 (`jdbc:h2:mem:...`) to file-backed H2 (`jdbc:h2:./target/deposplit-dev;...`) so data survives `sbt run` restarts during development.
 - **Android relay protocol implementation**: `ShareTransport` port extended with `pickUpShare(shareId: UUID): ByteArray` and `respondToShareRequest(..., ciphertext: ByteArray?)`. `DeposplitApiAdapter` implements `pickUpShare` via `GET /shares/:shareId` and passes ciphertext in the PATCH body on retrieve approve. `HeldShare` value type and `ShareRepository` port added to `:hexagon/api`; `LocalShareRepository` (`:app/shares`) persists ciphertext + metadata as JSON in `filesDir/shares.json`. `HomeViewModel` polls relay inbox on each load, auto-picks up new shares, and reads the Held tab from local storage. `RequestsViewModel.respond()` reads ciphertext from local storage when approving a retrieve request, and deletes the local share on delete approve. `ShareDetailViewModel.reconstruct()` best-effort-deletes relay rows after a successful reconstruction.
 - **iOS relay protocol implementation**: Same relay protocol changes as Android, adapted for Swift/CryptoKit. `ShareTransport` protocol extended with `pickUpShare(shareId:)` and `respondToShareRequest(..., ciphertext:)`. `HeldShare` struct and `ShareRepository` protocol added in `shares/HeldShare.swift`; `LocalShareRepository` persists ciphertext + metadata as JSON in `Documents/shares.json`. `HomeViewModel` polls relay inbox on load, auto-picks up new shares, reads Held tab from local storage. `RequestsViewModel.respond()` reads ciphertext from local storage on retrieve approve, deletes local share on delete approve. `ShareDetailViewModel.reconstruct()` best-effort-deletes relay rows after reconstruction.
+- **Android home UX improvements**: Home screen tabs renamed to "My Shared Secrets" (was "Distributed") and "Their Secret Shares" (was "Held"). `ShareMetadata` extended with `pickedUpAt: String?` (populated from the relay response). "My Shared Secrets" tab groups shares by `secretId`: one expandable card per logical secret showing per-holder delivery status and retrieve-request state; a "Request Retrieval" button opens requests for all holders in one tap (`HomeViewModel.requestAll`); tapping an individual holder still navigates to `ShareDetailScreen`. "Their Secret Shares" tab shows each held share's label, date, and sender pseudonym (looked up from contacts); three `FilterChip` controls sort the list by date, label, or sender (`HomeViewModel.setHeldSortOrder`). Recipient-initiated deletion: a delete icon on each held share card opens a confirmation dialog with "Delete" (this share only) and, when the same sender has multiple shares, "Delete all shares from [name]" (`HomeViewModel.deleteSingleShare` / `deleteAllFromSender`).
 
 ### What is next
 
-1. **Android UX — group Distributed tab by `secretId`**: The Distributed tab currently shows one entry per share (one per recipient), so a 2-of-2 deposit to Bob and Carol produces two entries. A future improvement is to group shares by `secretId` and show a single row per logical secret, expanding to show per-holder status on tap.
-2. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
-3. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` backend.
+1. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
+2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` backend.
 
 ## Build & Test Commands
 
