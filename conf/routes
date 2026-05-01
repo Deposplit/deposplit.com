@@ -1,12 +1,9 @@
-# Routes
-# This file defines all application routes (Higher priority routes first)
 # https://www.playframework.com/documentation/latest/ScalaRouting
-# ~~~~
 
 # Landing page
 GET     /                           controllers.HomeController.index()
 
-# REST API
+# REST API for the native apps …
 POST    /shares                     api.SharesController.depositShare()
 GET     /shares                     api.SharesController.listShares()
 GET     /shares/:shareId            api.SharesController.pickUpShare(shareId: String)
@@ -16,6 +13,13 @@ POST    /share-requests             api.ShareRequestsController.openShareRequest
 GET     /share-requests             api.ShareRequestsController.listShareRequests()
 GET     /share-requests/:requestId  api.ShareRequestsController.getShareRequest(requestId: String)
 PATCH   /share-requests/:requestId  api.ShareRequestsController.respondToShareRequest(requestId: String)
+
+# … but also for the Web-based emulator/simulator
+GET     /phonyPhones                controllers.PhonyPhonesController.readPhones()
+GET     /phonyPhones/:phoneId       controllers.PhonyPhonesController.readPhone(phoneId: Int)
+PATCH   /phonyPhones/:phoneId       controllers.PhonyPhonesController.updatePseudonym(phoneId: Int)
+POST    /phonyPhones                controllers.PhonyPhonesController.createPhone()
+DELETE  /phonyPhone/:phoneId        controllers.PhonyPhonesController.deletePhone(phoneId: Int)
 
 # Static assets
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
