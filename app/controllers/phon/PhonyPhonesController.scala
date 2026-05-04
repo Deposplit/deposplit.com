@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package controllers
+package controllers.phon
 
 import play.api.i18n.I18nSupport
 import play.api.mvc.AnyContent
@@ -45,17 +45,17 @@ class PhonyPhonesController @Inject() (val controllerComponents: ControllerCompo
   def readPhones() = Action { implicit request: Request[AnyContent] =>
     val phonyPhones = request.cookies
       .filter(_.name.startsWith(cookieNamePrefix))
-      .map(cookie => PhonyPhone(cookie.name.substring(cookieNamePrefix.length).toInt, cookie.value))
+      .map(cookie => PhonyPhoneDto(cookie.name.substring(cookieNamePrefix.length).toInt, cookie.value))
       .toSeq
-    Ok(views.html.phonyPhones(phonyPhones))
+    Ok(views.html.Phon.phonyPhones(phonyPhones))
   }
 
   def readPhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
     val phonyPhone = request.cookies
       .find(_.name == cookieNamePrefix + phoneId)
-      .map(cookie => PhonyPhone(phoneId, cookie.value))
+      .map(cookie => PhonyPhoneDto(phoneId, cookie.value))
     if (phonyPhone.isDefined) {
-      Ok(views.html.phonyPhone(phonyPhone.get))
+      Ok(views.html.Phon.phonyPhone(phonyPhone.get))
     } else {
       NotFound
     }
@@ -73,5 +73,5 @@ class PhonyPhonesController @Inject() (val controllerComponents: ControllerCompo
   }
 
   def deletePhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
-    NoContent.discardingCookies(DiscardingCookie(cookieNamePrefix + phoneId))
+    Ok(views.html.Phon.deletedPhonyPhone(phoneId)).discardingCookies(DiscardingCookie(cookieNamePrefix + phoneId))
   }

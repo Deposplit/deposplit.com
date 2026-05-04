@@ -22,12 +22,39 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon._
+@import controllers.phon.routes
 @import helper._
 
-@(phonyPhones: Seq[PhonyPhone])(implicit request: RequestHeader,  messages: Messages)
+@(phonyPhones: Seq[PhonyPhoneDto])(implicit request: RequestHeader, messages: Messages)
 
 @main("Phony Phones") {
   <h1>Phony Phones</h1>
+
+  <div class="accordion" id="phonyPhoneAccordion">
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+          Create Phony Phone <i class="bi bi-phone"></i>
+        </button>
+      </h2>
+      <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#phonyPhoneAccordion">
+        <div class="accordion-body">
+@*helper.form(action = phon.routes.PhonyPhonesController.createPhone()) {
+  @CSRF.formField
+  <div class="mb-3">
+    <label for="pseudonym" class="form-label">Pseudonym</label>
+    @helper.inputText(phonyPhoneForm("pseudonym"))
+    <input type="text" class="form-control" id="pseudonym" aria-describedby="pseudonymHelp">
+    <div id="pseudonymHelp" class="form-text">Pseudonyms must not be empty (but need not be unique).</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Create Phony Phone</button>
+}*@
+        </div>
+      </div>
+    </div>
+  </div>
+
   @CSRF.formField
   @if(phonyPhones.isEmpty) {
     <button hx-post="/phonyPhones" hx-include="[name='csrfToken']">
@@ -39,7 +66,7 @@
     </button>
     <ul class="nav nav-tabs" id="phonyPhoneTabs">
       @for(pp <- phonyPhones) {
-        <li class="nav-item">
+        <li class="nav-item" id="phonyPhone@pp.id">
           <a class="nav-link @if(pp==phonyPhones.head){active}" href="#" hx-get="/phonyPhones/@pp.id" hx-target="#phonyPhoneDiv" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@pp.id (@pp.pseudonym)</a>
         </li>
       }

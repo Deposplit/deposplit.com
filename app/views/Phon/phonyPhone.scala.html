@@ -22,7 +22,15 @@
 * THE SOFTWARE.
 *@
 
-@(phonyPhone: PhonyPhone)(implicit messages: Messages)
+@import controllers.phon._
+@import helper._
+
+@(phonyPhone: PhonyPhoneDto)(implicit request: RequestHeader, messages: Messages)
 
 <h2>Phony Phone</h2>
 <p>@phonyPhone.id (@phonyPhone.pseudonym)</p>
+
+@CSRF.formField
+<button hx-delete="/phonyPhones/@phonyPhone.id" hx-include="[name='csrfToken']">
+  <i class="bi bi-trash"></i>
+</button>

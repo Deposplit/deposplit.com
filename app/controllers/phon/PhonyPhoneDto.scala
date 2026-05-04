@@ -22,6 +22,6 @@
  * THE SOFTWARE.
  */
 
-package controllers
+package controllers.phon
 
-final case class PhonyPhone(id: Int, pseudonym: String)
+final case class PhonyPhoneDto(id: Int, pseudonym: String)

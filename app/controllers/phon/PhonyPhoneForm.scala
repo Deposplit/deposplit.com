@@ -22,21 +22,9 @@
  * THE SOFTWARE.
  */
 
-package filters
+package controllers.phon
 
-import org.apache.pekko.stream.Materializer
-import play.api.Environment
-import play.api.mvc.Filter
-import play.api.mvc.RequestHeader
-import play.api.mvc.Result
-import play.api.mvc.Results
+final case class PhonyPhoneForm(pseudonym: String)
 
-import javax.inject.Inject
-import scala.concurrent.Future
-
-class PhonyPhonesFilter @Inject() (implicit val mat: Materializer, env: Environment) extends Filter:
-
-  def apply(nextFilter: RequestHeader => Future[Result])(requestHeader: RequestHeader): Future[Result] =
-    if env.mode != play.api.Mode.Dev && requestHeader.path.startsWith("/phonyPhones") then
-      Future.successful(Results.Forbidden)
-    else nextFilter(requestHeader)
+object PhonyPhoneForm:
+  def unapply(ppf: PhonyPhoneForm): Option[(String)] = Some((ppf.pseudonym))
