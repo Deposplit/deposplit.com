@@ -5,10 +5,10 @@ version := "1.0-SNAPSHOT"
 
 lazy val root = (project in file("."))
     .enablePlugins(PlayScala)
-    .aggregate(hexagon, phon)
-    .dependsOn(hexagon, phon)
-lazy val hexagon = project
-lazy val phon = project
+    .aggregate(relay, phon)
+    .dependsOn(relay, phon)
+lazy val relay = (project in file("hexagons/relay"))
+lazy val phon = (project in file("hexagons/phon"))
 
 scalaVersion := "3.3.7"
 
