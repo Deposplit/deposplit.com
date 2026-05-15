@@ -1,7 +1,15 @@
-name := """Deposplit"""
-organization := "com.deposplit"
+name := "Deposplit"
 
-version := "1.0-SNAPSHOT"
+version := "ToBeDetermined"
+
+organization := "com.squeng"
+organizationName := "Squeng AG"
+organizationHomepage := Some(url("https://www.squeng.com/"))
+
+homepage := Some(url("https://deposplit.com"))
+startYear := Some(2026)
+description := "secret sharing (aka secret splitting) without shared secrets"
+licenses += "MIT" -> url("https://choosealicense.com/licenses/mit/")
 
 lazy val root = (project in file("."))
     .enablePlugins(PlayScala)
