@@ -16,25 +16,25 @@ Deposplit's architecture evolved through several design sessions:
 
 3. **DCR friction with matrix.org:** matrix.org's Matrix Authentication Service rejected Deposplit's Dynamic Client Registration attempts (`invalid_redirect_uri`). This triggered a re-evaluation of the transport layer.
 
-4. **Pivot to custom backend:** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com backend with E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
+4. **Pivot to custom Web app/service:** Matrix is heavyweight for Deposplit's actual protocol (4 message types). Since recipients must install Deposplit, federation between homeservers adds no user value. A custom deposplit.com Web app/service with E2EE was chosen: simpler, leaner, and the server provably cannot read share content regardless of breach.
 
-5. **Backend redesigned as a stateless relay:** The initial backend design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The backend was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
+5. **Web App/Service redesigned as a stateless relay:** The initial Web app/service design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The Web app/service was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
 
 ## Architecture Decisions
 
-### Communication Layer: Custom Backend
+### Communication Layer: Custom Web App/Service
 
 The transport layer is a **custom deposplit.com REST API** with end-to-end encryption. No native crypto libraries are used on any platform — everything is implemented using each platform's standard crypto stack (BouncyCastle on Android/JVM, Swift Crypto / CryptoKit on iOS).
 
 Key design decisions:
-- **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (display name only, stored locally on the device — never sent to the backend). No server registration is required: the keypair IS the identity. Contacts exchange both public keys out-of-band — ideally in person via QR code, or via a trusted third-party channel (Signal, Threema, email).
-- **Server is an opaque relay.** The backend stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' X25519 private keys, which live only on their devices.
-- **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation. Mobile clients sign with BouncyCastle (Android) or Swift Crypto (iOS); the backend verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The canonical signing string is:
+- **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (display name only, stored locally on the device — never sent to the Web app/service). No server registration is required: the keypair IS the identity. Contacts exchange both public keys out-of-band — ideally in person via QR code, or via a trusted third-party channel (Signal, Threema, email).
+- **Server is an opaque relay.** The Web app/service stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' X25519 private keys, which live only on their devices.
+- **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation. Mobile clients sign with BouncyCastle (Android) or Swift Crypto (iOS); the Web app/service verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The canonical signing string is:
   ```
   nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA-256(body))
   ```
   where `body` is the empty string for requests without a body. Three request headers carry the authentication material: `X-Deposplit-Public-Key` (caller's Ed25519 public key, base64url), `X-Deposplit-Nonce` (per-request unique string in the form `<unix-ms>.<random>`; server rejects requests whose embedded timestamp is more than 5 minutes old), `X-Deposplit-Signature` (base64url-encoded signature).
-- **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical backend at deposplit.com.
+- **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical Web app/service at deposplit.com.
 - **No practical client exclusivity.** There is no cryptographically sound way to restrict the API to the two official native apps. Hardcoded secrets are extractable from binaries; certificate pinning proves the connection is not intercepted but not which software is running; Play Integrity / App Attest are bypassable on rooted/jailbroken devices and introduce Google/Apple as gatekeepers. This is not a gap — the security model does not rely on client exclusivity. Because the server is cryptographically blind, a rogue client can only act within the bounds of the keypair it controls; it cannot read other users' shares or impersonate other users. The only realistic abuse vector (spam, resource exhaustion) is addressed by rate limiting and storage quotas, as with any public API. An open, auditable protocol is consistent with Deposplit's trust-minimizing philosophy.
 
 Rejected alternatives:
@@ -53,11 +53,11 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 | Folder | Repository | Purpose |
 |---|---|---|
-| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
+| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and Web app/service server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app (`:hexagon` + `:app` Gradle modules) |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library + iOS app (SwiftUI, iOS 26+) |
 
-### Backend Tech Stack: Scala + Play
+### Web App/Service Tech Stack: Scala + Play
 
 The `deposplit.com` repository is a **Play Framework (Scala)** application built with **sbt**. It serves two distinct concerns:
 
@@ -69,7 +69,7 @@ Architecture follows **Ports & Adapters** enforced by sbt's multi-project build,
 | sbt subproject | Role |
 |---|---|
 | `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
-| root (Play app) | Adapters (DB, backend API controllers), Twirl views, routes |
+| root (Play app) | Adapters (DB, Web app/service API controllers), Twirl views, routes |
 
 The `hexagon` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagon`; `hexagon` must never depend on the root. This enforces the hexagonal boundary at the build level.
 
@@ -102,8 +102,8 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 - Secret splitting: **Shamir's Secret Sharing** (SSS)
 - Parameters: *n* total shares, *k*-of-*n* threshold for reconstruction
-- Share encryption: **X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — mobile only; backend never decrypts
-- API authentication: **Ed25519** signatures (RFC 8032) — BouncyCastle on Android, Swift Crypto on iOS, BouncyCastle on backend
+- Share encryption: **X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — mobile only; Web app/service never decrypts
+- API authentication: **Ed25519** signatures (RFC 8032) — BouncyCastle on Android, Swift Crypto on iOS, BouncyCastle on Web app/service
 
 #### SSS Reference Implementation
 
@@ -132,7 +132,7 @@ Each share is encrypted by the sender to the recipient's X25519 public key befor
 3. **Encryption**: ChaCha20-Poly1305(key, nonce, plaintext) → ciphertext + 16-byte tag
 4. **Wire format**: `nonce(12 bytes) || ciphertext+tag`
 
-The backend stores ciphertext only. A full backend breach yields nothing without also compromising at least *k* recipients' X25519 private keys.
+The Web app/service stores ciphertext only. A full Web app/service breach yields nothing without also compromising at least *k* recipients' X25519 private keys.
 
 **Why no native crypto library (libsodium was the original choice, rejected Apr 2026):**
 
@@ -140,11 +140,11 @@ The backend stores ciphertext only. A full backend breach yields nothing without
 |---|---|---|
 | Android native `.so` | Required (JNA/lazysodium, complex ABI setup) | Not required — pure JVM |
 | iOS | Required (or manual Swift port) | Swift Crypto (Apple-maintained, no native deps) |
-| Backend | Not needed | Already used (BouncyCastle) |
+| Web App/Service | Not needed | Already used (BouncyCastle) |
 | Cipher available everywhere | XSalsa20-Poly1305 missing from Swift Crypto | ChaCha20-Poly1305 in all three stacks |
 | Auditability | Opaque prebuilt binaries | Open-source, platform-standard |
 
-BouncyCastle provides `X25519Agreement`, `HKDFBytesGenerator`, and `ChaCha20Poly1305` on Android and the backend. Swift Crypto provides `Curve25519.KeyAgreement`, `HKDF`, and `ChaChaPoly` on iOS.
+BouncyCastle provides `X25519Agreement`, `HKDFBytesGenerator`, and `ChaCha20Poly1305` on Android and the Web app/service. Swift Crypto provides `Curve25519.KeyAgreement`, `HKDF`, and `ChaChaPoly` on iOS.
 
 #### Implementation Status
 
@@ -155,7 +155,7 @@ The SSS ports are **complete and fully tested**:
 | `Android/` | `com.deposplit.shamir` | `split(secret: ByteArray, shares: Int, threshold: Int): List<ByteArray>` / `combine(shares: List<ByteArray>): ByteArray` — throws `IllegalArgumentException` |
 | `iOS/` | `ShamirSecretSharing` | `split(secret: [UInt8], shares: Int, threshold: Int) throws -> [[UInt8]]` / `combine(shares: [[UInt8]]) throws -> [UInt8]` — throws `ShamirError` |
 
-The Android `DeposplitAuthAdapter` uses **BouncyCastle** (`bcprov-jdk18on`) for all crypto — no native libraries, no JNA. The iOS equivalent uses **Swift Crypto**. The backend uses BouncyCastle for Ed25519 verification and passes share ciphertext through opaquely.
+The Android `DeposplitAuthAdapter` uses **BouncyCastle** (`bcprov-jdk18on`) for all crypto — no native libraries, no JNA. The iOS equivalent uses **Swift Crypto**. The Web app/service uses BouncyCastle for Ed25519 verification and passes share ciphertext through opaquely.
 
 #### Cross-Platform Compatibility
 
@@ -165,7 +165,7 @@ Both test suites contain three identical hand-derived test vectors (in `ShamirTe
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata — two secrets with the same label are distinguished by their UUIDs.
 
-There are four message types exchanged via the deposplit.com backend API:
+There are four message types exchanged via the deposplit.com Web app/service API:
 
 | # | Direction | Payload | Purpose |
 |---|---|---|---|
@@ -176,7 +176,7 @@ There are four message types exchanged via the deposplit.com backend API:
 
 **Recipient-initiated deletion** is purely local — no message is needed. The recipient can unilaterally delete individual shares or all shares from a given sender at any time.
 
-**The backend is a pure relay — ciphertext is ephemeral:**
+**The Web app/service is a pure relay — ciphertext is ephemeral:**
 
 Message 1 has two sub-phases, both mediated by the relay:
 - **Deposit sub-phase** (sender → relay): Alice posts the ciphertext; the relay stores it temporarily.
@@ -225,7 +225,7 @@ Before Alice can include a contact as a share holder, that contact must have Dep
 **Key exchange (adding a contact):**
 1. Bob generates his keypairs on first launch of his Deposplit app
 2. Bob shares both his public keys with Alice out-of-band — ideally Alice scans Bob's QR code in person, or Bob sends a share link via Signal/Threema
-3. Alice adds Bob to her local contact list — the backend is not involved
+3. Alice adds Bob to her local contact list — the Web app/service is not involved
 4. Alice can now deposit shares for Bob
 
 **Contact states in the "Split & Share" screen:**
@@ -259,9 +259,9 @@ There are many ways Alice can introduce a secret into Deposplit. Not all need to
 
 ### Contacts Management
 
-Deposplit maintains a contact list stored **exclusively on the device** — the backend never stores or indexes user identities or contact relationships.
+Deposplit maintains a contact list stored **exclusively on the device** — the Web app/service never stores or indexes user identities or contact relationships.
 
-Each contact is identified by their **Ed25519 public key** (routing identity on the backend) and **X25519 public key** (used by the sender to encrypt shares client-side). Both must be obtained out-of-band before Alice can deposit shares for that contact.
+Each contact is identified by their **Ed25519 public key** (routing identity on the Web app/service) and **X25519 public key** (used by the sender to encrypt shares client-side). Both must be obtained out-of-band before Alice can deposit shares for that contact.
 
 Contact addition methods:
 - **QR code scan (preferred):** encodes both Ed25519 + X25519 public keys and the pseudonym directly — no server intermediary, eliminates TOFU risk
@@ -297,11 +297,11 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 ### What is done
 
 - **SSS libraries**: both the Kotlin (`Android/`) and Swift (`iOS/`) ports of Shamir's Secret Sharing are **complete and fully tested**.
-- **Design**: the full app layer is designed — backend protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
-- **Android registration**: hexagonal boundary fully enforced for auth. `:hexagon/auth/` contains the driving port (`AuthPort`), the driven port (`IdentityStore`), and `AuthService` — which owns all BouncyCastle crypto computation (Ed25519 + X25519 keypair generation, Ed25519 signing, X25519+HKDF-SHA-256+ChaCha20-Poly1305 encrypt/decrypt). `:app/auth/AndroidIdentityStore` implements `IdentityStore` using Android Keystore AES-256-GCM wrapping of private keys and `SharedPreferences` for storage; pseudonym and public keys stored plaintext. `DeposplitApp` wires `AuthService(AndroidIdentityStore(this))` typed as `AuthPort`. BouncyCastle declared in `:hexagon/build.gradle.kts` (same rationale as the backend hexagon). `SignInScreen` / `SignInViewModel` collect a pseudonym and call `register()`.
+- **Design**: the full app layer is designed — Web app/service protocol (4 message types + consent model), share holder onboarding, contact verification, identity recovery, contacts management, secret input methods, Ports & Adapters architecture. All documented in this file.
+- **Android registration**: hexagonal boundary fully enforced for auth. `:hexagon/auth/` contains the driving port (`AuthPort`), the driven port (`IdentityStore`), and `AuthService` — which owns all BouncyCastle crypto computation (Ed25519 + X25519 keypair generation, Ed25519 signing, X25519+HKDF-SHA-256+ChaCha20-Poly1305 encrypt/decrypt). `:app/auth/AndroidIdentityStore` implements `IdentityStore` using Android Keystore AES-256-GCM wrapping of private keys and `SharedPreferences` for storage; pseudonym and public keys stored plaintext. `DeposplitApp` wires `AuthService(AndroidIdentityStore(this))` typed as `AuthPort`. BouncyCastle declared in `:hexagon/build.gradle.kts` (same rationale as the Web app/service hexagon). `SignInScreen` / `SignInViewModel` collect a pseudonym and call `register()`.
 - **iOS app**: Full feature-parity implementation with Android. SwiftUI app targeting iOS 26+ with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. All screens implemented: registration (`SignInView`), home with three tabs (Distributed/Held/Requests), contacts management with QR scan (`DataScannerViewController`) and manual entry, deposit flow (`Shamir.split` + `auth.encrypt` + `transport.depositShare`), recipient consent flows (approve/deny), sender-side reconstruction (`auth.decrypt` + `Shamir.combine`), QR display (CoreImage). Crypto via CryptoKit: X25519 key agreement + `hkdfDerivedSymmetricKey(using: SHA256.self, ...)` + `ChaChaPoly`. Ed25519 signing via `Curve25519.Signing.PrivateKey`. Private keys in Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). API adapter uses `URLSession` + `SHA256.hash(data:)` for body hash. Uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+): no need to edit `project.pbxproj` when adding files.
 - **deposplit.com hexagon domain**: the `hexagon` sbt subproject is fully implemented — value objects (`SecretId`, `Label`, `PublicKey`, `Nonce`, `Signature`, `Share`, `ShareMetadata`, `ShareRequest`, `ShareRequestType`, `ShareRequestState`, `Error`), driving port (`Shares`), driven port (`ShareRepository`), and service (`SharesService`). 47 munit tests pass, including live Ed25519 verification round-trips via BouncyCastle.
-- **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. The backend implements the **pure relay model**: `shares.ciphertext` is cleared on recipient pickup (`GET /shares/:shareId`); `share_requests.ciphertext` holds the ciphertext the recipient sends back when approving a retrieve request; `shares.picked_up_at` records delivery. `Error.BadRequest` maps to HTTP 400. All 87 tests pass (56 hexagon + 31 root). OpenAPI spec at `conf/openapi.yaml`.
+- **deposplit.com REST API**: the root Play app's adapter layer is fully implemented — `AnormShareRepository` (Anorm + PostgreSQL/H2), `SharesController`, `ShareRequestsController`, `AuthHelper`, `Module` (Guice bindings), and Play routes. The Web app/service implements the **pure relay model**: `shares.ciphertext` is cleared on recipient pickup (`GET /shares/:shareId`); `share_requests.ciphertext` holds the ciphertext the recipient sends back when approving a retrieve request; `shares.picked_up_at` records delivery. `Error.BadRequest` maps to HTTP 400. All 87 tests pass (56 hexagon + 31 root). OpenAPI spec at `conf/openapi.yaml`.
 - **Android home screen**: three-tab screen (Distributed / Held / Requests) backed by `HomeViewModel` and `RequestsViewModel`; `LifecycleEventEffect(Lifecycle.Event.ON_RESUME)` reloads both ViewModels each time the screen resumes (including on return from sub-screens, where `init` does not re-run because the ViewModel is already alive). Loading, error, and empty states handled per tab.
 - **Android API adapter**: `DeposplitApiAdapter` implements all 7 operations (`depositShare`, `listShares`, `deleteShare`, `openShareRequest`, `listShareRequests`, `getShareRequest`, `respondToShareRequest`) via `HttpURLConnection`; Ed25519 request signing with canonical string `nonce\nMETHOD\npath_with_query\nhex(sha256(body))`; `kotlinx.serialization` JSON; base64url for keys, standard base64 for ciphertext. Wired into `DeposplitApp` as `shareTransport`.
 - **Android contact management**: `Contact` domain model + `ContactRepository` port interface; `LocalContactRepository` stores contacts as JSON in `filesDir` with `@Synchronized` thread safety; `ContactsScreen` (list + delete per item, FAB navigates to add), `AddContactScreen` (manual pseudonym + Ed25519/X25519 base64url key entry with validation). Contacts icon in `HomeScreen` TopAppBar navigates to the list.
@@ -312,7 +312,7 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 - **Android hexagon module**: `:app` split into `:hexagon` (pure Kotlin/JVM, `org.jetbrains.kotlin.jvm` plugin, JVM 21) + `:app` (AGP, depends on `:hexagon`). Moved to `:hexagon`: `Shamir`, `AuthPort`, `ShareTransport` (incl. `Role`/`ShareRequestType`/`ShareRequestState`/`ShareMetadata`/`ShareRequest`), `Contact`/`VerificationLevel`/`ContactRepository`, and `ShamirTest`. Adapters (`DeposplitAuthAdapter`, `DeposplitApiAdapter`, `LocalContactRepository`) and all UI stay in `:app`. Package names unchanged. 18 hexagon tests pass; `:app:assembleDebug` green.
 - **Android biometric unlock**: `ShareDetailScreen` gates `viewModel.reconstruct()` behind `BiometricPrompt` via a `com.deposplit.ui.biometric.BiometricGate` helper (suspend `authenticate(activity, title, subtitle)` built on `suspendCancellableCoroutine`). Authenticators are `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` on API 30+ and `BIOMETRIC_STRONG` on API 29 (combination unsupported there). Availability is probed on screen entry; `NoneEnrolled`/`NoHardware`/`Unavailable` each render an explanatory message in place of the Reconstruct button. `MainActivity` promoted from `ComponentActivity` to `FragmentActivity` (required by `BiometricPrompt`). Dependency: `androidx.biometric:biometric:1.1.0`; `USE_BIOMETRIC` permission added.
 - **Android UI fixes (Apr 2026 end-to-end testing)**: `ContactsScreen` gained a back-navigation arrow (was missing); `QrScanScreen` CameraX listener body wrapped in `runCatching` to prevent main-thread crash when camera is unavailable (e.g., on emulators without camera support); `ContactsScreen` reloads contacts on `ON_RESUME` (same pattern as `HomeScreen`) so newly added contacts appear when returning from `AddContactScreen` or `QrScanScreen`.
-- **Backend config fixes (Apr 2026 end-to-end testing)**: `application.conf` AllowedHostsFilter corrected from `"10.0.2.2"` to `"10.0.2.2:9000"` — Play matches the full `Host` header including port for non-standard ports. Base URL in `DeposplitApp` corrected from `http://10.0.2.2:9000/v1` to `http://10.0.2.2:9000` (routes have no `/v1` prefix). `localhost.conf` changed from in-memory H2 (`jdbc:h2:mem:...`) to file-backed H2 (`jdbc:h2:./target/deposplit-dev;...`) so data survives `sbt run` restarts during development.
+- **Web App/Service config fixes (Apr 2026 end-to-end testing)**: `application.conf` AllowedHostsFilter corrected from `"10.0.2.2"` to `"10.0.2.2:9000"` — Play matches the full `Host` header including port for non-standard ports. Base URL in `DeposplitApp` corrected from `http://10.0.2.2:9000/v1` to `http://10.0.2.2:9000` (routes have no `/v1` prefix). `localhost.conf` changed from in-memory H2 (`jdbc:h2:mem:...`) to file-backed H2 (`jdbc:h2:./target/deposplit-dev;...`) so data survives `sbt run` restarts during development.
 - **Android relay protocol implementation**: `ShareTransport` port extended with `pickUpShare(shareId: UUID): ByteArray` and `respondToShareRequest(..., ciphertext: ByteArray?)`. `DeposplitApiAdapter` implements `pickUpShare` via `GET /shares/:shareId` and passes ciphertext in the PATCH body on retrieve approve. `HeldShare` value type and `ShareRepository` port added to `:hexagon/api`; `LocalShareRepository` (`:app/shares`) persists ciphertext + metadata as JSON in `filesDir/shares.json`. `HomeViewModel` polls relay inbox on each load, auto-picks up new shares, and reads the Held tab from local storage. `RequestsViewModel.respond()` reads ciphertext from local storage when approving a retrieve request, and deletes the local share on delete approve. `ShareDetailViewModel.reconstruct()` best-effort-deletes relay rows after a successful reconstruction.
 - **iOS relay protocol implementation**: Same relay protocol changes as Android, adapted for Swift/CryptoKit. `ShareTransport` protocol extended with `pickUpShare(shareId:)` and `respondToShareRequest(..., ciphertext:)`. `HeldShare` struct and `ShareRepository` protocol added in `shares/HeldShare.swift`; `LocalShareRepository` persists ciphertext + metadata as JSON in `Documents/shares.json`. `HomeViewModel` polls relay inbox on load, auto-picks up new shares, reads Held tab from local storage. `RequestsViewModel.respond()` reads ciphertext from local storage on retrieve approve, deletes local share on delete approve. `ShareDetailViewModel.reconstruct()` best-effort-deletes relay rows after reconstruction.
 - **Android home UX improvements**: Home screen tabs renamed to "My Shared Secrets" (was "Distributed") and "Their Secret Shares" (was "Held"). `ShareMetadata` extended with `pickedUpAt: String?` (populated from the relay response). "My Shared Secrets" tab groups shares by `secretId`: one expandable card per logical secret showing per-holder delivery status and retrieve-request state; a "Request Retrieval" button opens requests for all holders in one tap (`HomeViewModel.requestAll`); tapping an individual holder still navigates to `ShareDetailScreen`. "Their Secret Shares" tab shows each held share's label, date, and sender pseudonym (looked up from contacts); three `FilterChip` controls sort the list by date, label, or sender (`HomeViewModel.setHeldSortOrder`). Recipient-initiated deletion: a delete icon on each held share card opens a confirmation dialog with "Delete" (this share only) and, when the same sender has multiple shares, "Delete all shares from [name]" (`HomeViewModel.deleteSingleShare` / `deleteAllFromSender`).
@@ -320,7 +320,7 @@ Recipients who approve a re-association should be encouraged to verify Alice aga
 ### What is next
 
 1. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
-2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` backend.
+2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` Web app/service.
 
 ## Build & Test Commands
 

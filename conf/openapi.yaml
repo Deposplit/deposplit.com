@@ -4,7 +4,7 @@ info:
   title: Deposplit API
   version: "0.1"
   description: |
-    REST API for the Deposplit secret-sharing backend.
+    REST API for the Deposplit secret-sharing Web app/service.
 
     ## Authentication
 
@@ -23,13 +23,13 @@ info:
     ```
 
     where `body` is the empty string for requests without a body.
-    The backend verifies the signature against the public key supplied in `X-Deposplit-Public-Key`.
+    The Web app/service verifies the signature against the public key supplied in `X-Deposplit-Public-Key`.
     No pre-registration is required — the keypair is the identity.
 
     ## Key exchange
 
     Contacts exchange public keys out-of-band (QR code scanned in person, or a link shared
-    via a third-party app such as Signal or Threema). The backend never stores or resolves
+    via a third-party app such as Signal or Threema). The Web app/service never stores or resolves
     user identities; it routes deposits and consent requests by Ed25519 public key only.
 
     The QR code / share link carries both keys:
@@ -188,7 +188,7 @@ paths:
       operationId: depositShare
       summary: "Message 1 — Deposit a share with a recipient"
       description: >
-        Sender deposits an encrypted share. The backend stores the ciphertext
+        Sender deposits an encrypted share. The Web app/service stores the ciphertext
         keyed by the recipient's Ed25519 public key. The server never decrypts.
       tags: [Shares]
       requestBody:

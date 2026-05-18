@@ -1,6 +1,6 @@
 # Deposplit
 
-A secret-sharing app based on **Shamir's Secret Sharing (SSS)**. A secret is split into *n* shares, of which *k* are required to reconstruct it. Each share is sent to one of *n* contacts via the **deposplit.com backend**; the secret is reassembled when at least *k* holders cooperate.
+A secret-sharing app based on **Shamir's Secret Sharing (SSS)**. A secret is split into *n* shares, of which *k* are required to reconstruct it. Each share is sent to one of *n* contacts via the **deposplit.com Web app/service**; the secret is reassembled when at least *k* holders cooperate.
 
 ## Repository structure
 
@@ -8,7 +8,7 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 | Folder | Repository | Purpose |
 |---|---|---|
-| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and backend server |
+| `deposplit.com/` | [Deposplit/deposplit.com](https://github.com/Deposplit/deposplit.com) | Project hub, landing page, cross-project documentation, and Web app/service server |
 | `Android/` | [Deposplit/Android](https://github.com/Deposplit/Android) | Kotlin SSS library + Android app |
 | `iOS/` | [Deposplit/iOS](https://github.com/Deposplit/iOS) | Swift SSS library + iOS app (SwiftUI, iOS 26+) |
 
@@ -16,11 +16,11 @@ The [Deposplit GitHub organization](https://github.com/Deposplit) contains indep
 
 Claude Code discovers `CLAUDE.md` files by walking up the directory tree from the working directory. The cross-project guidance lives in this repo (`deposplit.com/CLAUDE.md`) and is the source of truth. The workspace root (`Deposplit/CLAUDE.md`) contains a single `@`-import that loads it, so launching `claude` from `Deposplit/` automatically picks up the full context. Platform-specific guidance lives in `Android/CLAUDE.md` and `iOS/CLAUDE.md` respectively.
 
-## Why a custom backend?
+## Why a custom Web app/service?
 
 Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST/WebSocket API with libsodium end-to-end encryption is the right fit:
 
-- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The backend stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
+- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
 - **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
 - **Lean.** The protocol needs four message types; heavier transports (Matrix, XMPP) bring megabytes of SDK for features Deposplit does not use.
 - **Share encryption uses X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — one-shot encrypted payloads between known parties. Implemented with BouncyCastle on Android/JVM and Swift Crypto on iOS; no native libsodium.
@@ -35,7 +35,7 @@ Rejected alternatives:
 | Nostr | NIP-44 E2EE is newer and less battle-tested; relay reliability varies |
 | P2P (WebRTC, Bluetooth, DHT) | Async delivery requires persistent storage; true P2P cannot reliably hold shares for offline recipients over days or months |
 
-## Backend tech stack
+## Web App/Service tech stack
 
 | Concern | Choice | Notes |
 |---|---|---|
@@ -130,7 +130,7 @@ Before Alice can include a contact as a share holder, that contact must have Dep
 **Key exchange (adding a contact):**
 1. Bob generates his keypairs on first launch of his Deposplit app
 2. Bob shares both his public keys with Alice out-of-band — ideally Alice scans Bob's QR code in person, or Bob sends a share link via Signal/Threema
-3. Alice adds Bob to her local contact list — the backend is not involved
+3. Alice adds Bob to her local contact list — the Web app/service is not involved
 4. Alice can now deposit shares for Bob
 
 **Contact states in the "Split & Share" screen:**
@@ -164,9 +164,9 @@ Deposplit supports multiple ways for Alice to introduce a secret. Not all are pl
 
 ## Contacts management
 
-Deposplit maintains a contact list stored **exclusively on the device** — the backend never stores or indexes user identities or contact relationships.
+Deposplit maintains a contact list stored **exclusively on the device** — the Web app/service never stores or indexes user identities or contact relationships.
 
-Each contact is identified by their **Ed25519 public key** (routing identity on the backend) and **X25519 public key** (share encryption). Both are obtained out-of-band before Alice can deposit shares for a contact.
+Each contact is identified by their **Ed25519 public key** (routing identity on the Web app/service) and **X25519 public key** (share encryption). Both are obtained out-of-band before Alice can deposit shares for a contact.
 
 Contact addition:
 - **QR code scan (preferred):** encodes both public keys + pseudonym directly — no server intermediary, eliminates TOFU risk
