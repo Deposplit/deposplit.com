@@ -24,6 +24,7 @@
 
 package value_objects
 
+import java.time.Instant
 import java.util.UUID
 
 enum VerificationLevel:
@@ -35,8 +36,8 @@ case class Contact(
   edPublicKey: Array[Byte],
   xPublicKey: Array[Byte],
   verificationLevel: VerificationLevel,
-  verifiedAt: Option[String],
-  addedAt: String,
+  verifiedAt: Option[Instant],
+  addedAt: Instant,
 ):
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id

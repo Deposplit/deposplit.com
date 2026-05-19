@@ -24,6 +24,7 @@
 
 package value_objects
 
+import java.time.Instant
 import java.util.UUID
 
 case class HeldShare(
@@ -31,7 +32,7 @@ case class HeldShare(
   secretId: UUID,
   label: String,
   senderKey: Array[Byte],
-  createdAt: String,
+  createdAt: Instant,
   ciphertext: Array[Byte],
 ):
   override def equals(other: Any): Boolean = other match

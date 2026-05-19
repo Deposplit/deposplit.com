@@ -24,6 +24,7 @@
 
 package value_objects
 
+import java.time.Instant
 import java.util.UUID
 
 enum Role:
@@ -41,8 +42,8 @@ case class ShareMetadata(
   label: String,
   senderKey: Array[Byte],
   recipientKey: Array[Byte],
-  createdAt: String,
-  pickedUpAt: Option[String] = None,
+  createdAt: Instant,
+  pickedUpAt: Option[Instant] = None,
 ):
   override def equals(other: Any): Boolean = other match
     case s: ShareMetadata => id == s.id
@@ -54,8 +55,8 @@ case class ShareRequest(
   share: ShareMetadata,
   requestType: ShareRequestType,
   state: ShareRequestState,
-  requestedAt: String,
-  respondedAt: Option[String],
+  requestedAt: Instant,
+  respondedAt: Option[Instant],
   ciphertext: Option[Array[Byte]],
 ):
   override def equals(other: Any): Boolean = other match
