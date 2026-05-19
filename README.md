@@ -18,7 +18,7 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 ## Why a custom Web app/service?
 
-Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST/WebSocket API with libsodium end-to-end encryption is the right fit:
+Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST API with end-to-end encryption (BouncyCastle on Android/JVM, Swift Crypto on iOS) is the right fit:
 
 - **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
 - **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
@@ -121,7 +121,7 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 
 **Structural enforcement:**
 - Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse
-- iOS: the boundary is enforced by convention — domain protocols (`AuthPort`, `ShareTransport`, `ContactRepository`) have no framework imports; adapters and UI code are in the same app target but must depend on the protocols, never the reverse
+- iOS: the boundary is enforced by convention — domain protocols (`Identity`, `ShareTransport`, `ContactRepository`) have no framework imports; adapters and UI code are in the same app target but must depend on the protocols, never the reverse
 
 ## Share holder onboarding
 
