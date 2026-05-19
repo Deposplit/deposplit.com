@@ -25,7 +25,7 @@
 package services
 
 import driven_ports.IdentityStore
-import driving_ports.AuthPort
+import driving_ports.Identity
 import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.{Ed25519KeyPairGenerator, HKDFBytesGenerator, X25519KeyPairGenerator}
@@ -44,7 +44,7 @@ import org.bouncycastle.crypto.params.{
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.security.SecureRandom
 
-class AuthService(identityStore: IdentityStore) extends AuthPort:
+class IdentityService(identityStore: IdentityStore) extends Identity:
 
   override def isRegistered(): Boolean = identityStore.isRegistered()
 
@@ -80,11 +80,11 @@ class AuthService(identityStore: IdentityStore) extends AuthPort:
 
   override def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] =
     val sk    = X25519PrivateKeyParameters(identityStore.xPrivateKey())
-    val nonce = Array.ofDim[Byte](AuthService.NonceBytes)
-    AuthService.secureRandom.nextBytes(nonce)
+    val nonce = Array.ofDim[Byte](IdentityService.NonceBytes)
+    IdentityService.secureRandom.nextBytes(nonce)
     val key    = deriveKey(sk, X25519PublicKeyParameters(recipientXPublicKey), nonce)
     val cipher = ChaCha20Poly1305()
-    cipher.init(true, AEADParameters(KeyParameter(key), AuthService.TagBits, nonce))
+    cipher.init(true, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(plaintext.length))
     var len = cipher.processBytes(plaintext, 0, plaintext.length, out, 0)
     len += cipher.doFinal(out, len)
@@ -92,11 +92,11 @@ class AuthService(identityStore: IdentityStore) extends AuthPort:
 
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] =
     val sk         = X25519PrivateKeyParameters(identityStore.xPrivateKey())
-    val nonce      = noncePlusCiphertext.take(AuthService.NonceBytes)
-    val ciphertext = noncePlusCiphertext.drop(AuthService.NonceBytes)
+    val nonce      = noncePlusCiphertext.take(IdentityService.NonceBytes)
+    val ciphertext = noncePlusCiphertext.drop(IdentityService.NonceBytes)
     val key        = deriveKey(sk, X25519PublicKeyParameters(recipientXPublicKey), nonce)
     val cipher     = ChaCha20Poly1305()
-    cipher.init(false, AEADParameters(KeyParameter(key), AuthService.TagBits, nonce))
+    cipher.init(false, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(ciphertext.length))
     var len = cipher.processBytes(ciphertext, 0, ciphertext.length, out, 0)
     len += cipher.doFinal(out, len)
@@ -108,12 +108,12 @@ class AuthService(identityStore: IdentityStore) extends AuthPort:
     val sharedSecret = Array.ofDim[Byte](agreement.getAgreementSize)
     agreement.calculateAgreement(pk, sharedSecret, 0)
     val hkdf = HKDFBytesGenerator(SHA256Digest())
-    hkdf.init(HKDFParameters(sharedSecret, nonce, AuthService.HkdfInfo))
-    val key = Array.ofDim[Byte](AuthService.KeyBytes)
-    hkdf.generateBytes(key, 0, AuthService.KeyBytes)
+    hkdf.init(HKDFParameters(sharedSecret, nonce, IdentityService.HkdfInfo))
+    val key = Array.ofDim[Byte](IdentityService.KeyBytes)
+    hkdf.generateBytes(key, 0, IdentityService.KeyBytes)
     key
 
-object AuthService:
+object IdentityService:
   private val NonceBytes   = 12
   private val KeyBytes     = 32
   private val TagBits      = 128

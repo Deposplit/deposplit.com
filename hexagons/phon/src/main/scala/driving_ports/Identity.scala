@@ -24,7 +24,7 @@
 
 package driving_ports
 
-trait AuthPort:
+trait Identity:
   def isRegistered(): Boolean
   def register(pseudonym: String): Unit
   def pseudonym(): String
