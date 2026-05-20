@@ -22,7 +22,7 @@
 * THE SOFTWARE.
 *@
 
-@(title: String, markdownAsHtml: String)(implicit messages: Messages)
+@(title: String, markdownAsHtml: String)(implicit request: RequestHeader, messages: Messages)
 
 @main(title) {
   @Html(markdownAsHtml)

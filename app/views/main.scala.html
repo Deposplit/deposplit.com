@@ -22,7 +22,7 @@
 * THE SOFTWARE.
 *@
 
-@(title: String)(content: Html)(implicit messages: Messages)
+@(title: String)(content: Html)(implicit request: RequestHeader, messages: Messages)
 
 <!doctype html>
 <html lang="@messages("locale")" data-bs-theme="light">
@@ -96,10 +96,10 @@
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="language">
                         <li>
-                            <a class="dropdown-item @if(messages("locale")=="de"){disabled}" href="#">Deutsch</a>
+                            <a class="dropdown-item @if(messages("locale")=="de"){disabled}" href="@request.path?locale=de@Option.unless(request.rawQueryString.isBlank)("&").mkString@request.rawQueryString.trim">Deutsch</a>
                         </li>
                         <li>
-                            <a class="dropdown-item @if(messages("locale")=="en"){disabled}" href="#">English</a>
+                            <a class="dropdown-item @if(messages("locale")=="en"){disabled}" href="@request.path?locale=en@Option.unless(request.rawQueryString.isBlank)("&").mkString@request.rawQueryString.trim">English</a>
                         </li>
                     </ul>
                 </div>
