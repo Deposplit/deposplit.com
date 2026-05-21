@@ -22,12 +22,12 @@
  * THE SOFTWARE.
  */
 
-package driving_ports
+package driven_ports
 
 import java.util.UUID
-import value_objects.{HeldShare, Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
+import value_objects.{Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
 
-trait ShareTransport:
+trait ShareRelay:
   def depositShare(secretId: UUID, label: String, recipientKey: Array[Byte], ciphertext: Array[Byte]): ShareMetadata
   def listShares(role: Role, counterpartyKey: Option[Array[Byte]] = None): List[ShareMetadata]
   def pickUpShare(shareId: UUID): Array[Byte]

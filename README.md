@@ -120,8 +120,8 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 **UI layer** — Compose (Android) / SwiftUI (iOS) with ViewModels at the boundary. Treated separately from the hexagon; Compose/SwiftUI's reactive model doesn't map cleanly to port/adapter shapes and the ceremony isn't justified there. Navigation is also left as a platform concern.
 
 **Structural enforcement:**
-- Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse
-- iOS: the boundary is enforced by convention — domain protocols (`Identity`, `ShareTransport`, `ContactRepository`) have no framework imports; adapters and UI code are in the same app target but must depend on the protocols, never the reverse
+- Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse. Driving ports (`Identity`, `ContactManagement`, `ShareManagement`) are implemented by hexagon services (`IdentityService`, `ContactService`, `ShareService`). Driven ports (`IdentityStore`, `ContactRepository`, `ShareRepository`, `ShareRelay`) are implemented by adapters in `:app`.
+- iOS: the hexagon is a local Swift Package (`iOS/hexagon/`) — the compiler enforces the boundary; the package has no `Security`, `UIKit`, `SwiftUI`, or `URLSession` dependencies so any accidental import is a build error. A `ShareManagement`/`ContactManagement` Ports & Adapters clean-up is planned (see `iOS/CLAUDE.md`).
 
 ## Share holder onboarding
 
