@@ -31,14 +31,14 @@ enum VerificationLevel:
   case Unverified, Verified
 
 case class Contact(
-  id: UUID,
-  pseudonym: String,
-  edPublicKey: Array[Byte],
-  xPublicKey: Array[Byte],
-  verificationLevel: VerificationLevel,
-  verifiedAt: Option[Instant],
-  addedAt: Instant,
-):
+    id: UUID,
+    pseudonym: String,
+    edPublicKey: Array[Byte],
+    xPublicKey: Array[Byte],
+    verificationLevel: VerificationLevel,
+    verifiedAt: Option[Instant],
+    addedAt: Instant
+) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id
     case _          => false

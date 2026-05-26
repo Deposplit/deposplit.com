@@ -30,8 +30,3 @@ trait Identity:
   def pseudonym(): String
   def edPublicKey(): Array[Byte]
   def xPublicKey(): Array[Byte]
-  def sign(message: Array[Byte]): Array[Byte]
-  /** Encrypts plaintext to recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. Returns nonce(12) || ciphertext+tag. */
-  def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]
-  /** Decrypts noncePlusCiphertext (nonce(12) || ciphertext+tag) using recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. */
-  def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]

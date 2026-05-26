@@ -22,20 +22,10 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package services
 
-import java.time.Instant
-import java.util.UUID
-
-case class HeldShare(
-    id: UUID,
-    secretId: UUID,
-    label: String,
-    senderKey: Array[Byte],
-    createdAt: Instant,
-    ciphertext: Array[Byte]
-) extends Serializable:
-  override def equals(other: Any): Boolean = other match
-    case h: HeldShare => id == h.id
-    case _            => false
-  override def hashCode(): Int = id.hashCode()
+trait ShareEncryption:
+  /** Encrypts plaintext to recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. Returns nonce(12) || ciphertext+tag. */
+  def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]
+  /** Decrypts noncePlusCiphertext (nonce(12) || ciphertext+tag) using recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. */
+  def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]

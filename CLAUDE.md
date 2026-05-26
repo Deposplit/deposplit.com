@@ -69,6 +69,7 @@ Architecture follows **Ports & Adapters** enforced by sbt's multi-project build,
 | sbt subproject | Role |
 |---|---|
 | `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
+| `hexagons/phon` | Phone emulator for manual end-to-end testing — mirrors the Android/iOS hexagon structure; simulates a device calling the live `http://localhost:9000` backend. Packages: `value_objects`, `driving_ports` (`Identity`, `RequestSigner`, `ShareManagement`, `ContactManagement`), `driven_ports` (`IdentityStore`, `ContactRepository`, `ShareRelay`, `ShareRepository`), `services` (`IdentityService`, `ShareEncryption`, `ContactService`, `ShareService`), `dev` (in-memory/Java-serialisation adapters + `DevShareRelay` via `java.net.http.HttpClient`) |
 | root (Play app) | Adapters (DB, Web app/service API controllers), Twirl views, routes |
 
 The `hexagon` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagon`; `hexagon` must never depend on the root. This enforces the hexagonal boundary at the build level.
@@ -302,17 +303,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
 
 1. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
 2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` Web app/service.
-3. **Optional: Split the `Identity` driving port** (philosophical clean-up): `ShareService` calls `identity.encrypt()` / `identity.decrypt()`, and `DeposplitApiAdapter` calls `identity.sign()` / `identity.edPublicKey` — both through the `Identity` *driving* port. Driving ports are intended for external actors calling *in* to the hexagon; having an internal hexagon service and an infrastructure adapter consume the same interface is structurally atypical. The canonical resolution would be three narrow interfaces:
-
-   | Interface | Classification | Used by |
-   |---|---|---|
-   | `Identity` | driving port | UI layer (registration, display name, public-key QR) |
-   | `ShareEncryption` | driven port | `ShareService` (encrypt/decrypt share ciphertext) |
-   | `RequestSigner` | driven port | `DeposplitApiAdapter` (sign API requests) |
-
-   `IdentityService` would implement all three; the build wiring stays identical. This adds ceremony without adding safety — the hexagon boundary is still correctly enforced because everything already goes through interfaces — so it is intentionally deferred.
-
-4. **Freemium one-time unlock (optional, future)**: Cap free usage at *n* deposited secrets; a one-time in-app purchase removes the cap. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status). Implementation outline:
+3. **Freemium one-time unlock (optional, future)**: Cap free usage at *n* deposited secrets; a one-time in-app purchase removes the cap. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status). Implementation outline:
    - Add a `PurchaseRepository` driven port to the hexagon (`isPremium(): Boolean`, `secretsDepositedCount(): Int`).
    - Add a limit check in the deposit flow (hexagon service or UI layer).
    - Implement a StoreKit 2 adapter (iOS) and a Google Play Billing adapter (Android).

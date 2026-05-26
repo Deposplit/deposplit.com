@@ -22,20 +22,8 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package driving_ports
 
-import java.time.Instant
-import java.util.UUID
-
-case class HeldShare(
-    id: UUID,
-    secretId: UUID,
-    label: String,
-    senderKey: Array[Byte],
-    createdAt: Instant,
-    ciphertext: Array[Byte]
-) extends Serializable:
-  override def equals(other: Any): Boolean = other match
-    case h: HeldShare => id == h.id
-    case _            => false
-  override def hashCode(): Int = id.hashCode()
+trait RequestSigner:
+  def edPublicKey(): Array[Byte]
+  def sign(message: Array[Byte]): Array[Byte]

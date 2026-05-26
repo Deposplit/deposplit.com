@@ -25,7 +25,7 @@
 package services
 
 import driven_ports.IdentityStore
-import driving_ports.Identity
+import driving_ports.{Identity, RequestSigner}
 import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.{Ed25519KeyPairGenerator, HKDFBytesGenerator, X25519KeyPairGenerator}
@@ -44,7 +44,7 @@ import org.bouncycastle.crypto.params.{
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.security.SecureRandom
 
-class IdentityService(identityStore: IdentityStore) extends Identity:
+class IdentityService(identityStore: IdentityStore) extends Identity, ShareEncryption, RequestSigner:
 
   override def isRegistered(): Boolean = identityStore.isRegistered()
 

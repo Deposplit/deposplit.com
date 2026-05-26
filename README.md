@@ -120,8 +120,8 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 **UI layer** — Compose (Android) / SwiftUI (iOS) with ViewModels at the boundary. Treated separately from the hexagon; Compose/SwiftUI's reactive model doesn't map cleanly to port/adapter shapes and the ceremony isn't justified there. Navigation is also left as a platform concern.
 
 **Structural enforcement:**
-- Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse. Driving ports (`Identity`, `ContactManagement`, `ShareManagement`) are implemented by hexagon services (`IdentityService`, `ContactService`, `ShareService`). Driven ports (`IdentityStore`, `ContactRepository`, `ShareRepository`, `ShareRelay`) are implemented by adapters in `:app`.
-- iOS: the hexagon is a local Swift Package (`iOS/hexagon/`) — the compiler enforces the boundary; the package has no `Security`, `UIKit`, `SwiftUI`, or `URLSession` dependencies so any accidental import is a build error. A `ShareManagement`/`ContactManagement` Ports & Adapters clean-up is planned (see `iOS/CLAUDE.md`).
+- Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse. Driving ports (`Identity`, `RequestSigner`, `ContactManagement`, `ShareManagement`) are implemented by hexagon services (`IdentityService`, `ContactService`, `ShareService`). `ShareEncryption` is an intra-hexagon service interface — both its consumer (`ShareService`) and implementer (`IdentityService`) are inside the hexagon. Driven ports (`IdentityStore`, `ContactRepository`, `ShareRepository`, `ShareRelay`) are implemented by adapters in `:app`.
+- iOS: the hexagon is a local Swift Package (`iOS/hexagon/`) — the compiler enforces the boundary; the package has no `Security`, `UIKit`, `SwiftUI`, or `URLSession` dependencies so any accidental import is a build error. Driving ports and hexagon services mirror the Android structure; splitting the `Identity` driving port into `Identity` + `ShareEncryption` + `RequestSigner` is pending (see `iOS/CLAUDE.md`).
 
 ## Share holder onboarding
 

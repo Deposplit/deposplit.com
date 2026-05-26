@@ -25,7 +25,7 @@
 package services
 
 import driven_ports.{ContactRepository, ShareRelay, ShareRepository}
-import driving_ports.{Identity, ShareManagement}
+import driving_ports.ShareManagement
 import shamir.SecretSharing
 import value_objects.{Contact, HeldShare, Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
 import java.util.UUID
@@ -33,7 +33,7 @@ import scala.util.Try
 
 class ShareService(
   relay: ShareRelay,
-  identity: Identity,
+  encryption: ShareEncryption,
   shareRepository: ShareRepository,
   contactRepository: ContactRepository,
 ) extends ShareManagement:
@@ -42,7 +42,7 @@ class ShareService(
     val shares   = SecretSharing.split(secret, contacts.size, threshold)
     val secretId = UUID.randomUUID()
     shares.zip(contacts).foreach { (share, contact) =>
-      val ciphertext = identity.encrypt(share, contact.xPublicKey)
+      val ciphertext = encryption.encrypt(share, contact.xPublicKey)
       relay.depositShare(secretId, label, contact.edPublicKey, ciphertext)
     }
 
@@ -79,7 +79,7 @@ class ShareService(
       val contact = contacts
         .find(_.edPublicKey.sameElements(req.share.recipientKey))
         .getOrElse(throw IllegalStateException("Contact not found for recipient key"))
-      identity.decrypt(req.ciphertext.get, contact.xPublicKey)
+      encryption.decrypt(req.ciphertext.get, contact.xPublicKey)
     }
     val secretBytes = SecretSharing.combine(decrypted)
     approved.foreach { req => Try(relay.deleteShare(req.share.id)) }
