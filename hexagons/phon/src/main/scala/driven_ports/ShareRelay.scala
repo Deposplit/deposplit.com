@@ -24,8 +24,13 @@
 
 package driven_ports
 
+import value_objects.svo.Role
+import value_objects.svo.ShareMetadata
+import value_objects.svo.ShareRequest
+import value_objects.svo.ShareRequestState
+import value_objects.svo.ShareRequestType
+
 import java.util.UUID
-import value_objects.{Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
 
 trait ShareRelay:
   def depositShare(secretId: UUID, label: String, recipientKey: Array[Byte], ciphertext: Array[Byte]): ShareMetadata

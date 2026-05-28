@@ -25,7 +25,7 @@
 package driven_ports
 
 import java.util.UUID
-import value_objects.Contact
+import value_objects.svo.Contact
 
 trait ContactRepository:
   def getAll(): List[Contact]

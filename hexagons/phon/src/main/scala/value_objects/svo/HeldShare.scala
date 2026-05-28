@@ -22,24 +22,20 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
 import java.time.Instant
 import java.util.UUID
 
-enum VerificationLevel:
-  case Unverified, Verified
-
-case class Contact(
+case class HeldShare(
     id: UUID,
-    pseudonym: String,
-    edPublicKey: Array[Byte],
-    xPublicKey: Array[Byte],
-    verificationLevel: VerificationLevel,
-    verifiedAt: Option[Instant],
-    addedAt: Instant
+    secretId: UUID,
+    label: String,
+    senderKey: Array[Byte],
+    createdAt: Instant,
+    ciphertext: Array[Byte]
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
-    case c: Contact => id == c.id
-    case _          => false
+    case h: HeldShare => id == h.id
+    case _            => false
   override def hashCode(): Int = id.hashCode()

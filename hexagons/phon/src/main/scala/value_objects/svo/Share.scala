@@ -22,20 +22,44 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
 import java.time.Instant
 import java.util.UUID
 
-case class HeldShare(
+enum Role:
+  case Sender, Recipient
+
+enum ShareRequestType:
+  case Retrieve, Delete
+
+enum ShareRequestState:
+  case Pending, Approved, Denied
+
+case class ShareMetadata(
     id: UUID,
     secretId: UUID,
     label: String,
     senderKey: Array[Byte],
+    recipientKey: Array[Byte],
     createdAt: Instant,
-    ciphertext: Array[Byte]
+    pickedUpAt: Option[Instant] = None
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
-    case h: HeldShare => id == h.id
-    case _            => false
+    case s: ShareMetadata => id == s.id
+    case _                => false
+  override def hashCode(): Int = id.hashCode()
+
+case class ShareRequest(
+    id: UUID,
+    share: ShareMetadata,
+    requestType: ShareRequestType,
+    state: ShareRequestState,
+    requestedAt: Instant,
+    respondedAt: Option[Instant],
+    ciphertext: Option[Array[Byte]]
+):
+  override def equals(other: Any): Boolean = other match
+    case r: ShareRequest => id == r.id
+    case _               => false
   override def hashCode(): Int = id.hashCode()

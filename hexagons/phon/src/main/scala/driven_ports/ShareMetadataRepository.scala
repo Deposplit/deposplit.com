@@ -25,7 +25,7 @@
 package driven_ports
 
 import java.util.UUID
-import value_objects.ShareMetadata
+import value_objects.svo.ShareMetadata
 
 trait ShareMetadataRepository:
   def getAll(): List[ShareMetadata]

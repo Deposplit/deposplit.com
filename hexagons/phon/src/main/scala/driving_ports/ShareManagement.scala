@@ -24,8 +24,13 @@
 
 package driving_ports
 
+import value_objects.svo.Contact
+import value_objects.svo.HeldShare
+import value_objects.svo.ShareMetadata
+import value_objects.svo.ShareRequest
+import value_objects.svo.ShareRequestType
+
 import java.util.UUID
-import value_objects.{Contact, HeldShare, ShareMetadata, ShareRequest, ShareRequestType}
 
 trait ShareManagement:
   // ─── Sender ────────────────────────────────────────────────────────────────

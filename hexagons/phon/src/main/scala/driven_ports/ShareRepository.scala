@@ -25,7 +25,7 @@
 package driven_ports
 
 import java.util.UUID
-import value_objects.HeldShare
+import value_objects.svo.HeldShare
 
 trait ShareRepository:
   def getAll(): List[HeldShare]

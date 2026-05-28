@@ -25,7 +25,7 @@
 package driving_ports
 
 import java.util.UUID
-import value_objects.Contact
+import value_objects.svo.Contact
 
 trait ContactManagement:
   def listContacts(): List[Contact]

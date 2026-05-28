@@ -26,7 +26,8 @@ package services
 
 import driven_ports.ContactRepository
 import driving_ports.ContactManagement
-import value_objects.{Contact, VerificationLevel}
+import value_objects.svo.Contact
+import value_objects.svo.VerificationLevel
 
 import java.time.Instant
 import java.util.UUID
@@ -41,30 +42,34 @@ class ContactService(contactRepository: ContactRepository) extends ContactManage
     require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
     require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
     val now = Instant.now()
-    contactRepository.save(Contact(
-      id = UUID.randomUUID(),
-      pseudonym = pseudonym.strip(),
-      edPublicKey = edPublicKey,
-      xPublicKey = xPublicKey,
-      verificationLevel = VerificationLevel.Unverified,
-      verifiedAt = None,
-      addedAt = now,
-    ))
+    contactRepository.save(
+      Contact(
+        id = UUID.randomUUID(),
+        pseudonym = pseudonym.strip(),
+        edPublicKey = edPublicKey,
+        xPublicKey = xPublicKey,
+        verificationLevel = VerificationLevel.Unverified,
+        verifiedAt = None,
+        addedAt = now
+      )
+    )
 
   def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
     require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
     require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
     val now = Instant.now()
-    contactRepository.save(Contact(
-      id = UUID.randomUUID(),
-      pseudonym = pseudonym.strip(),
-      edPublicKey = edPublicKey,
-      xPublicKey = xPublicKey,
-      verificationLevel = VerificationLevel.Verified,
-      verifiedAt = Some(now),
-      addedAt = now,
-    ))
+    contactRepository.save(
+      Contact(
+        id = UUID.randomUUID(),
+        pseudonym = pseudonym.strip(),
+        edPublicKey = edPublicKey,
+        xPublicKey = xPublicKey,
+        verificationLevel = VerificationLevel.Verified,
+        verifiedAt = Some(now),
+        addedAt = now
+      )
+    )
 
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)

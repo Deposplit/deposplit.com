@@ -24,27 +24,37 @@
 
 package services
 
-import driven_ports.{ContactRepository, ShareMetadataRepository, ShareRelay, ShareRepository}
+import driven_ports.ContactRepository
+import driven_ports.ShareMetadataRepository
+import driven_ports.ShareRelay
+import driven_ports.ShareRepository
 import driving_ports.ShareManagement
 import shamir.SecretSharing
-import value_objects.{Contact, HeldShare, Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
+import value_objects.svo.Contact
+import value_objects.svo.HeldShare
+import value_objects.svo.Role
+import value_objects.svo.ShareMetadata
+import value_objects.svo.ShareRequest
+import value_objects.svo.ShareRequestState
+import value_objects.svo.ShareRequestType
+
 import java.util.UUID
 import scala.util.Try
 
 class ShareService(
-  relay: ShareRelay,
-  encryption: ShareEncryption,
-  shareRepository: ShareRepository,
-  shareMetadataRepository: ShareMetadataRepository,
-  contactRepository: ContactRepository,
+    relay: ShareRelay,
+    encryption: ShareEncryption,
+    shareRepository: ShareRepository,
+    shareMetadataRepository: ShareMetadataRepository,
+    contactRepository: ContactRepository
 ) extends ShareManagement:
 
   override def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit =
-    val shares   = SecretSharing.split(secret, contacts.size, threshold)
+    val shares = SecretSharing.split(secret, contacts.size, threshold)
     val secretId = UUID.randomUUID()
     shares.zip(contacts).foreach { (share, contact) =>
       val ciphertext = encryption.encrypt(share, contact.xPublicKey)
-      val metadata   = relay.depositShare(secretId, label, contact.edPublicKey, ciphertext)
+      val metadata = relay.depositShare(secretId, label, contact.edPublicKey, ciphertext)
       shareMetadataRepository.save(metadata)
     }
 
@@ -57,7 +67,7 @@ class ShareService(
 
   override def requestAll(secretId: UUID): Unit =
     val distributed = relay.listShares(Role.Sender).filter(_.secretId == secretId)
-    val existing    = relay.listShareRequests(Role.Sender)
+    val existing = relay.listShareRequests(Role.Sender)
     distributed.foreach { share =>
       val hasActive = existing.exists { r =>
         r.share.id == share.id &&
@@ -72,14 +82,14 @@ class ShareService(
 
   override def reconstruct(secretId: UUID): Array[Byte] =
     val allRequests = relay.listShareRequests(Role.Sender)
-    val approved    = allRequests.filter { r =>
+    val approved = allRequests.filter { r =>
       r.share.secretId == secretId &&
       r.requestType == ShareRequestType.Retrieve &&
       r.state == ShareRequestState.Approved &&
       r.ciphertext.isDefined
     }
     require(approved.size >= 2, s"Need at least 2 approved shares (have ${approved.size})")
-    val contacts  = contactRepository.getAll()
+    val contacts = contactRepository.getAll()
     val decrypted = approved.map { req =>
       val contact = contacts
         .find(_.edPublicKey.sameElements(req.share.recipientKey))
@@ -99,14 +109,16 @@ class ShareService(
       if shareRepository.getCiphertext(meta.id).isEmpty then
         Try {
           val ciphertext = relay.pickUpShare(meta.id)
-          shareRepository.save(HeldShare(
-            id         = meta.id,
-            secretId   = meta.secretId,
-            label      = meta.label,
-            senderKey  = meta.senderKey,
-            createdAt  = meta.createdAt,
-            ciphertext = ciphertext,
-          ))
+          shareRepository.save(
+            HeldShare(
+              id = meta.id,
+              secretId = meta.secretId,
+              label = meta.label,
+              senderKey = meta.senderKey,
+              createdAt = meta.createdAt,
+              ciphertext = ciphertext
+            )
+          )
         }
     }
 
@@ -116,21 +128,22 @@ class ShareService(
     relay.listShareRequests(Role.Recipient, Some(ShareRequestState.Pending))
 
   override def respond(requestId: UUID, approved: Boolean): Unit =
-    val request    = relay.getShareRequest(requestId)
+    val request = relay.getShareRequest(requestId)
     val ciphertext =
       if approved && request.requestType == ShareRequestType.Retrieve then
         Some(
-          shareRepository.getCiphertext(request.share.id)
+          shareRepository
+            .getCiphertext(request.share.id)
             .getOrElse(throw IllegalStateException("Share ciphertext not found in local storage"))
         )
       else None
     relay.respondToShareRequest(requestId, approved, ciphertext)
-    if approved && request.requestType == ShareRequestType.Delete then
-      shareRepository.delete(request.share.id)
+    if approved && request.requestType == ShareRequestType.Delete then shareRepository.delete(request.share.id)
 
   override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)
 
   override def deleteAllHeldFromSender(senderKey: Array[Byte]): Unit =
-    shareRepository.getAll()
+    shareRepository
+      .getAll()
       .filter(_.senderKey.sameElements(senderKey))
       .foreach(share => shareRepository.delete(share.id))
