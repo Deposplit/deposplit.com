@@ -24,7 +24,7 @@
 
 package services
 
-import driven_ports.{ContactRepository, ShareRelay, ShareRepository}
+import driven_ports.{ContactRepository, ShareMetadataRepository, ShareRelay, ShareRepository}
 import driving_ports.ShareManagement
 import shamir.SecretSharing
 import value_objects.{Contact, HeldShare, Role, ShareMetadata, ShareRequest, ShareRequestState, ShareRequestType}
@@ -35,6 +35,7 @@ class ShareService(
   relay: ShareRelay,
   encryption: ShareEncryption,
   shareRepository: ShareRepository,
+  shareMetadataRepository: ShareMetadataRepository,
   contactRepository: ContactRepository,
 ) extends ShareManagement:
 
@@ -43,10 +44,14 @@ class ShareService(
     val secretId = UUID.randomUUID()
     shares.zip(contacts).foreach { (share, contact) =>
       val ciphertext = encryption.encrypt(share, contact.xPublicKey)
-      relay.depositShare(secretId, label, contact.edPublicKey, ciphertext)
+      val metadata   = relay.depositShare(secretId, label, contact.edPublicKey, ciphertext)
+      shareMetadataRepository.save(metadata)
     }
 
-  override def listDistributed(): List[ShareMetadata] = relay.listShares(Role.Sender)
+  override def syncDistributed(): Unit =
+    relay.listShares(Role.Sender).foreach(shareMetadataRepository.save)
+
+  override def listDistributed(): List[ShareMetadata] = shareMetadataRepository.getAll()
 
   override def listSentRequests(): List[ShareRequest] = relay.listShareRequests(Role.Sender)
 
@@ -82,7 +87,10 @@ class ShareService(
       encryption.decrypt(req.ciphertext.get, contact.xPublicKey)
     }
     val secretBytes = SecretSharing.combine(decrypted)
-    approved.foreach { req => Try(relay.deleteShare(req.share.id)) }
+    approved.foreach { req =>
+      Try(relay.deleteShare(req.share.id))
+      Try(shareMetadataRepository.delete(req.share.id))
+    }
     secretBytes
 
   override def syncInbox(): Unit =

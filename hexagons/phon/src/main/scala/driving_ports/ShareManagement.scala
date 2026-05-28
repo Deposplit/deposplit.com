@@ -30,6 +30,7 @@ import value_objects.{Contact, HeldShare, ShareMetadata, ShareRequest, ShareRequ
 trait ShareManagement:
   // ─── Sender ────────────────────────────────────────────────────────────────
   def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit
+  def syncDistributed(): Unit
   def listDistributed(): List[ShareMetadata]
   def listSentRequests(): List[ShareRequest]
   def requestAll(secretId: UUID): Unit
