@@ -26,8 +26,10 @@ package services
 
 import driven_ports.persistence.ShareRepository
 import value_objects.*
+
 import java.time.Instant
-import java.util.{Base64, UUID}
+import java.util.Base64
+import java.util.UUID
 
 // ---------------------------------------------------------------------------
 // In-memory test double — no mocking framework needed.
@@ -35,7 +37,7 @@ import java.util.{Base64, UUID}
 // ---------------------------------------------------------------------------
 class InMemoryShareRepository extends ShareRepository:
 
-  private var shares: Seq[Share]          = Seq.empty
+  private var shares: Seq[Share] = Seq.empty
   private var requests: Seq[ShareRequest] = Seq.empty
 
   private def sameKey(a: PublicKey, b: PublicKey): Boolean =
@@ -74,12 +76,10 @@ class InMemoryShareRepository extends ShareRepository:
       .map(s => ShareMetadata(s.id, s.secretId, s.senderKey, s.recipientKey, s.label, s.createdAt, s.pickedUpAt))
 
   override def pickUpShare(shareId: UUID): Unit =
-    shares = shares.map(s =>
-      if s.id == shareId then s.copy(ciphertext = None, pickedUpAt = Some(Instant.now())) else s
-    )
+    shares = shares.map(s => if s.id == shareId then s.copy(ciphertext = None, pickedUpAt = Some(Instant.now())) else s)
 
   override def deleteShareByPK(shareId: UUID): Unit =
-    shares   = shares.filterNot(_.id == shareId)
+    shares = shares.filterNot(_.id == shareId)
     requests = requests.filterNot(_.share.id == shareId)
 
   override def deleteShares(recipientKey: PublicKey, senderKey: Option[PublicKey], secretId: Option[SecretId]): Unit =
@@ -88,7 +88,7 @@ class InMemoryShareRepository extends ShareRepository:
         senderKey.forall(sk => sameKey(s.senderKey, sk)) &&
         secretId.forall(sid => s.secretId == sid)
     )
-    shares   = shares.diff(removed)
+    shares = shares.diff(removed)
     requests = requests.filterNot(r => removed.exists(_.id == r.share.id))
 
   // --- Share requests ---
@@ -105,7 +105,10 @@ class InMemoryShareRepository extends ShareRepository:
         state.forall(_ == r.state)
     )
 
-  override def getShareRequestsAsRecipient(recipientKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest] =
+  override def getShareRequestsAsRecipient(
+      recipientKey: PublicKey,
+      state: Option[ShareRequestState]
+  ): Seq[ShareRequest] =
     requests.filter(r =>
       sameKey(r.share.recipientKey, recipientKey) &&
         state.forall(_ == r.state)
@@ -118,7 +121,12 @@ class InMemoryShareRepository extends ShareRepository:
         r.state == ShareRequestState.Pending
     )
 
-  override def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant, ciphertext: Option[Array[Byte]]): Unit =
+  override def updateShareRequest(
+      requestId: UUID,
+      state: ShareRequestState,
+      respondedAt: Instant,
+      ciphertext: Option[Array[Byte]]
+  ): Unit =
     requests = requests.map(r =>
       if r.id == requestId then r.copy(state = state, respondedAt = Some(respondedAt), ciphertext = ciphertext) else r
     )
@@ -133,13 +141,13 @@ object Fixtures:
     val b64 = encoder.encodeToString(Array.fill(32)(seed))
     PublicKey.fromBase64Url(b64).getOrElse(throw IllegalStateException("fixture setup"))
 
-  val alice: PublicKey        = makeKey(0x01)
-  val bob: PublicKey          = makeKey(0x02)
-  val charlie: PublicKey      = makeKey(0x03)
+  val alice: PublicKey = makeKey(0x01)
+  val bob: PublicKey = makeKey(0x02)
+  val charlie: PublicKey = makeKey(0x03)
   val ciphertext: Array[Byte] = Array.fill(64)(0xab.toByte)
 
   def freshSecretId(): SecretId = SecretId.random()
-  def freshLabel(): Label       = Label("test secret")
+  def freshLabel(): Label = Label("test secret")
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -156,15 +164,15 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("depositShare stores the share and returns Right with metadata") {
     val (_, service) = newService()
-    val secretId     = freshSecretId()
-    val result       = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val result = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
     assert(result.isRight)
     assertEquals(result.getOrElse(fail("not right")).secretId, secretId)
   }
 
   test("depositShare rejects a duplicate (same secretId, sender, recipient)") {
     val (_, service) = newService()
-    val secretId     = freshSecretId()
+    val secretId = freshSecretId()
     service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
     val result = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
     assertEquals(result, Left(Error.Conflict))
@@ -174,7 +182,7 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("listShares as sender returns metadata for the correct pair") {
     val (_, service) = newService()
-    val secretId     = freshSecretId()
+    val secretId = freshSecretId()
     service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
     val result = service.listShares(alice, asSender = true, counterpartyKey = Some(bob))
     assert(result.isRight)
@@ -190,7 +198,7 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("listShares as recipient returns shares not yet picked up") {
     val (_, service) = newService()
-    val secretId     = freshSecretId()
+    val secretId = freshSecretId()
     service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
     val result = service.listShares(bob, asSender = false, counterpartyKey = None)
     assert(result.isRight)
@@ -199,8 +207,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("listShares as recipient excludes already picked-up shares") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
     val result = service.listShares(bob, asSender = false, counterpartyKey = None)
     assertEquals(result, Right(Seq.empty))
@@ -208,8 +218,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("listShares as sender includes picked-up shares with pickedUpAt set") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
     val result = service.listShares(alice, asSender = true, counterpartyKey = None)
     assert(result.isRight)
@@ -220,8 +232,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("pickUpShare returns the ciphertext and clears it from the relay") {
     val (repo, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     val result = service.pickUpShare(bob, shareId)
     assert(result.isRight)
     assert(java.util.Arrays.equals(result.getOrElse(Array.empty[Byte]), ciphertext))
@@ -237,15 +251,19 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("pickUpShare returns Forbidden when caller is not the recipient") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(service.pickUpShare(charlie, shareId), Left(Error.Forbidden))
   }
 
   test("pickUpShare returns Conflict when the share has already been picked up") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
     assertEquals(service.pickUpShare(bob, shareId), Left(Error.Conflict))
   }
@@ -254,8 +272,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("openShareRequest returns a request when the share exists and caller is sender") {
     val (_, service) = newService()
-    val shareId      = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     val result = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
     assert(result.isRight)
   }
@@ -270,8 +290,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("openShareRequest returns Forbidden when the caller is not the sender") {
     val (_, service) = newService()
-    val shareId      = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(
       service.openShareRequest(charlie, shareId, ShareRequestType.Retrieve),
       Left(Error.Forbidden)
@@ -280,8 +302,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("openShareRequest returns Conflict when a pending request of the same type already exists") {
     val (_, service) = newService()
-    val shareId      = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
     assertEquals(
       service.openShareRequest(alice, shareId, ShareRequestType.Retrieve),
@@ -291,8 +315,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("openShareRequest allows a second pending request of a different type") {
     val (_, service) = newService()
-    val shareId      = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
     assert(service.openShareRequest(alice, shareId, ShareRequestType.Delete).isRight)
   }
@@ -301,12 +327,16 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest approve Retrieve stores and returns the ciphertext") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
-    val result    = service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext))
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
+    val result = service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext))
     assert(result.isRight)
     val req = result.getOrElse(fail("no result"))
     assertEquals(req.state, ShareRequestState.Approved)
@@ -315,10 +345,14 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest approve Retrieve without ciphertext returns BadRequest") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     assertEquals(
       service.respondToShareRequest(bob, requestId, approved = true, None),
       Left(Error.BadRequest)
@@ -335,10 +369,14 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest returns Forbidden when caller is not the recipient") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     assertEquals(
       service.respondToShareRequest(charlie, requestId, approved = true, Some(ciphertext)),
       Left(Error.Forbidden)
@@ -347,11 +385,15 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest returns Conflict when the request is not Pending") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext))
     assertEquals(
       service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext)),
@@ -363,11 +405,15 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest deny marks the request Denied with no ciphertext") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
-    val result    = service.respondToShareRequest(bob, requestId, approved = false, None)
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
+    val result = service.respondToShareRequest(bob, requestId, approved = false, None)
     assert(result.isRight)
     val req = result.getOrElse(fail("no result"))
     assertEquals(req.state, ShareRequestState.Denied)
@@ -376,10 +422,14 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest deny on already-processed request returns Conflict") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     service.respondToShareRequest(bob, requestId, approved = false, None)
     assertEquals(
       service.respondToShareRequest(bob, requestId, approved = false, None),
@@ -391,10 +441,14 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("respondToShareRequest approve Delete removes the targeted share") {
     val (repo, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Delete)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Delete)
+      .getOrElse(fail("request failed"))
+      .id
     assert(service.respondToShareRequest(bob, requestId, approved = true, None).isRight)
     assertEquals(repo.getShareById(shareId), None)
   }
@@ -403,28 +457,40 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("getShareRequest returns the request for the sender") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     assert(service.getShareRequest(alice, requestId).isRight)
   }
 
   test("getShareRequest returns the request for the recipient") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     assert(service.getShareRequest(bob, requestId).isRight)
   }
 
   test("getShareRequest returns Forbidden for an unrelated caller") {
     val (_, service) = newService()
-    val shareId   = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
-    val requestId = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
+    val requestId = service
+      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+      .getOrElse(fail("request failed"))
+      .id
     assertEquals(service.getShareRequest(charlie, requestId), Left(Error.Forbidden))
   }
 
@@ -432,16 +498,20 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("deleteShareById removes the share for the authenticated recipient") {
     val (repo, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(service.deleteShareById(bob, shareId), Right(()))
     assertEquals(repo.getShareById(shareId), None)
   }
 
   test("deleteShareById returns Forbidden when caller is not sender or recipient") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(service.deleteShareById(charlie, shareId), Left(Error.Forbidden))
   }
 
@@ -452,8 +522,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("deleteShareById allows the sender to delete after pickup") {
     val (repo, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.pickUpShare(bob, shareId)
     assertEquals(service.deleteShareById(alice, shareId), Right(()))
     assertEquals(repo.getShareById(shareId), None)
@@ -461,8 +533,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("deleteShareById returns Conflict when sender tries to delete before pickup") {
     val (_, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(service.deleteShareById(alice, shareId), Left(Error.Conflict))
   }
 
@@ -471,8 +545,10 @@ class SharesServiceTests extends munit.FunSuite:
   test("deleteShares removes a specific share without consent") {
     val (repo, service) = newService()
     val secretId = freshSecretId()
-    val shareId  = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     assertEquals(service.deleteShares(bob, Some(alice), Some(secretId)), Right(()))
     assertEquals(repo.getShareById(shareId), None)
   }
@@ -487,8 +563,10 @@ class SharesServiceTests extends munit.FunSuite:
 
   test("deleteShares does not remove shares held for a different sender") {
     val (repo, service) = newService()
-    val shareId = service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed")).id
+    val shareId = service
+      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+      .getOrElse(fail("deposit failed"))
+      .id
     service.deleteShares(bob, Some(charlie), None)
     assert(repo.getShareById(shareId).isDefined)
   }

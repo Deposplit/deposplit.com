@@ -25,8 +25,13 @@
 package api
 
 import play.api.libs.json.Json
-import play.api.mvc.{RequestHeader, Result, Results}
-import value_objects.{Nonce, PublicKey, Signature}
+import play.api.mvc.RequestHeader
+import play.api.mvc.Result
+import play.api.mvc.Results
+import value_objects.Nonce
+import value_objects.PublicKey
+import value_objects.Signature
+
 import java.security.MessageDigest
 
 /** Verifies the three Ed25519 auth headers on every API request.
@@ -40,23 +45,36 @@ import java.security.MessageDigest
 object AuthHelper extends Results:
 
   private val PublicKeyHeader = "X-Deposplit-Public-Key"
-  private val NonceHeader     = "X-Deposplit-Nonce"
-  private val SignatureHeader  = "X-Deposplit-Signature"
+  private val NonceHeader = "X-Deposplit-Nonce"
+  private val SignatureHeader = "X-Deposplit-Signature"
 
   def verify(request: RequestHeader, bodyBytes: Array[Byte]): Either[Result, PublicKey] =
     for
-      pkStr  <- request.headers.get(PublicKeyHeader)
-                  .toRight(Unauthorized(err("missing_header", s"$PublicKeyHeader is required")))
-      nStr   <- request.headers.get(NonceHeader)
-                  .toRight(Unauthorized(err("missing_header", s"$NonceHeader is required")))
-      sigStr <- request.headers.get(SignatureHeader)
-                  .toRight(Unauthorized(err("missing_header", s"$SignatureHeader is required")))
-      pk     <- PublicKey.fromBase64Url(pkStr).left.map(e => BadRequest(err("invalid_header", e)))
-      nonce  <- Nonce(nStr).toRight(BadRequest(err("invalid_header", s"$NonceHeader must be in <unix-ms>.<random> format")))
-      _      <- Either.cond(!nonce.isExpired, (), Unauthorized(err("expired_nonce", "Nonce timestamp is outside the 5-minute window")))
-      sig    <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(err("invalid_header", e)))
-      canon   = canonical(nonce, request.method, request.uri, bodyBytes)
-      _      <- Either.cond(pk.verify(canon, sig), (), Unauthorized(err("invalid_signature", "Signature verification failed")))
+      pkStr <- request.headers
+        .get(PublicKeyHeader)
+        .toRight(Unauthorized(err("missing_header", s"$PublicKeyHeader is required")))
+      nStr <- request.headers
+        .get(NonceHeader)
+        .toRight(Unauthorized(err("missing_header", s"$NonceHeader is required")))
+      sigStr <- request.headers
+        .get(SignatureHeader)
+        .toRight(Unauthorized(err("missing_header", s"$SignatureHeader is required")))
+      pk <- PublicKey.fromBase64Url(pkStr).left.map(e => BadRequest(err("invalid_header", e)))
+      nonce <- Nonce(nStr).toRight(
+        BadRequest(err("invalid_header", s"$NonceHeader must be in <unix-ms>.<random> format"))
+      )
+      _ <- Either.cond(
+        !nonce.isExpired,
+        (),
+        Unauthorized(err("expired_nonce", "Nonce timestamp is outside the 5-minute window"))
+      )
+      sig <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(err("invalid_header", e)))
+      canon = canonical(nonce, request.method, request.uri, bodyBytes)
+      _ <- Either.cond(
+        pk.verify(canon, sig),
+        (),
+        Unauthorized(err("invalid_signature", "Signature verification failed"))
+      )
     yield pk
 
   private def canonical(nonce: Nonce, method: String, uri: String, bodyBytes: Array[Byte]): Array[Byte] =

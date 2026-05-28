@@ -25,8 +25,14 @@
 package api
 
 import play.api.libs.json.*
-import play.api.mvc.{BaseController, Result}
-import value_objects.*
+import play.api.mvc.BaseController
+import play.api.mvc.Result
+import value_objects.Error
+import value_objects.ShareMetadata
+import value_objects.ShareRequest
+import value_objects.ShareRequestState
+import value_objects.ShareRequestType
+
 import java.util.Base64
 
 /** Shared JSON serialisation and error-mapping helpers for API controllers. */
@@ -44,19 +50,19 @@ trait ApiSupport { self: BaseController =>
     case Error.BadRequest => BadRequest(errorJson("bad_request", "Invalid request"))
 
   protected def shareMetadataJson(meta: ShareMetadata): JsValue = Json.obj(
-    "id"           -> meta.id.toString,
-    "secretId"     -> meta.secretId.value.toString,
-    "senderKey"    -> meta.senderKey.toBase64Url,
+    "id" -> meta.id.toString,
+    "secretId" -> meta.secretId.value.toString,
+    "senderKey" -> meta.senderKey.toBase64Url,
     "recipientKey" -> meta.recipientKey.toBase64Url,
-    "label"        -> meta.label.value,
-    "createdAt"    -> meta.createdAt.toString,
-    "pickedUpAt"   -> meta.pickedUpAt.map(_.toString)
+    "label" -> meta.label.value,
+    "createdAt" -> meta.createdAt.toString,
+    "pickedUpAt" -> meta.pickedUpAt.map(_.toString)
   )
 
   protected def shareRequestJson(req: ShareRequest): JsValue =
     val base = Json.obj(
-      "id"          -> req.id.toString,
-      "share"       -> shareMetadataJson(req.share),
+      "id" -> req.id.toString,
+      "share" -> shareMetadataJson(req.share),
       "requestType" -> (req.requestType match
         case ShareRequestType.Retrieve => "retrieve"
         case ShareRequestType.Delete   => "delete"),
