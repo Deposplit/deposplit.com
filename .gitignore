@@ -8,6 +8,7 @@ target
 /.settings
 /RUNNING_PID
 
+/.devDBs
 /.vscode
 
 .bloop

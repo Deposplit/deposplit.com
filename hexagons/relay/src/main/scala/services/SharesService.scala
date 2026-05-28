@@ -24,12 +24,13 @@
 
 package services
 
-import com.google.inject.Inject
 import driven_ports.persistence.ShareRepository
 import driving_ports.Shares
 import value_objects.*
+
 import java.time.Instant
 import java.util.UUID
+import javax.inject.Inject
 
 class SharesService @Inject() (repository: ShareRepository) extends Shares:
 
@@ -49,8 +50,9 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
   ): Either[Error, ShareMetadata] =
     repository.getShare(secretId, senderKey, recipientKey) match
       case Some(_) => Left(Error.Conflict)
-      case None =>
-        val share = Share(UUID.randomUUID(), secretId, senderKey, recipientKey, label, createdAt, Some(ciphertext), None)
+      case None    =>
+        val share =
+          Share(UUID.randomUUID(), secretId, senderKey, recipientKey, label, createdAt, Some(ciphertext), None)
         repository.saveShare(share)
         Right(toMetadata(share))
 
@@ -68,19 +70,19 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
       requestType: ShareRequestType
   ): Either[Error, ShareRequest] =
     repository.getShareById(shareId) match
-      case None => Left(Error.NotFound)
+      case None                                                => Left(Error.NotFound)
       case Some(share) if !sameKey(share.senderKey, senderKey) => Left(Error.Forbidden)
-      case Some(share) =>
+      case Some(share)                                         =>
         if repository.hasPendingRequest(shareId, requestType) then Left(Error.Conflict)
         else
           val request = ShareRequest(
-            id          = UUID.randomUUID(),
-            share       = toMetadata(share),
+            id = UUID.randomUUID(),
+            share = toMetadata(share),
             requestType = requestType,
-            state       = ShareRequestState.Pending,
-            createdAt   = Instant.now(),
+            state = ShareRequestState.Pending,
+            createdAt = Instant.now(),
             respondedAt = None,
-            ciphertext  = None
+            ciphertext = None
           )
           repository.saveShareRequest(request)
           Right(request)
@@ -90,11 +92,13 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
       shareId: UUID
   ): Either[Error, Array[Byte]] =
     repository.getShareById(shareId) match
-      case None => Left(Error.NotFound)
+      case None                                                      => Left(Error.NotFound)
       case Some(share) if !sameKey(share.recipientKey, recipientKey) => Left(Error.Forbidden)
-      case Some(share) if share.pickedUpAt.isDefined => Left(Error.Conflict)
-      case Some(share) =>
-        val ct = share.ciphertext.getOrElse(sys.error(s"invariant violated: share ${shareId} has no ciphertext but picked_up_at is null"))
+      case Some(share) if share.pickedUpAt.isDefined                 => Left(Error.Conflict)
+      case Some(share)                                               =>
+        val ct = share.ciphertext.getOrElse(
+          sys.error(s"invariant violated: share ${shareId} has no ciphertext but picked_up_at is null")
+        )
         repository.pickUpShare(shareId)
         Right(ct)
 
@@ -114,8 +118,7 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
   ): Either[Error, ShareRequest] =
     repository.getShareRequestById(requestId) match
       case None => Left(Error.NotFound)
-      case Some(req)
-        if !sameKey(req.share.senderKey, callerKey) && !sameKey(req.share.recipientKey, callerKey) =>
+      case Some(req) if !sameKey(req.share.senderKey, callerKey) && !sameKey(req.share.recipientKey, callerKey) =>
         Left(Error.Forbidden)
       case Some(req) => Right(req)
 
@@ -126,13 +129,13 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
       ciphertext: Option[Array[Byte]]
   ): Either[Error, ShareRequest] =
     repository.getShareRequestById(requestId) match
-      case None => Left(Error.NotFound)
+      case None                                                        => Left(Error.NotFound)
       case Some(req) if !sameKey(req.share.recipientKey, recipientKey) => Left(Error.Forbidden)
       case Some(req) if req.state != ShareRequestState.Pending         => Left(Error.Conflict)
-      case Some(req) =>
+      case Some(req)                                                   =>
         if approved && req.requestType == ShareRequestType.Retrieve && ciphertext.isEmpty then
           return Left(Error.BadRequest)
-        val now      = Instant.now()
+        val now = Instant.now()
         val newState = if approved then ShareRequestState.Approved else ShareRequestState.Denied
         val storedCt = if approved && req.requestType == ShareRequestType.Retrieve then ciphertext else None
         repository.updateShareRequest(requestId, newState, now, storedCt)
@@ -145,7 +148,7 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
       shareId: UUID
   ): Either[Error, Unit] =
     repository.getShareById(shareId) match
-      case None => Left(Error.NotFound)
+      case None                                                  => Left(Error.NotFound)
       case Some(share) if sameKey(share.recipientKey, callerKey) =>
         repository.deleteShareByPK(shareId)
         Right(())
@@ -153,8 +156,7 @@ class SharesService @Inject() (repository: ShareRepository) extends Shares:
         if share.pickedUpAt.isDefined then
           repository.deleteShareByPK(shareId)
           Right(())
-        else
-          Left(Error.Conflict)
+        else Left(Error.Conflict)
       case _ => Left(Error.Forbidden)
 
   override def deleteShares(
