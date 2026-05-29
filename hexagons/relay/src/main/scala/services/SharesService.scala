@@ -26,11 +26,11 @@ package services
 
 import driven_ports.persistence.ShareRepository
 import driving_ports.Shares
+import jakarta.inject.Inject
 import value_objects.*
 
 import java.time.Instant
 import java.util.UUID
-import javax.inject.Inject
 
 class SharesService @Inject() (repository: ShareRepository) extends Shares:
 

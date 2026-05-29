@@ -24,6 +24,8 @@
 
 package controllers
 
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 import laika.api.MarkupParser
 import laika.api.Renderer
 import laika.ast.Document
@@ -34,8 +36,6 @@ import play.api.Environment
 import play.api.i18n.I18nSupport
 import play.api.mvc.*
 
-import javax.inject.Inject
-import javax.inject.Singleton
 import scala.io.Codec
 import scala.io.Source
 

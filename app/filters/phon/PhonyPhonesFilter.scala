@@ -24,6 +24,7 @@
 
 package filters.phon
 
+import jakarta.inject.Inject
 import org.apache.pekko.stream.Materializer
 import play.api.Environment
 import play.api.mvc.Filter
@@ -31,7 +32,6 @@ import play.api.mvc.RequestHeader
 import play.api.mvc.Result
 import play.api.mvc.Results
 
-import javax.inject.Inject
 import scala.concurrent.Future
 
 class PhonyPhonesFilter @Inject() (implicit val mat: Materializer, env: Environment) extends Filter:

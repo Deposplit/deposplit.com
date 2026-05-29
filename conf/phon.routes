@@ -5,3 +5,15 @@ GET     /:phoneId    controllers.phon.PhonyPhonesController.readPhone(phoneId: I
 PATCH   /:phoneId    controllers.phon.PhonyPhonesController.updatePseudonym(phoneId: Int)
 POST    /            controllers.phon.PhonyPhonesController.createPhone()
 DELETE  /:phoneId    controllers.phon.PhonyPhonesController.deletePhone(phoneId: Int)
+
+# POST / controllers.phon.PhonyPhonesController.createPseudonym()
+# GET / controllers.phon.PhonyPhonesController.readPseudonym()
+# PATCH / controllers.phon.PhonyPhonesController.updatePseudonym()
+# DELETE / controllers.phon.PhonyPhonesController.deletePseudonym()
+
+# POST /contacts controllers.phon.PhonyPhonesController.createContact()
+# GET /contacts controllers.phon.PhonyPhonesController.readContacts()
+# GET /contacts/:contactId controllers.phon.PhonyPhonesController.readContact(contactId: Int)
+# PATCH /contacts/:contactId controllers.phon.PhonyPhonesController.updateContact(contactId: Int) <- verify
+# PUT /contacts/:contactId controllers.phon.PhonyPhonesController.updateContact(contactId: Int) <- replace
+# DELETE /contacts/:contactId controllers.phon.PhonyPhonesController.deleteContact(contactdId: Int)

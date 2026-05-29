@@ -24,7 +24,16 @@
 
 package controllers.phon
 
-final case class PhonyPhoneForm(pseudonym: String)
+import play.api.data.*
+import play.api.data.Forms.*
+
+case class PhonyPhoneForm(pseudonym: String)
 
 object PhonyPhoneForm:
   def unapply(ppf: PhonyPhoneForm): Option[(String)] = Some((ppf.pseudonym))
+
+val phonyPhoneForm = Form(
+  mapping(
+    "pseudonym" -> nonEmptyText
+  )(PhonyPhoneForm.apply)(PhonyPhoneForm.unapply)
+)

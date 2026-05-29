@@ -43,7 +43,7 @@ Rejected alternatives:
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
 | DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | Two tables: `shares`, `share_requests` |
-| Dev / test DB | H2 (file-backed, `./target/deposplit-dev`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
+| Dev / test DB | H2 (file-backed, `./.devDBs/deposplit`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
 | Landing page templating | Twirl (built into Play) | |

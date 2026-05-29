@@ -24,11 +24,10 @@
 
 package controllers
 
+import jakarta.inject.*
 import play.api.*
 import play.api.i18n.I18nSupport
 import play.api.mvc.*
-
-import javax.inject.*
 
 @Singleton
 class HomeController @Inject() (val controllerComponents: ControllerComponents)

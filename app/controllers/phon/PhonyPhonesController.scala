@@ -24,6 +24,8 @@
 
 package controllers.phon
 
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 import play.api.i18n.I18nSupport
 import play.api.mvc.AnyContent
 import play.api.mvc.BaseController
@@ -31,9 +33,6 @@ import play.api.mvc.ControllerComponents
 import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
-
-import javax.inject.Inject
-import javax.inject.Singleton
 
 @Singleton
 class PhonyPhonesController @Inject() (val controllerComponents: ControllerComponents)
