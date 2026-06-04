@@ -17,4 +17,27 @@ no = Nein
 ifNeedBe = Wenns sein muss
 save = Speichern
 cancel = Abbrechen
+close = Schliessen
 revert = Zurücksetzen
+
+# https://www.playframework.com/documentation/latest/ScalaI18N#Externalizing-messages
+error.required = Dieses Feld darf nicht leer sein
+
+
+# phon
+
+contactInformation = Kontaktinformation
+createPseudonym = Pseudonym erstellen
+createdPseudonym = Pseudonym erstellt!
+dangerZone = Gefahrenzone
+deletePseudonym = Pseudonym löschen
+displayMyContactInformation = Meine Kontaktinformation anzeigen
+generateQrCode = QR-Code generieren
+keySignature = Unterschriftsschlüssel
+keyTransmission = Übertragungsschlüssel
+mySecrets = Meine Geheimnisse
+pendingRequests = Hängige Anfragen
+pseudonym = Pseudonym
+pseudonymHelp = Pseudonyms dürfen nicht leer (aber müssen nicht eindeutig) sein.
+theirShares = Deren Anteile
+youHaveBeenWarned = Sie wurden gewarnt!

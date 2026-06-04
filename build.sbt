@@ -29,6 +29,9 @@ libraryDependencies += "com.h2database" % "h2" % "2.4.240"
 libraryDependencies += "org.typelevel" %% "laika-core" % "1.3.2"
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "7.0.2" % Test
 
+// phon
+libraryDependencies += "com.google.zxing" % "javase" % "3.5.4"
+
 // Adds additional packages into Twirl
 //TwirlKeys.templateImports += "com.deposplit.controllers._"
 

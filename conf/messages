@@ -17,4 +17,25 @@ no = No
 ifNeedBe = If need be
 save = Save
 cancel = Cancel
+close = Close
 revert = Revert
+
+
+# phon
+
+contactInformation = Contact Information
+createPseudonym = Create Pseudonym
+createdPseudonym = Pseudonym created!
+dangerZone = Danger Zone
+deletePseudonym = Delete Pseudonym
+displayMyContactInformation = Display my contact information
+generateQrCode = Generate QR Code
+keySignature = Signature key
+keyTransmission = Transmission key
+mySecrets = My Secrets
+pendingRequests = Pending Requests
+pseudonym = Pseudonym
+pseudonymHelp = Pseudonyms must not be empty (but need not be unique).
+displayMyContactInformation = Display my contact information
+theirShares = Their Shares
+youHaveBeenWarned = You''ve been warned!

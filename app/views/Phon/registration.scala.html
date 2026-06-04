@@ -1,0 +1,98 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon._
+@import controllers.phon.routes
+@import helper._
+
+@(qrPayload: QrPayload)(implicit request: RequestHeader, messages: Messages, flash: Flash)
+
+@main(s"Phony Phone (${qrPayload.pseudonym})") {
+  <h1>Phony Phone</h1>
+
+  @if(flash.get("success").isDefined){
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <strong>@messages(flash.get("success").get)</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  }
+
+  <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#qrModal">
+    @messages("displayMyContactInformation") <i class="bi bi-person-lines-fill"></i>
+  </button>
+
+  <div class="modal" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
+   <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="qrModalLabel">@messages("contactInformation")</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <dl>
+            <dt>@messages("pseudonym")</dt><dd>@qrPayload.pseudonym
+            <dt>@messages("keySignature")</dt><dd>@qrPayload.ed</dd>
+            <dt>@messages("keyTransmission")</dt><dd>@qrPayload.x</dd>
+          </dl>
+          <button type="button" class="btn btn-info" hx-get="/phonyPhone/qr-code" hx-swap="outerHTML">
+            @messages("generateQrCode") <i class="bi bi-qr-code"></i></i>
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@messages("close")</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs" id="phonyPhoneTabs">
+    <li class="nav-item">
+      <a class="nav-link" href="#" hx-get="/phonyPhone/mySecrets" title="secrets shared BY me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("mySecrets")</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" hx-get="/phonyPhones/theirShares" title="secrets shared WITH me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("theirShares")</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" hx-get="/phonyPhones/pendingRequests" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("pendingRequests")</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active disabled" aria-disabled="true">@messages("dangerZone") <i class="bi bi-radioactive"></i></a>
+    </li>
+  </ul>
+
+  <div id="activePhonyPhoneTab">
+    <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#dzCollapse" aria-expanded="false" aria-controls="dzCollapse">
+      @messages("deletePseudonym") …
+    </button>
+    @CSRF.formField
+    <div class="collapse" id="dzCollapse">
+      <div class="card card-body">
+        <p class="text-warning">@messages("youHaveBeenWarned")</p>
+        <button type="button" class="btn btn-danger" hx-delete="/phonyPhone" hx-include="[name='csrfToken']">
+          <i class="bi bi-person-dash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+}

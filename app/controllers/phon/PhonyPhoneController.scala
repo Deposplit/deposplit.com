@@ -24,8 +24,14 @@
 
 package controllers.phon
 
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.client.j2se.MatrixToImageWriter
+import com.google.zxing.qrcode.QRCodeWriter
+import driven_ports.ForgettableIdentityStore
+import driving_ports.ForgettableIdentity
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
+import play.api.Logging
 import play.api.i18n.I18nSupport
 import play.api.mvc.AnyContent
 import play.api.mvc.BaseController
@@ -35,18 +41,55 @@ import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
 
 @Singleton
-class PhonyPhonesController @Inject() (val controllerComponents: ControllerComponents)
-    extends BaseController
-    with I18nSupport:
+class PhonyPhoneController @Inject() (val controllerComponents: ControllerComponents, val identity: ForgettableIdentity)
+    extends BaseController,
+      I18nSupport,
+      Logging:
 
   val cookieNamePrefix = "PhonyPhone"
 
-  def readPhones() = Action { implicit request: Request[AnyContent] =>
-    val phonyPhones = request.cookies
-      .filter(_.name.startsWith(cookieNamePrefix))
-      .map(cookie => PhonyPhoneDto(cookie.name.substring(cookieNamePrefix.length).toInt, cookie.value))
-      .toSeq
-    Ok(views.html.Phon.phonyPhones(phonyPhones))
+  def createPseudonym() = Action { implicit request: Request[AnyContent] =>
+    logger.debug("creating pseudonym …")
+    phonyPhoneForm
+      .bindFromRequest()
+      .fold(
+        formWithErrors => {
+          logger.debug("… failed to create pseudonym")
+          BadRequest(views.html.Phon.registrationForm(formWithErrors))
+        },
+        pseudonym => {
+          identity.register(pseudonym.pseudonym)
+          logger.debug("… created pseudonym")
+          Redirect(routes.PhonyPhoneController.readPseudonym())
+            .flashing("success" -> "createdPseudonym")
+        }
+      )
+  }
+
+  def readPseudonym() = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(views.html.Phon.registration(QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey())))
+    else Ok(views.html.Phon.registrationForm(phonyPhoneForm))
+    end if
+  }
+
+  def deletePseudonym() = Action { implicit request: Request[AnyContent] =>
+    identity.unregister()
+    NoContent.withHeaders("HX-Redirect" -> routes.PhonyPhoneController.readPseudonym().absoluteURL())
+  }
+
+  def readQrCode() = Action { implicit request: Request[AnyContent] =>
+    if !identity.isRegistered() then Conflict
+    else
+      val payload =
+        QrPayload.encode(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey())
+      val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 256, 256)
+      val image = MatrixToImageWriter.toBufferedImage(bitMatrix)
+      val baos = java.io.ByteArrayOutputStream()
+      javax.imageio.ImageIO.write(image, "PNG", baos)
+      val base64 = java.util.Base64.getEncoder.encodeToString(baos.toByteArray)
+      Ok(s"""<img src="data:image/png;base64,$base64">""").as("text/html")
+    end if
   }
 
   def readPhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
@@ -58,10 +101,6 @@ class PhonyPhonesController @Inject() (val controllerComponents: ControllerCompo
     } else {
       NotFound
     }
-  }
-
-  def updatePseudonym(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
-    NoContent
   }
 
   def createPhone() = Action { implicit request: Request[AnyContent] =>

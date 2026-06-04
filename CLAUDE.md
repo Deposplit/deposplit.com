@@ -68,13 +68,13 @@ Architecture follows **Ports & Adapters** enforced by sbt's multi-project build,
 
 | sbt subproject | Role |
 |---|---|
-| `hexagon` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
-| `hexagons/phon` | Phone emulator for manual end-to-end testing — mirrors the Android/iOS hexagon structure; simulates a device calling the live `http://localhost:9000` backend. Packages: `value_objects`, `driving_ports` (`Identity`, `RequestSigner`, `ShareManagement`, `ContactManagement`), `driven_ports` (`IdentityStore`, `ContactRepository`, `ShareRelay`, `ShareRepository`, `ShareMetadataRepository`), `services` (`IdentityService`, `ShareEncryption`, `ContactService`, `ShareService`), `dev` (in-memory/Java-serialisation adapters including `DevShareMetadataRepository` + `DevShareRelay` via `java.net.http.HttpClient`) |
+| `hexagon/relay` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
+| `hexagons/phon` | Phone emulator for manual end-to-end testing — mirrors the Android/iOS hexagon structure; simulates a device calling the live `http://localhost:9000` backend. Packages: `value_objects`, `driving_ports` (`Identity`, `RequestSigner`, `ShareManagement`, `ContactManagement`), `driven_ports` (`IdentityStore`, `ContactRepository`, `ShareRelay`, `ShareRepository`, `ShareMetadataRepository`), `services` (`IdentityService`, `ShareEncryption`, `ContactService`, `ShareService`) |
 | root (Play app) | Adapters (DB, Web app/service API controllers), Twirl views, routes |
 
-The `hexagon` subproject has **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagon`; `hexagon` must never depend on the root. This enforces the hexagonal boundary at the build level.
+The `hexagons` subprojects have **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagons`; `hexagons` must never depend on the root. This enforces the hexagonal boundary at the build level.
 
-The hexagon and root both programme **synchronously (blocking)** — no Scala `Future`s. This keeps the code straightforward and stack traces readable; with Java virtual threads becoming mainstream, blocking I/O will carry negligible cost.
+The hexagons and root both programme **synchronously (blocking)** — no Scala `Future`s. This keeps the code straightforward and stack traces readable; with Java virtual threads becoming mainstream, blocking I/O will carry negligible cost.
 
 **Key library choices:**
 - **sbt** build tool (use standard `build.sbt` and `project/` Scala/sbt files)
