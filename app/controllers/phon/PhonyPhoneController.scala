@@ -54,7 +54,7 @@ class PhonyPhoneController @Inject() (
 
   def createPseudonym() = Action { implicit request: Request[AnyContent] =>
     logger.debug("creating pseudonym …")
-    phonyPhoneForm
+    pseudonymForm
       .bindFromRequest()
       .fold(
         formWithErrors => {
@@ -74,9 +74,12 @@ class PhonyPhoneController @Inject() (
     if identity.isRegistered() then
       Ok(
         views.html.Phon
-          .registration(QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()), contactManagement)
+          .registration(
+            QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()),
+            contactManagement
+          )
       )
-    else Ok(views.html.Phon.registrationForm(phonyPhoneForm))
+    else Ok(views.html.Phon.registrationForm(pseudonymForm))
     end if
   }
 
@@ -99,11 +102,27 @@ class PhonyPhoneController @Inject() (
     end if
   }
 
-  def createPhone() = Action { implicit request: Request[AnyContent] =>
-    val cookieNames = request.cookies.map(_.name).toSet
-    var phoneId = 1
-    while cookieNames.contains(cookieNamePrefix + phoneId) do phoneId += 1
-    Created.withCookies(Cookie(cookieNamePrefix + phoneId, "pseudonym"))
+  def createContact() = Action { implicit request: Request[AnyContent] =>
+    logger.debug("creating contact …")
+    contactForm
+      .bindFromRequest()
+      .fold(
+        formWithErrors => {
+          logger.debug("… failed to create contact")
+          BadRequest(
+            views.html.Phon.registration(
+              QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()),
+              contactManagement
+            ) // FIXME
+          )
+        },
+        contact => {
+          contactManagement.addManually(contact.pseudonym, Array[Byte](), Array[Byte]()) // FIXME
+          logger.debug("… created contact")
+          Created
+            .flashing("success" -> "createdContact")
+        }
+      )
   }
 
   def deletePhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>

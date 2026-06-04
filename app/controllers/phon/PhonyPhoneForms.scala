@@ -27,13 +27,26 @@ package controllers.phon
 import play.api.data.*
 import play.api.data.Forms.*
 
-case class PhonyPhoneForm(pseudonym: String)
+case class PseudonymForm(pseudonym: String)
 
-object PhonyPhoneForm:
-  def unapply(ppf: PhonyPhoneForm): Option[(String)] = Some((ppf.pseudonym))
+object PseudonymForm:
+  def unapply(pf: PseudonymForm): Option[(String)] = Some((pf.pseudonym))
 
-val phonyPhoneForm = Form(
+val pseudonymForm = Form(
   mapping(
     "pseudonym" -> nonEmptyText
-  )(PhonyPhoneForm.apply)(PhonyPhoneForm.unapply)
+  )(PseudonymForm.apply)(PseudonymForm.unapply)
+)
+
+case class ContactForm(pseudonym: String, signKey: String, transKey: String)
+
+object ContactForm:
+  def unapply(cf: ContactForm): Option[(String, String, String)] = Some((cf.pseudonym, cf.signKey, cf.transKey))
+
+val contactForm = Form(
+  mapping(
+    "pseudonym" -> nonEmptyText,
+    "signKey" -> nonEmptyText,
+    "transKey" -> nonEmptyText
+  )(ContactForm.apply)(ContactForm.unapply)
 )

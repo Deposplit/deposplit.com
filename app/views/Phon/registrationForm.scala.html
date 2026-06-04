@@ -26,18 +26,18 @@
 @import controllers.phon.routes
 @import helper._
 
-@(phonyPhoneForm: Form[PhonyPhoneForm])(implicit request: RequestHeader, messages: Messages)
+@(pseudonymForm: Form[PseudonymForm])(implicit request: RequestHeader, messages: Messages)
 
 @main("Phony Phone") {
   <h1>Phony Phone (@Option(request.host.lastIndexOf(":")).filter(_ != -1).map(lio => request.host.substring(lio + 1).toInt).getOrElse(9000))</h1>
 
   @helper.form(action = phon.routes.PhonyPhoneController.createPseudonym()) {
     @CSRF.formField
-    <label for=@phonyPhoneForm("pseudonym").id class="form-label">@messages("pseudonym")</label>
-    <input type="text" id=@phonyPhoneForm("pseudonym").id name=@phonyPhoneForm("pseudonym").name class="form-control @if(phonyPhoneForm("pseudonym").hasErrors){is-invalid}" required aria-describedby="pseudonymHelp">
-    @if(phonyPhoneForm("pseudonym").hasErrors){
+    <label for=@pseudonymForm("pseudonym").id class="form-label">@messages("pseudonym")</label>
+    <input type="text" id=@pseudonymForm("pseudonym").id name=@pseudonymForm("pseudonym").name class="form-control @if(pseudonymForm("pseudonym").hasErrors){is-invalid}" required aria-describedby="pseudonymHelp">
+    @if(pseudonymForm("pseudonym").hasErrors){
       <div id="pseudonymValidationServerUsernameFeedback" class="invalid-feedback">
-        @for(error <- phonyPhoneForm("pseudonym").errors){
+        @for(error <- pseudonymForm("pseudonym").errors){
           @error.format
         }
       </div>

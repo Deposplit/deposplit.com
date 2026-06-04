@@ -5,7 +5,7 @@ GET    /        controllers.phon.PhonyPhoneController.readPseudonym()
 DELETE /        controllers.phon.PhonyPhoneController.deletePseudonym()
 GET    /qr-code controllers.phon.PhonyPhoneController.readQrCode()
 
-# POST /contacts controllers.phon.PhonyPhoneController.createContact()
+POST   /contacts controllers.phon.PhonyPhoneController.createContact()
 # GET /contacts controllers.phon.PhonyPhoneController.readContacts()
 # GET /contacts/:contactId controllers.phon.PhonyPhoneController.readContact(contactId: Int)
 # PATCH /contacts/:contactId controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- verify
