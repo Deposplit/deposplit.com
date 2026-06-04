@@ -23,10 +23,12 @@
 *@
 
 @import controllers.phon._
-@import controllers.phon.routes
+@import driving_ports.ContactManagement
+
 @import helper._
 
-@(qrPayload: QrPayload)(implicit request: RequestHeader, messages: Messages, flash: Flash)
+
+@(qrPayload: QrPayload, contacts: ContactManagement)(implicit request: RequestHeader, messages: Messages, flash: Flash)
 
 @main(s"Phony Phone (${qrPayload.pseudonym})") {
   <h1>Phony Phone</h1>
@@ -38,9 +40,63 @@
     </div>
   }
 
-  <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#qrModal">
-    @messages("displayMyContactInformation") <i class="bi bi-person-lines-fill"></i>
-  </button>
+  <div class="accordion" id="accordionPhonyPhone">
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSecretSharing" aria-expanded="true" aria-controls="collapseSecretSharing">
+          @messages("secretSharing")
+        </button>
+      </h2>
+      <div id="collapseSecretSharing" class="accordion-collapse collapse show" data-bs-parent="#accordionPhonyPhone">
+        <div class="accordion-body">
+          <ul class="nav nav-tabs" id="phonyPhoneTabs">
+            <li class="nav-item">
+              <a class="nav-link" href="#" hx-get="/phonyPhone/mySecrets" title="secrets shared BY me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("mySecrets")</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" hx-get="/phonyPhones/theirShares" title="secrets shared WITH me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("theirShares")</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" hx-get="/phonyPhones/pendingRequests" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("pendingRequests")</a>
+            </li>
+          </ul>
+          <div id="activePhonyPhoneTab">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseContactsManagement" aria-expanded="false" aria-controls="collapseContactsManagement">
+          @messages("contactsManagement")&nbsp;<i class="bi bi-person-rolodex"></i>
+        </button>
+      </h2>
+      <div id="collapseContactsManagement" class="accordion-collapse collapse" data-bs-parent="#accordionPhonyPhone">
+        <div class="accordion-body">
+          <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#qrModal">
+            @messages("displayMyContactInformation") <i class="bi bi-person-lines-fill"></i>
+          </button>
+            @contactsTable(contacts)
+        </div>
+      </div>
+    </div>
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDangerZone" aria-expanded="false" aria-controls="collapseDangerZone">
+          @messages("dangerZone")&nbsp;<i class="bi bi-radioactive"></i>
+        </button>
+      </h2>
+      <div id="collapseDangerZone" class="accordion-collapse collapse" data-bs-parent="#accordionPhonyPhone">
+        <div class="accordion-body">
+          @CSRF.formField
+          <p class="text-warning">@messages("youHaveBeenWarned")</p>
+          <button type="button" class="btn btn-danger" hx-delete="/phonyPhone" hx-include="[name='csrfToken']">
+            @messages("deletePseudonym") <i class="bi bi-person-dash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
    <div class="modal-dialog">
@@ -55,6 +111,14 @@
             <dt>@messages("keySignature")</dt><dd>@qrPayload.ed</dd>
             <dt>@messages("keyTransmission")</dt><dd>@qrPayload.x</dd>
           </dl>
+          <button class="btn btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#jsonCollapse" aria-expanded="false" aria-controls="jsonCollapse">
+            <i class="bi bi-filetype-json"></i>
+          </button>
+          <div class="collapse" id="jsonCollapse">
+            <div class="card card-body">
+              <textarea readonly rows="4">@QrPayload.encode(qrPayload).replace(",\"",",\n\"")</textarea>
+            </div>
+          </div>
           <button type="button" class="btn btn-info" hx-get="/phonyPhone/qr-code" hx-swap="outerHTML">
             @messages("generateQrCode") <i class="bi bi-qr-code"></i></i>
           </button>
@@ -62,36 +126,6 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@messages("close")</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <ul class="nav nav-tabs" id="phonyPhoneTabs">
-    <li class="nav-item">
-      <a class="nav-link" href="#" hx-get="/phonyPhone/mySecrets" title="secrets shared BY me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("mySecrets")</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" href="#" hx-get="/phonyPhones/theirShares" title="secrets shared WITH me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("theirShares")</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" href="#" hx-get="/phonyPhones/pendingRequests" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("pendingRequests")</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link active disabled" aria-disabled="true">@messages("dangerZone") <i class="bi bi-radioactive"></i></a>
-    </li>
-  </ul>
-
-  <div id="activePhonyPhoneTab">
-    <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#dzCollapse" aria-expanded="false" aria-controls="dzCollapse">
-      @messages("deletePseudonym") …
-    </button>
-    @CSRF.formField
-    <div class="collapse" id="dzCollapse">
-      <div class="card card-body">
-        <p class="text-warning">@messages("youHaveBeenWarned")</p>
-        <button type="button" class="btn btn-danger" hx-delete="/phonyPhone" hx-include="[name='csrfToken']">
-          <i class="bi bi-person-dash"></i>
-        </button>
       </div>
     </div>
   </div>

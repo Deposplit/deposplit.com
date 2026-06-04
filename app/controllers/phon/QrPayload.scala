@@ -45,11 +45,10 @@ object QrPayload:
       x = b64Url.encodeToString(xPublicKey)
     )
 
+  def encode(qrPayload: QrPayload): String =
+    Json.toJson(qrPayload).toString
+
   def encode(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): String =
-    Json
-      .toJson(
-        apply(pseudonym, edPublicKey, xPublicKey)
-      )
-      .toString()
+    encode(apply(pseudonym, edPublicKey, xPublicKey))
 
   def decode(raw: String): QrPayload = Json.parse(raw).as[QrPayload]

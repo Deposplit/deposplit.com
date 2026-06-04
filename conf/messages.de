@@ -26,7 +26,9 @@ error.required = Dieses Feld darf nicht leer sein
 
 # phon
 
+addContact = Kontakt hinzufügen
 contactInformation = Kontaktinformation
+contactsManagement = Kontaktverwaltung
 createPseudonym = Pseudonym erstellen
 createdPseudonym = Pseudonym erstellt!
 dangerZone = Gefahrenzone
@@ -40,4 +42,5 @@ pendingRequests = Hängige Anfragen
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyms dürfen nicht leer (aber müssen nicht eindeutig) sein.
 theirShares = Deren Anteile
+verified = Verifiziert
 youHaveBeenWarned = Sie wurden gewarnt!

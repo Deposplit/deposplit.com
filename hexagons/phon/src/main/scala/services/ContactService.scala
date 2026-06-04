@@ -26,13 +26,14 @@ package services
 
 import driven_ports.ContactRepository
 import driving_ports.ContactManagement
+import jakarta.inject.Inject
 import value_objects.svo.Contact
 import value_objects.svo.VerificationLevel
 
 import java.time.Instant
 import java.util.UUID
 
-class ContactService(contactRepository: ContactRepository) extends ContactManagement:
+class ContactService @Inject() (contactRepository: ContactRepository) extends ContactManagement:
 
   def listContacts(): List[Contact] =
     contactRepository.getAll()

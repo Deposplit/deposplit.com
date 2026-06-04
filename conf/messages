@@ -23,19 +23,22 @@ revert = Revert
 
 # phon
 
-contactInformation = Contact Information
-createPseudonym = Create Pseudonym
+addContact = Add contact
+contactInformation = Contact information
+contactsManagement = Contact management
+createPseudonym = Create pseudonym
 createdPseudonym = Pseudonym created!
-dangerZone = Danger Zone
-deletePseudonym = Delete Pseudonym
+dangerZone = Danger zone
+deletePseudonym = Delete pseudonym
 displayMyContactInformation = Display my contact information
-generateQrCode = Generate QR Code
+generateQrCode = Generate QR code
 keySignature = Signature key
 keyTransmission = Transmission key
-mySecrets = My Secrets
-pendingRequests = Pending Requests
+mySecrets = My secrets
+pendingRequests = Pending requests
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyms must not be empty (but need not be unique).
-displayMyContactInformation = Display my contact information
-theirShares = Their Shares
+secretSharing = Secret sharing
+theirShares = Their shares
+verified = Verified
 youHaveBeenWarned = You''ve been warned!

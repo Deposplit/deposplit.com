@@ -28,6 +28,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.client.j2se.MatrixToImageWriter
 import com.google.zxing.qrcode.QRCodeWriter
 import driven_ports.ForgettableIdentityStore
+import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
@@ -41,8 +42,11 @@ import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
 
 @Singleton
-class PhonyPhoneController @Inject() (val controllerComponents: ControllerComponents, val identity: ForgettableIdentity)
-    extends BaseController,
+class PhonyPhoneController @Inject() (
+    val controllerComponents: ControllerComponents,
+    val identity: ForgettableIdentity,
+    val contactManagement: ContactManagement
+) extends BaseController,
       I18nSupport,
       Logging:
 
@@ -68,7 +72,10 @@ class PhonyPhoneController @Inject() (val controllerComponents: ControllerCompon
 
   def readPseudonym() = Action { implicit request: Request[AnyContent] =>
     if identity.isRegistered() then
-      Ok(views.html.Phon.registration(QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey())))
+      Ok(
+        views.html.Phon
+          .registration(QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()), contactManagement)
+      )
     else Ok(views.html.Phon.registrationForm(phonyPhoneForm))
     end if
   }
@@ -90,17 +97,6 @@ class PhonyPhoneController @Inject() (val controllerComponents: ControllerCompon
       val base64 = java.util.Base64.getEncoder.encodeToString(baos.toByteArray)
       Ok(s"""<img src="data:image/png;base64,$base64">""").as("text/html")
     end if
-  }
-
-  def readPhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
-    val phonyPhone = request.cookies
-      .find(_.name == cookieNamePrefix + phoneId)
-      .map(cookie => PhonyPhoneDto(phoneId, cookie.value))
-    if (phonyPhone.isDefined) {
-      Ok(views.html.Phon.phonyPhone(phonyPhone.get))
-    } else {
-      NotFound
-    }
   }
 
   def createPhone() = Action { implicit request: Request[AnyContent] =>

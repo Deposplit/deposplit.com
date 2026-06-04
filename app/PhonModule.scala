@@ -23,22 +23,24 @@
  */
 
 import com.google.inject.AbstractModule
-import persistence.phon.FileContactRepository
-import persistence.phon.FileIdentityStore
-import persistence.phon.FileShareMetadataRepository
-import persistence.phon.HttpClientShareRelay
-import persistence.phon.FileShareRepository
 import driven_ports.ContactRepository
+import driven_ports.ForgettableIdentityStore
 import driven_ports.IdentityStore
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
 import driven_ports.ShareRepository
+import driving_ports.ContactManagement
+import driving_ports.ForgettableIdentity
 import driving_ports.Identity
 import driving_ports.RequestSigner
+import persistence.phon.FileContactRepository
+import persistence.phon.FileIdentityStore
+import persistence.phon.FileShareMetadataRepository
+import persistence.phon.FileShareRepository
+import persistence.phon.HttpClientShareRelay
+import services.ContactService
 import services.IdentityService
 import services.ShareEncryption
-import driven_ports.ForgettableIdentityStore
-import driving_ports.ForgettableIdentity
 
 class PhonModule extends AbstractModule:
   override def configure(): Unit =
@@ -48,6 +50,7 @@ class PhonModule extends AbstractModule:
     bind(classOf[RequestSigner]).to(classOf[IdentityService])
     bind(classOf[ShareEncryption]).to(classOf[IdentityService])
     bind(classOf[ContactRepository]).to(classOf[FileContactRepository])
+    bind(classOf[ContactManagement]).to(classOf[ContactService])
     bind(classOf[ShareMetadataRepository]).to(classOf[FileShareMetadataRepository])
     bind(classOf[ShareRelay]).to(classOf[HttpClientShareRelay])
     bind(classOf[ShareRepository]).to(classOf[FileShareRepository])
