@@ -52,6 +52,7 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
   private var optionalIdentity: Option[DevIdentity] = None
 
   if file.exists then
+    // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
     val ois = ObjectInputStream(FileInputStream(file))
     val devIdentity = ois.readObject().asInstanceOf[DevIdentity]
     ois.close()

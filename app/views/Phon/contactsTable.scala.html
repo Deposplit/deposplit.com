@@ -24,33 +24,67 @@
 
 @import controllers.phon._
 @import driving_ports.ContactManagement
+@import value_objects.svo.VerificationLevel
 
 @import helper._
 
 
-@(contacts: ContactManagement)(implicit request: RequestHeader, messages: Messages)
+@(contacts: ContactManagement, contactForm: Form[ContactForm])(implicit request: RequestHeader, messages: Messages)
 
-<table class="table">
-  <thead>
-    <tr>
-      <th scope="col">#</th>
-      <th scope="col">@messages("pseudonym")</th>
-      <th scope="col">@messages("keySignature")</th>
-      <th scope="col">@messages("keyTransmission")</th>
-      <th scope="col">@messages("verified")</th>
-      <th scope="col"></th>
-    </tr>
-  </thead>
-  <tbody>
-  </tbody>
-  <tfoot>
-    <tr>
-      <th scope="row"></th>
-      <td>input pseudonym</td>
-      <td>input key</td>
-      <td>input schlüssel</td>
-      <td></td>
-      <td>@messages("addContact") <i class="bi bi-person-add"></i></td>
-    </tr>
-  </tfoot>
-</table>
+<div id="contacts">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">@messages("pseudonym")</th>
+        <th scope="col">@messages("keySignature")</th>
+        <th scope="col">@messages("keyTransmission")</th>
+        <th scope="col">@messages("verified")</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for(contact <- contacts.listContacts()){
+        <tr id="@contact.id.toString">
+          <th scope="row" title="@contact.id.toString">@contact.pseudonym</td>
+          <td>@QrPayload.encodeKey(contact.edPublicKey)</td>
+          <td>@QrPayload.encodeKey(contact.xPublicKey)</td>
+          <td>@if(contact.verificationLevel==VerificationLevel.Verified){<span class="text-success"><i class="bi bi-person-add"></i></span>}else{<span class="text-warning"><i class="bi bi-person"></i></span>}</td>
+          <td><button class="btn btn-danger" hx-delete="@phon.routes.PhonyPhoneController.deleteContact(contact.id)" hx-include="[name='csrfToken']" hx-target="#@contact.id.toString" hx-swap="delete">DELETE</button></td>
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><input form="contactsForm" type="text" id="@contactForm("pseudonym").id" name="@contactForm("pseudonym").name" class="form-control @if(contactForm("pseudonym").hasErrors){is-invalid}" required aria-describedby="pseudonymValidationServerFeedback"></td>
+        <td><input form="contactsForm" type="text" id="@contactForm("signKey").id" name="@contactForm("signKey").name" class="form-control @if(contactForm("signKey").hasErrors){is-invalid}" required aria-describedby="signKeyValidationServerFeedback"></td>
+        <td><input form="contactsForm" type="text" id="@contactForm("transKey").id" name="@contactForm("transKey").name" class="form-control @if(contactForm("transKey").hasErrors){is-invalid}" required aria-describedby="transKeyValidationServerFeedback"></td>
+        <td></td>
+        <td><button form="contactsForm" type="submit" class="btn btn-primary">@messages("addContact") <i class="bi bi-person-add"></i></button></td>
+      </tr>
+    </tfoot>
+  </table>
+  <form hx-post="@phon.routes.PhonyPhoneController.createContact()" id="contactsForm" hx-target="#contacts" hx-swap="outerHTML">
+    @CSRF.formField
+    @if(contactForm("pseudonym").hasErrors){
+      <div id="pseudonymValidationServerFeedback" class="invalid-feedback">
+        @for(error <- contactForm("pseudonym").errors){
+          @error.format
+        }
+      </div>
+    }
+    @if(contactForm("signKey").hasErrors){
+      <div id="signKeyValidationServerFeedback" class="invalid-feedback">
+        @for(error <- contactForm("signKey").errors){
+          @error.format
+        }
+      </div>
+    }
+    @if(contactForm("transKey").hasErrors){
+      <div id="transKeyValidationServerFeedback" class="invalid-feedback">
+        @for(error <- contactForm("transKey").errors){
+          @error.format
+        }
+      </div>
+    }
+  </form>
+</div>

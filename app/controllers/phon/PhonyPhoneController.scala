@@ -41,6 +41,8 @@ import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
 
+import java.util.UUID
+
 @Singleton
 class PhonyPhoneController @Inject() (
     val controllerComponents: ControllerComponents,
@@ -76,7 +78,8 @@ class PhonyPhoneController @Inject() (
         views.html.Phon
           .registration(
             QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()),
-            contactManagement
+            contactManagement,
+            contactForm
           )
       )
     else Ok(views.html.Phon.registrationForm(pseudonymForm))
@@ -110,21 +113,35 @@ class PhonyPhoneController @Inject() (
         formWithErrors => {
           logger.debug("… failed to create contact")
           BadRequest(
-            views.html.Phon.registration(
-              QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()),
-              contactManagement
-            ) // FIXME
+            views.html.Phon.contactsTable(
+              contactManagement,
+              formWithErrors
+            )
           )
         },
         contact => {
-          contactManagement.addManually(contact.pseudonym, Array[Byte](), Array[Byte]()) // FIXME
+          contactManagement
+            .addManually(contact.pseudonym, QrPayload.decodeKey(contact.signKey), QrPayload.decodeKey(contact.transKey))
           logger.debug("… created contact")
-          Created
+          Redirect(routes.PhonyPhoneController.readContacts())
             .flashing("success" -> "createdContact")
         }
       )
   }
 
-  def deletePhone(phoneId: Int) = Action { implicit request: Request[AnyContent] =>
-    Ok(views.html.Phon.deletedPhonyPhone(phoneId)).discardingCookies(DiscardingCookie(cookieNamePrefix + phoneId))
+  def readContacts() = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(
+        views.html.Phon
+          .contactsTable(
+            contactManagement,
+            contactForm
+          )
+      )
+    else Ok(views.html.Phon.registrationForm(pseudonymForm))
+    end if
+  }
+
+  def deleteContact(contactId: UUID) = Action { implicit request: Request[AnyContent] =>
+    NoContent
   }

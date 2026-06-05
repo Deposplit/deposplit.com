@@ -31,12 +31,12 @@
 @main("Phony Phone") {
   <h1>Phony Phone (@Option(request.host.lastIndexOf(":")).filter(_ != -1).map(lio => request.host.substring(lio + 1).toInt).getOrElse(9000))</h1>
 
-  @helper.form(action = phon.routes.PhonyPhoneController.createPseudonym()) {
+  @helper.form(action = phon.routes.PhonyPhoneController.createPseudonym()){
     @CSRF.formField
     <label for=@pseudonymForm("pseudonym").id class="form-label">@messages("pseudonym")</label>
-    <input type="text" id=@pseudonymForm("pseudonym").id name=@pseudonymForm("pseudonym").name class="form-control @if(pseudonymForm("pseudonym").hasErrors){is-invalid}" required aria-describedby="pseudonymHelp">
+    <input type="text" id=@pseudonymForm("pseudonym").id name=@pseudonymForm("pseudonym").name class="form-control @if(pseudonymForm("pseudonym").hasErrors){is-invalid}" required aria-describedby="pseudonymHelp pseudonymValidationServerFeedback">
     @if(pseudonymForm("pseudonym").hasErrors){
-      <div id="pseudonymValidationServerUsernameFeedback" class="invalid-feedback">
+      <div id="pseudonymValidationServerFeedback" class="invalid-feedback">
         @for(error <- pseudonymForm("pseudonym").errors){
           @error.format
         }

@@ -47,7 +47,11 @@ class FileContactRepository @Inject() (config: Configuration) extends ContactRep
   private var contacts = ListBuffer.empty[Contact]
 
   if file.exists then
-    val ois = ObjectInputStream(FileInputStream(file))
+    // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
+    val ois = new ObjectInputStream(FileInputStream(file)):
+      override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
+        try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
+        catch case _: ClassNotFoundException => super.resolveClass(desc)
     contacts = ois.readObject().asInstanceOf[ListBuffer[Contact]]
     ois.close()
   end if

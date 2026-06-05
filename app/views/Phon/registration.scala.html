@@ -28,7 +28,7 @@
 @import helper._
 
 
-@(qrPayload: QrPayload, contacts: ContactManagement)(implicit request: RequestHeader, messages: Messages, flash: Flash)
+@(qrPayload: QrPayload, contacts: ContactManagement, contactForm: Form[ContactForm])(implicit request: RequestHeader, messages: Messages, flash: Flash)
 
 @main(s"Phony Phone (${qrPayload.pseudonym})") {
   <h1>Phony Phone</h1>
@@ -76,7 +76,7 @@
           <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#qrModal">
             @messages("displayMyContactInformation") <i class="bi bi-person-lines-fill"></i>
           </button>
-            @contactsTable(contacts)
+          @contactsTable(contacts, contactForm)
         </div>
       </div>
     </div>

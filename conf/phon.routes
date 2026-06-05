@@ -6,11 +6,10 @@ DELETE /        controllers.phon.PhonyPhoneController.deletePseudonym()
 GET    /qr-code controllers.phon.PhonyPhoneController.readQrCode()
 
 POST   /contacts controllers.phon.PhonyPhoneController.createContact()
-# GET /contacts controllers.phon.PhonyPhoneController.readContacts()
-# GET /contacts/:contactId controllers.phon.PhonyPhoneController.readContact(contactId: Int)
+GET    /contacts controllers.phon.PhonyPhoneController.readContacts()
 # PATCH /contacts/:contactId controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- verify
 # PUT /contacts/:contactId controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- replace
-# DELETE /contacts/:contactId controllers.phon.PhonyPhoneController.deleteContact(contactdId: Int)
+DELETE /contacts/:contactId controllers.phon.PhonyPhoneController.deleteContact(contactId: java.util.UUID)
 
 # POST /sharedSecrets controllers.phon.PhonyPhoneController.createSharedSecret()
 # GET /sharedSecrets controllers.phon.PhonyPhoneController.readSharedSecrets()

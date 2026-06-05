@@ -35,15 +35,18 @@ object QrPayload:
 
   given OFormat[QrPayload] = Json.format[QrPayload]
 
-  private val b64Url = Base64.getUrlEncoder.withoutPadding()
+  private val encoder = Base64.getUrlEncoder.withoutPadding()
+  private val decoder = Base64.getUrlDecoder()
 
   def apply(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): QrPayload =
     QrPayload(
       v = 1,
       pseudonym = pseudonym,
-      ed = b64Url.encodeToString(edPublicKey),
-      x = b64Url.encodeToString(xPublicKey)
+      ed = encoder.encodeToString(edPublicKey),
+      x = encoder.encodeToString(xPublicKey)
     )
+
+  def encodeKey(key: Array[Byte]): String = encoder.encodeToString(key)
 
   def encode(qrPayload: QrPayload): String =
     Json.toJson(qrPayload).toString
@@ -52,3 +55,5 @@ object QrPayload:
     encode(apply(pseudonym, edPublicKey, xPublicKey))
 
   def decode(raw: String): QrPayload = Json.parse(raw).as[QrPayload]
+
+  def decodeKey(base64: String): Array[Byte] = decoder.decode(base64)
