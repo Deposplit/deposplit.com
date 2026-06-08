@@ -29,6 +29,7 @@ import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
 import driven_ports.ShareRepository
 import driving_ports.ShareManagement
+import jakarta.inject.Inject
 import shamir.SecretSharing
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
@@ -41,7 +42,7 @@ import value_objects.svo.ShareRequestType
 import java.util.UUID
 import scala.util.Try
 
-class ShareService(
+class ShareService @Inject() (
     relay: ShareRelay,
     encryption: ShareEncryption,
     shareRepository: ShareRepository,

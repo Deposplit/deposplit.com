@@ -1,22 +1,24 @@
 # https://www.playframework.com/documentation/latest/ScalaRouting#The-routes-file-syntax
 
-POST   /        controllers.phon.PhonyPhoneController.createPseudonym()
-GET    /        controllers.phon.PhonyPhoneController.readPseudonym()
-DELETE /        controllers.phon.PhonyPhoneController.deletePseudonym()
-GET    /qr-code controllers.phon.PhonyPhoneController.readQrCode()
+POST   /                    controllers.phon.PhonyPhoneController.createPseudonym()
+GET    /                    controllers.phon.PhonyPhoneController.readPseudonym()
+DELETE /                    controllers.phon.PhonyPhoneController.deletePseudonym()
+GET    /qr-code             controllers.phon.PhonyPhoneController.readQrCode()
 
-POST   /contacts controllers.phon.PhonyPhoneController.createContact()
-GET    /contacts controllers.phon.PhonyPhoneController.readContacts()
-# PATCH /contacts/:contactId controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- verify
-# PUT /contacts/:contactId controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- replace
+POST   /contacts            controllers.phon.PhonyPhoneController.createContact()
+GET    /contacts            controllers.phon.PhonyPhoneController.readContacts()
+# PATCH /contacts/:contactId  controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- verify
+# PUT /contacts/:contactId    controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- replace
 DELETE /contacts/:contactId controllers.phon.PhonyPhoneController.deleteContact(contactId: java.util.UUID)
 
+GET    /mySecrets           controllers.phon.PhonyPhoneController.readMySecrets()
+
+GET    /theirShares         controllers.phon.PhonyPhoneController.readTheirShares()
+
+GET    /pendingRequests     controllers.phon.PhonyPhoneController.readPendingRequests()
+
 # POST /sharedSecrets controllers.phon.PhonyPhoneController.createSharedSecret()
-# GET /sharedSecrets controllers.phon.PhonyPhoneController.readSharedSecrets()
 # GET /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.readSharedSecret(secretId: Int)
 # PATCH /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.updateSharedSecret(secretId: Int) <- change label and or pick-up time(s)
 # POST /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.recoverSharedSecret(secretId: Int)
-# POST /requests...?!
 # DELETE /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.deleteSharedSecret(secretId: Int)
-
-# POST /secretShares controllers.phon.PhonyPhoneController.acceptSecretShare()

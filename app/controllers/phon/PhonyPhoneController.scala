@@ -30,6 +30,7 @@ import com.google.zxing.qrcode.QRCodeWriter
 import driven_ports.ForgettableIdentityStore
 import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
+import driving_ports.ShareManagement
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Logging
@@ -47,7 +48,8 @@ import java.util.UUID
 class PhonyPhoneController @Inject() (
     val controllerComponents: ControllerComponents,
     val identity: ForgettableIdentity,
-    val contactManagement: ContactManagement
+    val contactManagement: ContactManagement,
+    val shareManagement: ShareManagement
 ) extends BaseController,
       I18nSupport,
       Logging:
@@ -61,7 +63,7 @@ class PhonyPhoneController @Inject() (
       .fold(
         formWithErrors => {
           logger.debug("… failed to create pseudonym")
-          BadRequest(views.html.Phon.registrationForm(formWithErrors))
+          BadRequest(views.html.Phon.pseudonymForm(formWithErrors))
         },
         pseudonym => {
           identity.register(pseudonym.pseudonym)
@@ -76,13 +78,13 @@ class PhonyPhoneController @Inject() (
     if identity.isRegistered() then
       Ok(
         views.html.Phon
-          .registration(
+          .phonyPhone(
             QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey()),
             contactManagement,
             contactForm
           )
       )
-    else Ok(views.html.Phon.registrationForm(pseudonymForm))
+    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
     end if
   }
 
@@ -138,10 +140,46 @@ class PhonyPhoneController @Inject() (
             contactForm
           )
       )
-    else Ok(views.html.Phon.registrationForm(pseudonymForm))
+    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
     end if
   }
 
   def deleteContact(contactId: UUID) = Action { implicit request: Request[AnyContent] =>
     NoContent
+  }
+
+  def readMySecrets = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(
+        views.html.Phon
+          .mySecrets(
+            shareManagement
+          )
+      )
+    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
+    end if
+  }
+
+  def readTheirShares = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(
+        views.html.Phon
+          .theirShares(
+            shareManagement
+          )
+      )
+    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
+    end if
+  }
+
+  def readPendingRequests = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(
+        views.html.Phon
+          .pendingRequests(
+            shareManagement
+          )
+      )
+    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
+    end if
   }

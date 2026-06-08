@@ -33,6 +33,7 @@ import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import driving_ports.Identity
 import driving_ports.RequestSigner
+import driving_ports.ShareManagement
 import persistence.phon.FileContactRepository
 import persistence.phon.FileIdentityStore
 import persistence.phon.FileShareMetadataRepository
@@ -41,6 +42,7 @@ import persistence.phon.HttpClientShareRelay
 import services.ContactService
 import services.IdentityService
 import services.ShareEncryption
+import services.ShareService
 
 class PhonModule extends AbstractModule:
   override def configure(): Unit =
@@ -51,6 +53,7 @@ class PhonModule extends AbstractModule:
     bind(classOf[ShareEncryption]).to(classOf[IdentityService])
     bind(classOf[ContactRepository]).to(classOf[FileContactRepository])
     bind(classOf[ContactManagement]).to(classOf[ContactService])
+    bind(classOf[ShareManagement]).to(classOf[ShareService])
     bind(classOf[ShareMetadataRepository]).to(classOf[FileShareMetadataRepository])
     bind(classOf[ShareRelay]).to(classOf[HttpClientShareRelay])
     bind(classOf[ShareRepository]).to(classOf[FileShareRepository])

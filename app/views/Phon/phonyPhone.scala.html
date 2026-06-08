@@ -51,13 +51,13 @@
         <div class="accordion-body">
           <ul class="nav nav-tabs" id="phonyPhoneTabs">
             <li class="nav-item">
-              <a class="nav-link" href="#" hx-get="/phonyPhone/mySecrets" title="secrets shared BY me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("mySecrets")</a>
+              <a class="nav-link" href="#" hx-get="/phonyPhone/mySecrets" title="secrets shared BY me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.live.take(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("mySecrets")</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="#" hx-get="/phonyPhones/theirShares" title="secrets shared WITH me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("theirShares")</a>
+              <a class="nav-link" href="#" hx-get="/phonyPhone/theirShares" title="secrets shared WITH me" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.live.take(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("theirShares")</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="#" hx-get="/phonyPhones/pendingRequests" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.takeClass(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("pendingRequests")</a>
+              <a class="nav-link" href="#" hx-get="/phonyPhone/pendingRequests" hx-target="#activePhonyPhoneTab" hx-on:click="htmx.live.take(this, 'active', document.getElementById('phonyPhoneTabs'));">@messages("pendingRequests")</a>
             </li>
           </ul>
           <div id="activePhonyPhoneTab">
