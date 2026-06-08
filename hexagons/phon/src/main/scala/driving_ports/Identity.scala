@@ -30,3 +30,4 @@ trait Identity:
   def pseudonym(): String
   def edPublicKey(): Array[Byte]
   def xPublicKey(): Array[Byte]
+  def sign(message: Array[Byte]): Array[Byte]

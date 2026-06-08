@@ -26,7 +26,6 @@ package services
 
 import driven_ports.ForgettableIdentityStore
 import driving_ports.ForgettableIdentity
-import driving_ports.RequestSigner
 import jakarta.inject.Inject
 import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
@@ -49,8 +48,7 @@ import java.security.SecureRandom
 
 class IdentityService @Inject() (identityStore: ForgettableIdentityStore)
     extends ForgettableIdentity,
-      ShareEncryption,
-      RequestSigner:
+      ShareEncryption:
 
   override def isRegistered(): Boolean = identityStore.isRegistered()
 

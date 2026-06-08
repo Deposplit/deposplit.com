@@ -32,7 +32,6 @@ import driven_ports.ShareRepository
 import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import driving_ports.Identity
-import driving_ports.RequestSigner
 import driving_ports.ShareManagement
 import persistence.phon.FileContactRepository
 import persistence.phon.FileIdentityStore
@@ -49,7 +48,6 @@ class PhonModule extends AbstractModule:
     // when FileIdentityStore was still a Scala object: bind(classOf[IdentityStore]).toInstance(FileIdentityStore)
     bind(classOf[ForgettableIdentityStore]).to(classOf[FileIdentityStore])
     bind(classOf[ForgettableIdentity]).to(classOf[IdentityService])
-    bind(classOf[RequestSigner]).to(classOf[IdentityService])
     bind(classOf[ShareEncryption]).to(classOf[IdentityService])
     bind(classOf[ContactRepository]).to(classOf[FileContactRepository])
     bind(classOf[ContactManagement]).to(classOf[ContactService])

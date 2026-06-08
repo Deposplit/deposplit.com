@@ -25,7 +25,7 @@
 package persistence.phon
 
 import driven_ports.ShareRelay
-import driving_ports.RequestSigner
+import driving_ports.Identity
 import play.api.libs.json.*
 import value_objects.svo.Role
 import value_objects.svo.ShareMetadata
@@ -45,7 +45,7 @@ import java.util.Base64
 import java.util.UUID
 import jakarta.inject.Inject
 
-class HttpClientShareRelay @Inject() (signer: RequestSigner) extends ShareRelay:
+class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
 
   private val baseUrl = "http://localhost:9000"
   private val httpClient = HttpClient.newHttpClient()
@@ -111,13 +111,13 @@ class HttpClientShareRelay @Inject() (signer: RequestSigner) extends ShareRelay:
     val bodyBytes = body.fold(Array.emptyByteArray)(_.toString.getBytes("UTF-8"))
     val nonce = generateNonce()
     val canonical = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(bodyBytes)}"
-    val sig = signer.sign(canonical.getBytes("UTF-8"))
+    val sig = identity.sign(canonical.getBytes("UTF-8"))
 
     val builder = HttpRequest
       .newBuilder()
       .uri(URI.create(s"$baseUrl$path"))
       .header("Accept", "application/json")
-      .header("X-Deposplit-Public-Key", encodeBase64Url(signer.edPublicKey()))
+      .header("X-Deposplit-Public-Key", encodeBase64Url(identity.edPublicKey()))
       .header("X-Deposplit-Nonce", nonce)
       .header("X-Deposplit-Signature", encodeBase64Url(sig))
 
