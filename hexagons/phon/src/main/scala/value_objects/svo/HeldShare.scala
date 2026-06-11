@@ -33,6 +33,7 @@ case class HeldShare(
     label: String,
     senderKey: Array[Byte],
     createdAt: Instant,
+    pickedUpAt: Instant,
     ciphertext: Array[Byte]
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match

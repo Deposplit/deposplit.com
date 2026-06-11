@@ -39,6 +39,7 @@ import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareRequestType
 
+import java.time.Instant
 import java.util.UUID
 import scala.util.Try
 
@@ -117,6 +118,7 @@ class ShareService @Inject() (
               label = meta.label,
               senderKey = meta.senderKey,
               createdAt = meta.createdAt,
+              pickedUpAt = Instant.now(),
               ciphertext = ciphertext
             )
           )
