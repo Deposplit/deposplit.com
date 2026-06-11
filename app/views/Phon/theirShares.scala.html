@@ -26,11 +26,24 @@
 @import driving_ports.ShareManagement
 
 @import helper._
+@import java.time.Instant
 
 
-@(shareManagement: ShareManagement)(implicit request: RequestHeader, messages: Messages)
+@(shareManagement: ShareManagement)(implicit request: RequestHeader, messages: Messages, flash: Flash)
 
 <div id="secretShares">
+
+  @if(flash.get("success").isDefined){
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <strong>@messages(flash.get("success").get)</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  }
+
+  @request.cookies.get("latestInboxSync").map(cookie => Instant.parse(cookie.value)).mkString
+  @CSRF.formField
+  <button class="btn btn-light" hx-post="@phon.routes.PhonyPhoneController.createTheirShares()" hx-include="[name='csrfToken']" hx-target="#secretShares" hx-swap="outerHTML">SYNC</button>
+
   <table class="table">
     <thead>
       <tr>
@@ -49,4 +62,5 @@
       }
     </tbody>
   </table>
+
 </div>

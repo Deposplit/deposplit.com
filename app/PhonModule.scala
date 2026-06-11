@@ -48,6 +48,7 @@ class PhonModule extends AbstractModule:
     // when FileIdentityStore was still a Scala object: bind(classOf[IdentityStore]).toInstance(FileIdentityStore)
     bind(classOf[ForgettableIdentityStore]).to(classOf[FileIdentityStore])
     bind(classOf[ForgettableIdentity]).to(classOf[IdentityService])
+    bind(classOf[Identity]).to(classOf[IdentityService])
     bind(classOf[ShareEncryption]).to(classOf[IdentityService])
     bind(classOf[ContactRepository]).to(classOf[FileContactRepository])
     bind(classOf[ContactManagement]).to(classOf[ContactService])

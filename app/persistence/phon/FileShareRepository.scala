@@ -47,7 +47,11 @@ class FileShareRepository @Inject() (config: Configuration) extends ShareReposit
   private var shares = ListBuffer.empty[HeldShare]
 
   if file.exists then
-    val ois = ObjectInputStream(FileInputStream(file))
+    // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
+    val ois = new ObjectInputStream(FileInputStream(file)):
+      override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
+        try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
+        catch case _: ClassNotFoundException => super.resolveClass(desc)
     shares = ois.readObject().asInstanceOf[ListBuffer[HeldShare]]
     ois.close()
   end if

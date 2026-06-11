@@ -42,7 +42,10 @@ import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
 
+import java.time.Instant
 import java.util.UUID
+import scala.util.Try
+import java.nio.charset.StandardCharsets
 
 @Singleton
 class PhonyPhoneController @Inject() (
@@ -65,8 +68,8 @@ class PhonyPhoneController @Inject() (
           logger.debug("… failed to create pseudonym")
           BadRequest(views.html.Phon.pseudonymForm(formWithErrors))
         },
-        pseudonym => {
-          identity.register(pseudonym.pseudonym)
+        pseudonymRecord => {
+          identity.register(pseudonymRecord.pseudonym)
           logger.debug("… created pseudonym")
           Redirect(routes.PhonyPhoneController.readPseudonym())
             .flashing("success" -> "createdPseudonym")
@@ -121,9 +124,13 @@ class PhonyPhoneController @Inject() (
             )
           )
         },
-        contact => {
+        contactRecord => {
           contactManagement
-            .addManually(contact.pseudonym, QrPayload.decodeKey(contact.signKey), QrPayload.decodeKey(contact.transKey))
+            .addManually(
+              contactRecord.pseudonym,
+              QrPayload.decodeKey(contactRecord.signKey),
+              QrPayload.decodeKey(contactRecord.transKey)
+            )
           logger.debug("… created contact")
           Redirect(routes.PhonyPhoneController.readContacts())
             .flashing("success" -> "createdContact")
@@ -148,6 +155,48 @@ class PhonyPhoneController @Inject() (
     NoContent
   }
 
+  def getSecretSharingForm = Action { implicit request: Request[AnyContent] =>
+    if identity.isRegistered() then
+      Ok(
+        views.html.Phon
+          .secretSharingForm(
+            secretSharingForm,
+            contactManagement.listContacts()
+          )
+      )
+    else Redirect(routes.PhonyPhoneController.readPseudonym())
+    end if
+  }
+
+  def createMySecret() = Action { implicit request: Request[AnyContent] =>
+    logger.debug("sharing secret …")
+    secretSharingForm
+      .bindFromRequest()
+      .fold(
+        formWithErrors => {
+          logger.debug("… failed to share secret")
+          BadRequest(
+            views.html.Phon.secretSharingForm(
+              formWithErrors,
+              contactManagement.listContacts()
+            )
+          )
+        },
+        secretSharingRecord => {
+          val contactIds = secretSharingRecord.contacts.toSet.map(UUID.fromString(_))
+          shareManagement.deposit(
+            secretSharingRecord.secret.trim.getBytes(StandardCharsets.UTF_8),
+            secretSharingRecord.label.trim,
+            contactManagement.listContacts().filter(contact => contactIds.contains(contact.id)),
+            secretSharingRecord.k
+          )
+          logger.debug("… shared secret")
+          Redirect(routes.PhonyPhoneController.readPseudonym())
+            .flashing("success" -> "sharedSecret")
+        }
+      )
+  }
+
   def readMySecrets = Action { implicit request: Request[AnyContent] =>
     if identity.isRegistered() then
       Ok(
@@ -158,6 +207,15 @@ class PhonyPhoneController @Inject() (
       )
     else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
     end if
+  }
+
+  def createTheirShares() = Action { implicit request: Request[AnyContent] =>
+    Try {
+      shareManagement.syncInbox()
+      Redirect(routes.PhonyPhoneController.readTheirShares())
+        .withCookies(Cookie("latestInboxSync", Instant.now().toString))
+        .flashing("success" -> "synchedInbox")
+    }.getOrElse(InternalServerError)
   }
 
   def readTheirShares = Action { implicit request: Request[AnyContent] =>

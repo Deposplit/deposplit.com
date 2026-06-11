@@ -51,17 +51,18 @@ val contactForm = Form(
   )(ContactRecord.apply)(ContactRecord.unapply)
 )
 
-case class SecretSharingRecord(secret: String, label: String, contacts: Seq[String])
+case class SecretSharingRecord(secret: String, label: String, k: Int, contacts: Seq[String])
 
 object SecretSharingRecord:
-  def unapply(ssr: SecretSharingRecord): Option[(String, String, Seq[String])] = Some(
-    (ssr.secret, ssr.label, ssr.contacts)
+  def unapply(ssr: SecretSharingRecord): Option[(String, String, Int, Seq[String])] = Some(
+    (ssr.secret, ssr.label, ssr.k, ssr.contacts)
   )
 
 val secretSharingForm = Form(
   mapping(
     "secret" -> nonEmptyText,
     "label" -> nonEmptyText,
-    "contacts" -> seq(text)
-  )(SecretSharingRecord.apply)(SecretSharingRecord.unapply)
+    "k" -> number(min = 2),
+    "contacts" -> seq(text).verifying("blank UUIDs",_.forall(!_.isBlank))
+  )(SecretSharingRecord.apply)(SecretSharingRecord.unapply).verifying("k too large and/or too few contacts", ssr => ssr.contacts.size >= ssr.k)
 )
