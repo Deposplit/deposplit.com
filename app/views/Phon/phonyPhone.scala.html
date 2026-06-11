@@ -28,7 +28,7 @@
 @import helper._
 
 
-@(qrPayload: QrPayload, contacts: ContactManagement, contactForm: Form[ContactForm])(implicit request: RequestHeader, messages: Messages, flash: Flash)
+@(qrPayload: QrPayload, contacts: ContactManagement, contactForm: Form[ContactRecord])(implicit request: RequestHeader, messages: Messages, flash: Flash)
 
 @main(s"Phony Phone (${qrPayload.pseudonym})") {
   <h1>Phony Phone</h1>

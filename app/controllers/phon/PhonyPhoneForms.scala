@@ -27,26 +27,41 @@ package controllers.phon
 import play.api.data.*
 import play.api.data.Forms.*
 
-case class PseudonymForm(pseudonym: String)
+case class PseudonymRecord(pseudonym: String)
 
-object PseudonymForm:
-  def unapply(pf: PseudonymForm): Option[(String)] = Some((pf.pseudonym))
+object PseudonymRecord:
+  def unapply(pr: PseudonymRecord): Option[(String)] = Some((pr.pseudonym))
 
 val pseudonymForm = Form(
   mapping(
     "pseudonym" -> nonEmptyText
-  )(PseudonymForm.apply)(PseudonymForm.unapply)
+  )(PseudonymRecord.apply)(PseudonymRecord.unapply)
 )
 
-case class ContactForm(pseudonym: String, signKey: String, transKey: String)
+case class ContactRecord(pseudonym: String, signKey: String, transKey: String)
 
-object ContactForm:
-  def unapply(cf: ContactForm): Option[(String, String, String)] = Some((cf.pseudonym, cf.signKey, cf.transKey))
+object ContactRecord:
+  def unapply(cr: ContactRecord): Option[(String, String, String)] = Some((cr.pseudonym, cr.signKey, cr.transKey))
 
 val contactForm = Form(
   mapping(
     "pseudonym" -> nonEmptyText,
     "signKey" -> nonEmptyText,
     "transKey" -> nonEmptyText
-  )(ContactForm.apply)(ContactForm.unapply)
+  )(ContactRecord.apply)(ContactRecord.unapply)
+)
+
+case class SecretSharingRecord(secret: String, label: String, contacts: Seq[String])
+
+object SecretSharingRecord:
+  def unapply(ssr: SecretSharingRecord): Option[(String, String, Seq[String])] = Some(
+    (ssr.secret, ssr.label, ssr.contacts)
+  )
+
+val secretSharingForm = Form(
+  mapping(
+    "secret" -> nonEmptyText,
+    "label" -> nonEmptyText,
+    "contacts" -> seq(text)
+  )(SecretSharingRecord.apply)(SecretSharingRecord.unapply)
 )
