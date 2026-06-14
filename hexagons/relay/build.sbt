@@ -1,4 +1,4 @@
-scalaVersion := "3.3.7"
+scalaVersion := "3.3.8"
 // https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html
 // scalacOptions += "-Yexplicit-nulls" 
 // but waiting for Scala LTS with https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html#java-interoperability-and-flexible-types
