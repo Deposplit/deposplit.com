@@ -34,7 +34,6 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-@Singleton
 class SharesController @Inject() (
     val controllerComponents: ControllerComponents,
     shares: Shares

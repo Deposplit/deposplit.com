@@ -29,7 +29,6 @@ import play.api.*
 import play.api.i18n.I18nSupport
 import play.api.mvc.*
 
-@Singleton
 class HomeController @Inject() (val controllerComponents: ControllerComponents)
     extends BaseController
     with I18nSupport {

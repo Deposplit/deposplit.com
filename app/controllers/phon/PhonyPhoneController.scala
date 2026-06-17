@@ -42,12 +42,11 @@ import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
 
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
 import scala.util.Try
-import java.nio.charset.StandardCharsets
 
-@Singleton
 class PhonyPhoneController @Inject() (
     val controllerComponents: ControllerComponents,
     val identity: ForgettableIdentity,
@@ -56,8 +55,6 @@ class PhonyPhoneController @Inject() (
 ) extends BaseController,
       I18nSupport,
       Logging:
-
-  val cookieNamePrefix = "PhonyPhone"
 
   def createPseudonym() = Action { implicit request: Request[AnyContent] =>
     logger.debug("creating pseudonym …")
@@ -152,7 +149,9 @@ class PhonyPhoneController @Inject() (
   }
 
   def deleteContact(contactId: UUID) = Action { implicit request: Request[AnyContent] =>
-    NoContent
+    contactManagement.deleteContact(contactId)
+    /* NoContent <- https://four.htmx.org/reference/attributes/hx-delete#notes -> */
+    Ok
   }
 
   def getSecretSharingForm = Action { implicit request: Request[AnyContent] =>

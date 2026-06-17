@@ -32,7 +32,6 @@ import value_objects.*
 
 import java.util.UUID
 
-@Singleton
 class ShareRequestsController @Inject() (
     val controllerComponents: ControllerComponents,
     shares: Shares
