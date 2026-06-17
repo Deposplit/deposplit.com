@@ -54,7 +54,8 @@
     </thead>
     <tbody>
       @for(secretShare <- shareManagement.listHeld()){
-        <tr id="@secretShare.id.toString">
+        <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
+        <tr id="ESC@secretShare.id.toString">
           <th scope="row" title="@secretShare.id.toString">@secretShare.label</td>
           <td>@secretShare.createdAt</td>
           <td>HANDLE SECRET SHARE</td>

@@ -44,12 +44,13 @@
     </thead>
     <tbody>
       @for(contact <- contacts.listContacts()){
-        <tr id="@contact.id.toString">
+        <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
+        <tr id="ESC@contact.id.toString">
           <th scope="row" title="@contact.id.toString">@contact.pseudonym</td>
           <td>@QrPayload.encodeKey(contact.edPublicKey)</td>
           <td>@QrPayload.encodeKey(contact.xPublicKey)</td>
           <td>@if(contact.verificationLevel==VerificationLevel.Verified){<span class="text-success"><i class="bi bi-person-add"></i></span>}else{<span class="text-warning"><i class="bi bi-person"></i></span>}</td>
-          <td><button class="btn btn-danger" hx-delete="@phon.routes.PhonyPhoneController.deleteContact(contact.id)" hx-include="[name='csrfToken']" hx-target="#@contact.id.toString" hx-swap="delete">DELETE</button></td>
+          <td><button class="btn btn-danger" hx-delete="@phon.routes.PhonyPhoneController.deleteContact(contact.id)" hx-include="[name='csrfToken']" hx-target="#ESC@contact.id.toString" hx-swap="delete">@messages("delete")</button></td>
         </tr>
       }
     </tbody>
