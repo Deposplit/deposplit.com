@@ -18,6 +18,7 @@ ifNeedBe = If need be
 save = Save
 cancel = Cancel
 close = Close
+delete = Delete
 revert = Revert
 
 
@@ -25,7 +26,7 @@ revert = Revert
 
 addContact = Add contact
 contactInformation = Contact information
-contactsManagement = Contact management
+contactsManagement = Contacts management
 createPseudonym = Create pseudonym
 createdPseudonym = Pseudonym created!
 dangerZone = Danger zone
@@ -38,7 +39,8 @@ mySecrets = My secrets
 pendingRequests = Pending requests
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyms must not be empty (but need not be unique).
-secretSharing = Secret sharing
+secretsManagement = Secrets management
+splitAndShareSecret = Split & share secret
 theirShares = Their shares
 verified = Verified
 youHaveBeenWarned = You''ve been warned!

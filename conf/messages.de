@@ -18,6 +18,7 @@ ifNeedBe = Wenns sein muss
 save = Speichern
 cancel = Abbrechen
 close = Schliessen
+delete = Löschen
 revert = Zurücksetzen
 
 # https://www.playframework.com/documentation/latest/ScalaI18N#Externalizing-messages
@@ -41,6 +42,8 @@ mySecrets = Meine Geheimnisse
 pendingRequests = Hängige Anfragen
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyms dürfen nicht leer (aber müssen nicht eindeutig) sein.
+secretsManagement = Geheimnisverwaltung
+splitAndShareSecret = Geheimnis auf- & verteilen
 theirShares = Deren Anteile
 verified = Verifiziert
 youHaveBeenWarned = Sie wurden gewarnt!
