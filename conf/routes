@@ -1,24 +1,21 @@
 # https://www.playframework.com/documentation/latest/ScalaRouting
 
 # Landing page
-GET     /                           controllers.HomeController.index()
+GET     /                                controllers.HomeController.index()
 
-# REST API for the native apps …
-POST    /shares                     api.SharesController.depositShare()
-GET     /shares                     api.SharesController.listShares()
-GET     /shares/:shareId            api.SharesController.pickUpShare(shareId: String)
-DELETE  /shares/:shareId            api.SharesController.deleteShare(shareId: String)
-
-POST    /share-requests             api.ShareRequestsController.openShareRequest()
-GET     /share-requests             api.ShareRequestsController.listShareRequests()
-GET     /share-requests/:requestId  api.ShareRequestsController.getShareRequest(requestId: String)
-PATCH   /share-requests/:requestId  api.ShareRequestsController.respondToShareRequest(requestId: String)
+# REST API for the native apps — all share interactions go through /share-requests
+POST    /share-requests                  api.ShareRequestsController.openShareRequest()
+GET     /share-requests                  api.ShareRequestsController.listShareRequests()
+GET     /share-requests/:requestId       api.ShareRequestsController.getShareRequest(requestId: String)
+PATCH   /share-requests/:requestId       api.ShareRequestsController.respondToShareRequest(requestId: String)
+DELETE  /share-requests/:requestId       api.ShareRequestsController.deleteShareRequest(requestId: String)
+DELETE  /share-requests                  api.ShareRequestsController.deleteShareRequests()
 
 # … but also for the Web-based emulator/simulator
-->      /phonyPhone                 phon.Routes
+->      /phonyPhone                      phon.Routes
 
 # Static assets
-GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
+GET     /assets/*file                    controllers.Assets.versioned(path="/public", file: Asset)
 
 # Static assets in Markdown
-GET     /*markdownFilePath          controllers.MarkdownController.get(markdownFilePath: controllers.MarkdownFilePath)
+GET     /*markdownFilePath               controllers.MarkdownController.get(markdownFilePath: controllers.MarkdownFilePath)

@@ -25,78 +25,59 @@
 package driving_ports
 
 import value_objects.*
+
 import java.time.Instant
 import java.util.UUID
 
-trait Shares:
+trait ShareRequests:
 
-  // --- Sender operations ---
-
-  def depositShare(
+  /** Opens a share request of any type.
+    *
+    * - PickUp:   Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if absent).
+    *             Returns `Conflict` if a non-denied PickUp for (secretId, recipientKey) already exists.
+    * - Retrieve: Alice asks Bob to return a share. `ciphertext` must be None.
+    *             Returns `Conflict` if a pending Retrieve for (secretId, senderKey, recipientKey) exists.
+    * - Delete:   Alice asks Bob to delete his local copy. `ciphertext` must be None.
+    *             Returns `Conflict` if a pending Delete for (secretId, senderKey, recipientKey) exists.
+    *
+    * `shareId` is ignored for PickUp. For Retrieve and Delete it should be the id of the
+    * originating PickUp request — the relay stores it opaquely for the client's benefit.
+    */
+  def openShareRequest(
       senderKey: PublicKey,
       recipientKey: PublicKey,
       secretId: SecretId,
       label: Label,
-      createdAt: Instant,
-      ciphertext: Array[Byte]
-  ): Either[Error, ShareMetadata]
-
-  /** Lists shares.
-    *
-    * `asSender = true`  — all shares deposited by `callerKey`, including picked-up ones.
-    * `asSender = false` — shares in `callerKey`'s inbox (not yet picked up).
-    */
-  def listShares(
-      callerKey: PublicKey,
-      asSender: Boolean,
-      counterpartyKey: Option[PublicKey]
-  ): Either[Error, Seq[ShareMetadata]]
-
-  /** Opens a retrieve or delete consent request for the share identified by `shareId`.
-    * The caller must be the share's sender. Returns `Forbidden` otherwise.
-    * Returns `Conflict` if a pending request of the same type already exists.
-    */
-  def openShareRequest(
-      senderKey: PublicKey,
-      shareId: UUID,
-      requestType: ShareRequestType
+      secretCreatedAt: Instant,
+      requestType: ShareRequestType,
+      shareId: Option[UUID],
+      ciphertext: Option[Array[Byte]]
   ): Either[Error, ShareRequest]
 
-  // --- Recipient operations ---
-
-  /** Picks up a deposited share: returns the ciphertext and clears it from the relay.
-    * The ciphertext now lives only on the recipient's device.
-    * Returns `Conflict` if the share has already been picked up.
-    */
-  def pickUpShare(
-      recipientKey: PublicKey,
-      shareId: UUID
-  ): Either[Error, Array[Byte]]
-
-  /** Lists share requests.
+  /** Lists share requests, optionally filtered by type and/or state.
     *
-    * `asSender = true`  — requests opened by `callerKey` (sender polling for resolution).
-    * `asSender = false` — requests directed at `callerKey` (recipient deciding).
+    * `asSender = true`  — requests opened by `callerKey`.
+    * `asSender = false` — requests directed at `callerKey` (inbox).
     */
   def listShareRequests(
       callerKey: PublicKey,
       asSender: Boolean,
+      requestType: Option[ShareRequestType],
       state: Option[ShareRequestState]
   ): Either[Error, Seq[ShareRequest]]
 
-  /** Returns the request if the caller is either the sender or the recipient.
-    * Returns `Forbidden` otherwise. For approved retrieve requests the `ciphertext` field
-    * carries the bytes the recipient deposited when approving.
-    */
-  def getShareRequest(
-      callerKey: PublicKey,
-      requestId: UUID
-  ): Either[Error, ShareRequest]
+  /** Returns the request if the caller is either the sender or the recipient. */
+  def getShareRequest(callerKey: PublicKey, requestId: UUID): Either[Error, ShareRequest]
 
-  /** Approves or denies a pending consent request. The caller must be the recipient.
-    * Approving a delete request deletes the share row immediately.
-    * Approving a retrieve request requires the recipient to supply the ciphertext from local
-    * storage; `BadRequest` is returned if it is absent.
+  /** Approves or denies a pending request. The caller must be the recipient.
+    *
+    * - Approving PickUp:   relay delivers ciphertext to Bob (embedded in response) and clears it.
+    * - Approving Retrieve: Bob must supply `ciphertext`; relay stores it for Alice to collect.
+    *                       Returns `BadRequest` if ciphertext is absent.
+    * - Approving Delete:   relay bulk-deletes all rows for (secretId, senderKey, recipientKey).
+    * - Denying any type:   state → Denied; ciphertext cleared if present.
+    *
+    * Returns `Conflict` if the request is no longer Pending.
     */
   def respondToShareRequest(
       recipientKey: PublicKey,
@@ -105,22 +86,15 @@ trait Shares:
       ciphertext: Option[Array[Byte]]
   ): Either[Error, ShareRequest]
 
-  /** Deletes a share row from the relay.
-    * - Recipient: always allowed (unilateral inbox management).
-    * - Sender: allowed only after the share has been picked up (`Conflict` otherwise).
-    *   Use Message 4 (delete consent request) to ask the recipient to delete their local copy.
-    * Returns `Forbidden` for any other caller.
+  /** Deletes a request from the relay. Sender or recipient may delete any request they are party to.
+    * Deleting a PickUp cascades to all Retrieve/Delete rows for the same (secretId, senderKey, recipientKey).
     */
-  def deleteShareById(
-      callerKey: PublicKey,
-      shareId: UUID
-  ): Either[Error, Unit]
+  def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit]
 
   /** Bulk recipient-initiated deletion — unilateral, no sender consent required.
-    * `senderKey = None` deletes all of the recipient's shares regardless of sender.
-    * `secretId  = None` deletes all shares from the given sender.
+    * Deletes all rows where `recipientKey` is the recipient, optionally filtered by sender and/or secretId.
     */
-  def deleteShares(
+  def deleteShareRequests(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],
       secretId: Option[SecretId]

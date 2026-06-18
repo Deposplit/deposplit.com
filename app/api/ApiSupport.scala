@@ -28,7 +28,6 @@ import play.api.libs.json.*
 import play.api.mvc.BaseController
 import play.api.mvc.Result
 import value_objects.Error
-import value_objects.ShareMetadata
 import value_objects.ShareRequest
 import value_objects.ShareRequestState
 import value_objects.ShareRequestType
@@ -49,29 +48,25 @@ trait ApiSupport { self: BaseController =>
     case Error.Forbidden  => Forbidden(errorJson("forbidden", "Access denied"))
     case Error.BadRequest => BadRequest(errorJson("bad_request", "Invalid request"))
 
-  protected def shareMetadataJson(meta: ShareMetadata): JsValue = Json.obj(
-    "id" -> meta.id.toString,
-    "secretId" -> meta.secretId.value.toString,
-    "senderKey" -> meta.senderKey.toBase64Url,
-    "recipientKey" -> meta.recipientKey.toBase64Url,
-    "label" -> meta.label.value,
-    "createdAt" -> meta.createdAt.toString,
-    "pickedUpAt" -> meta.pickedUpAt.map(_.toString)
-  )
-
   protected def shareRequestJson(req: ShareRequest): JsValue =
     val base = Json.obj(
-      "id" -> req.id.toString,
-      "share" -> shareMetadataJson(req.share),
-      "requestType" -> (req.requestType match
+      "id"               -> req.id.toString,
+      "secretId"         -> req.secretId.value.toString,
+      "senderKey"        -> req.senderKey.toBase64Url,
+      "recipientKey"     -> req.recipientKey.toBase64Url,
+      "label"            -> req.label.value,
+      "secretCreatedAt"  -> req.secretCreatedAt.toString,
+      "requestType"      -> (req.requestType match
+        case ShareRequestType.PickUp   => "pick_up"
         case ShareRequestType.Retrieve => "retrieve"
         case ShareRequestType.Delete   => "delete"),
-      "state" -> (req.state match
+      "state"            -> (req.state match
         case ShareRequestState.Pending  => "pending"
         case ShareRequestState.Approved => "approved"
         case ShareRequestState.Denied   => "denied"),
-      "requestedAt" -> req.createdAt.toString,
-      "respondedAt" -> req.respondedAt.map(_.toString)
+      "shareId"          -> req.shareId.map(_.toString),
+      "requestedAt"      -> req.requestedAt.toString,
+      "respondedAt"      -> req.respondedAt.map(_.toString)
     )
     req.ciphertext.fold(base)(ct => base + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
 }

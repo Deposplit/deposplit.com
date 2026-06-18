@@ -24,11 +24,11 @@
 
 import com.google.inject.AbstractModule
 import driven_ports.persistence.ShareRepository
-import driving_ports.Shares
+import driving_ports.ShareRequests
 import persistence.AnormShareRepository
-import services.SharesService
+import services.ShareRequestsService
 
 class Module extends AbstractModule:
   override def configure(): Unit =
     bind(classOf[ShareRepository]).to(classOf[AnormShareRepository])
-    bind(classOf[Shares]).to(classOf[SharesService])
+    bind(classOf[ShareRequests]).to(classOf[ShareRequestsService])

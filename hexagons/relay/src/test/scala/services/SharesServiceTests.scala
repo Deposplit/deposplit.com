@@ -37,86 +37,57 @@ import java.util.UUID
 // ---------------------------------------------------------------------------
 class InMemoryShareRepository extends ShareRepository:
 
-  private var shares: Seq[Share] = Seq.empty
   private var requests: Seq[ShareRequest] = Seq.empty
 
   private def sameKey(a: PublicKey, b: PublicKey): Boolean =
     a.toBase64Url == b.toBase64Url
 
-  // --- Shares ---
-
-  override def saveShare(share: Share): Unit =
-    shares = shares :+ share
-
-  override def getShareById(id: UUID): Option[Share] =
-    shares.find(_.id == id)
-
-  override def getShare(secretId: SecretId, senderKey: PublicKey, recipientKey: PublicKey): Option[Share] =
-    shares.find(s =>
-      s.secretId == secretId &&
-        sameKey(s.senderKey, senderKey) &&
-        sameKey(s.recipientKey, recipientKey)
-    )
-
-  override def getSharesAsSender(senderKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata] =
-    shares
-      .filter(s =>
-        sameKey(s.senderKey, senderKey) &&
-          counterpartyKey.forall(ck => sameKey(s.recipientKey, ck))
-      )
-      .map(s => ShareMetadata(s.id, s.secretId, s.senderKey, s.recipientKey, s.label, s.createdAt, s.pickedUpAt))
-
-  override def getSharesAsRecipient(recipientKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata] =
-    shares
-      .filter(s =>
-        sameKey(s.recipientKey, recipientKey) &&
-          counterpartyKey.forall(ck => sameKey(s.senderKey, ck)) &&
-          s.pickedUpAt.isEmpty
-      )
-      .map(s => ShareMetadata(s.id, s.secretId, s.senderKey, s.recipientKey, s.label, s.createdAt, s.pickedUpAt))
-
-  override def pickUpShare(shareId: UUID): Unit =
-    shares = shares.map(s => if s.id == shareId then s.copy(ciphertext = None, pickedUpAt = Some(Instant.now())) else s)
-
-  override def deleteShareByPK(shareId: UUID): Unit =
-    shares = shares.filterNot(_.id == shareId)
-    requests = requests.filterNot(_.share.id == shareId)
-
-  override def deleteShares(recipientKey: PublicKey, senderKey: Option[PublicKey], secretId: Option[SecretId]): Unit =
-    val removed = shares.filter(s =>
-      sameKey(s.recipientKey, recipientKey) &&
-        senderKey.forall(sk => sameKey(s.senderKey, sk)) &&
-        secretId.forall(sid => s.secretId == sid)
-    )
-    shares = shares.diff(removed)
-    requests = requests.filterNot(r => removed.exists(_.id == r.share.id))
-
-  // --- Share requests ---
-
   override def saveShareRequest(request: ShareRequest): Unit =
     requests = requests :+ request
 
-  override def getShareRequestById(requestId: UUID): Option[ShareRequest] =
-    requests.find(_.id == requestId)
+  override def getShareRequestById(id: UUID): Option[ShareRequest] =
+    requests.find(_.id == id)
 
-  override def getShareRequestsAsSender(senderKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest] =
+  override def getShareRequestsAsSender(
+      senderKey: PublicKey,
+      requestType: Option[ShareRequestType],
+      state: Option[ShareRequestState]
+  ): Seq[ShareRequest] =
     requests.filter(r =>
-      sameKey(r.share.senderKey, senderKey) &&
+      sameKey(r.senderKey, senderKey) &&
+        requestType.forall(_ == r.requestType) &&
         state.forall(_ == r.state)
     )
 
   override def getShareRequestsAsRecipient(
       recipientKey: PublicKey,
+      requestType: Option[ShareRequestType],
       state: Option[ShareRequestState]
   ): Seq[ShareRequest] =
     requests.filter(r =>
-      sameKey(r.share.recipientKey, recipientKey) &&
+      sameKey(r.recipientKey, recipientKey) &&
+        requestType.forall(_ == r.requestType) &&
         state.forall(_ == r.state)
     )
 
-  override def hasPendingRequest(shareId: UUID, requestType: ShareRequestType): Boolean =
+  override def hasActivePickUp(secretId: SecretId, recipientKey: PublicKey): Boolean =
     requests.exists(r =>
-      r.share.id == shareId &&
+      r.secretId == secretId &&
+        sameKey(r.recipientKey, recipientKey) &&
+        r.requestType == ShareRequestType.PickUp &&
+        r.state != ShareRequestState.Denied
+    )
+
+  override def hasPendingRequest(
+      secretId: SecretId,
+      senderKey: PublicKey,
+      recipientKey: PublicKey,
+      requestType: ShareRequestType
+  ): Boolean =
+    requests.exists(r =>
+      r.secretId == secretId &&
+        sameKey(r.senderKey, senderKey) &&
+        sameKey(r.recipientKey, recipientKey) &&
         r.requestType == requestType &&
         r.state == ShareRequestState.Pending
     )
@@ -128,7 +99,22 @@ class InMemoryShareRepository extends ShareRepository:
       ciphertext: Option[Array[Byte]]
   ): Unit =
     requests = requests.map(r =>
-      if r.id == requestId then r.copy(state = state, respondedAt = Some(respondedAt), ciphertext = ciphertext) else r
+      if r.id == requestId then r.copy(state = state, respondedAt = Some(respondedAt), ciphertext = ciphertext)
+      else r
+    )
+
+  override def deleteShareRequestById(id: UUID): Unit =
+    requests = requests.filterNot(_.id == id)
+
+  override def deleteShareRequests(
+      recipientKey: PublicKey,
+      senderKey: Option[PublicKey],
+      secretId: Option[SecretId]
+  ): Unit =
+    requests = requests.filterNot(r =>
+      sameKey(r.recipientKey, recipientKey) &&
+        senderKey.forall(sk => sameKey(r.senderKey, sk)) &&
+        secretId.forall(sid => r.secretId == sid)
     )
 
 // ---------------------------------------------------------------------------
@@ -141,13 +127,13 @@ object Fixtures:
     val b64 = encoder.encodeToString(Array.fill(32)(seed))
     PublicKey.fromBase64Url(b64).getOrElse(throw IllegalStateException("fixture setup"))
 
-  val alice: PublicKey = makeKey(0x01)
-  val bob: PublicKey = makeKey(0x02)
-  val charlie: PublicKey = makeKey(0x03)
+  val alice: PublicKey     = makeKey(0x01)
+  val bob: PublicKey       = makeKey(0x02)
+  val charlie: PublicKey   = makeKey(0x03)
   val ciphertext: Array[Byte] = Array.fill(64)(0xab.toByte)
 
   def freshSecretId(): SecretId = SecretId.random()
-  def freshLabel(): Label = Label("test secret")
+  def freshLabel(): Label       = Label("test secret")
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -156,417 +142,273 @@ class SharesServiceTests extends munit.FunSuite:
 
   import Fixtures.*
 
-  private def newService(): (InMemoryShareRepository, SharesService) =
+  private def newService(): (InMemoryShareRepository, ShareRequestsService) =
     val repo = InMemoryShareRepository()
-    (repo, SharesService(repo))
+    (repo, ShareRequestsService(repo))
 
-  // --- depositShare ---
+  private def deposit(service: ShareRequestsService, sender: PublicKey = alice, recipient: PublicKey = bob): ShareRequest =
+    service
+      .openShareRequest(sender, recipient, freshSecretId(), freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
+      .getOrElse(fail("deposit failed"))
 
-  test("depositShare stores the share and returns Right with metadata") {
+  // --- openShareRequest (PickUp) ---
+
+  test("PickUp stores the request and returns Right") {
     val (_, service) = newService()
-    val secretId = freshSecretId()
-    val result = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
+    val result = service.openShareRequest(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
     assert(result.isRight)
-    assertEquals(result.getOrElse(fail("not right")).secretId, secretId)
+    assertEquals(result.getOrElse(fail("not right")).requestType, ShareRequestType.PickUp)
   }
 
-  test("depositShare rejects a duplicate (same secretId, sender, recipient)") {
+  test("PickUp returns BadRequest when ciphertext is absent") {
+    val (_, service) = newService()
+    val result = service.openShareRequest(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ShareRequestType.PickUp, None, None)
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("PickUp returns Conflict when an active PickUp already exists (pending)") {
     val (_, service) = newService()
     val secretId = freshSecretId()
-    service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
-    val result = service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
+    service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
+    val result = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
     assertEquals(result, Left(Error.Conflict))
   }
 
-  // --- listShares ---
-
-  test("listShares as sender returns metadata for the correct pair") {
+  test("PickUp returns Conflict when an active PickUp already exists (approved)") {
     val (_, service) = newService()
     val secretId = freshSecretId()
-    service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
-    val result = service.listShares(alice, asSender = true, counterpartyKey = Some(bob))
-    assert(result.isRight)
-    assertEquals(result.getOrElse(Seq.empty).map(_.secretId), Seq(secretId))
+    val req = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
+      .getOrElse(fail("deposit failed"))
+    service.respondToShareRequest(bob, req.id, approved = true, None)
+    val result = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
+    assertEquals(result, Left(Error.Conflict))
   }
 
-  test("listShares as sender does not leak shares belonging to a different pair") {
-    val (_, service) = newService()
-    service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-    val result = service.listShares(alice, asSender = true, counterpartyKey = Some(charlie))
-    assertEquals(result, Right(Seq.empty))
-  }
-
-  test("listShares as recipient returns shares not yet picked up") {
+  test("PickUp allows re-deposit after denial") {
     val (_, service) = newService()
     val secretId = freshSecretId()
-    service.depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
-    val result = service.listShares(bob, asSender = false, counterpartyKey = None)
-    assert(result.isRight)
-    assertEquals(result.getOrElse(Seq.empty).map(_.secretId), Seq(secretId))
-  }
-
-  test("listShares as recipient excludes already picked-up shares") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val req = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    val result = service.listShares(bob, asSender = false, counterpartyKey = None)
-    assertEquals(result, Right(Seq.empty))
-  }
-
-  test("listShares as sender includes picked-up shares with pickedUpAt set") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    val result = service.listShares(alice, asSender = true, counterpartyKey = None)
+    service.respondToShareRequest(bob, req.id, approved = false, None)
+    val result = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
     assert(result.isRight)
-    assert(result.getOrElse(Seq.empty).head.pickedUpAt.isDefined)
   }
 
-  // --- pickUpShare ---
+  // --- respondToShareRequest (PickUp) ---
 
-  test("pickUpShare returns the ciphertext and clears it from the relay") {
+  test("Approving a PickUp delivers and clears ciphertext") {
     val (repo, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val result = service.pickUpShare(bob, shareId)
+    val req = deposit(service)
+    val result = service.respondToShareRequest(bob, req.id, approved = true, None)
     assert(result.isRight)
-    assert(java.util.Arrays.equals(result.getOrElse(Array.empty[Byte]), ciphertext))
-    val stored = repo.getShareById(shareId).getOrElse(fail("share should still exist"))
-    assertEquals(stored.ciphertext, None)
-    assert(stored.pickedUpAt.isDefined)
+    val responded = result.getOrElse(fail("not right"))
+    assertEquals(responded.state, ShareRequestState.Approved)
+    assert(java.util.Arrays.equals(responded.ciphertext.getOrElse(Array.empty[Byte]), ciphertext))
+    // Relay clears the ciphertext
+    assertEquals(repo.getShareRequestById(req.id).flatMap(_.ciphertext), None)
   }
 
-  test("pickUpShare returns NotFound for an unknown share") {
-    val (_, service) = newService()
-    assertEquals(service.pickUpShare(bob, UUID.randomUUID()), Left(Error.NotFound))
-  }
-
-  test("pickUpShare returns Forbidden when caller is not the recipient") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(service.pickUpShare(charlie, shareId), Left(Error.Forbidden))
-  }
-
-  test("pickUpShare returns Conflict when the share has already been picked up") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    assertEquals(service.pickUpShare(bob, shareId), Left(Error.Conflict))
-  }
-
-  // --- openShareRequest ---
-
-  test("openShareRequest returns a request when the share exists and caller is sender") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val result = service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
+  test("Denying a PickUp clears ciphertext and marks Denied") {
+    val (repo, service) = newService()
+    val req = deposit(service)
+    val result = service.respondToShareRequest(bob, req.id, approved = false, None)
     assert(result.isRight)
+    assertEquals(result.getOrElse(fail("not right")).state, ShareRequestState.Denied)
+    assertEquals(repo.getShareRequestById(req.id).flatMap(_.ciphertext), None)
   }
 
-  test("openShareRequest returns NotFound when the share does not exist") {
+  test("respondToShareRequest PickUp returns NotFound for unknown id") {
     val (_, service) = newService()
-    assertEquals(
-      service.openShareRequest(alice, UUID.randomUUID(), ShareRequestType.Retrieve),
-      Left(Error.NotFound)
-    )
+    assertEquals(service.respondToShareRequest(bob, UUID.randomUUID(), approved = true, None), Left(Error.NotFound))
   }
 
-  test("openShareRequest returns Forbidden when the caller is not the sender") {
+  test("respondToShareRequest PickUp returns Forbidden when caller is not the recipient") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val req = deposit(service)
+    assertEquals(service.respondToShareRequest(charlie, req.id, approved = true, None), Left(Error.Forbidden))
+  }
+
+  test("respondToShareRequest returns Conflict when request is not Pending") {
+    val (_, service) = newService()
+    val req = deposit(service)
+    service.respondToShareRequest(bob, req.id, approved = true, None)
+    assertEquals(service.respondToShareRequest(bob, req.id, approved = true, None), Left(Error.Conflict))
+  }
+
+  // --- openShareRequest (Retrieve / Delete) ---
+
+  test("Retrieve request returns Conflict when a pending one already exists") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    val pickUp = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(
-      service.openShareRequest(charlie, shareId, ShareRequestType.Retrieve),
-      Left(Error.Forbidden)
-    )
+    service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUp.id), None)
+    val result = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUp.id), None)
+    assertEquals(result, Left(Error.Conflict))
   }
 
-  test("openShareRequest returns Conflict when a pending request of the same type already exists") {
+  test("Retrieve and Delete requests can coexist as pending") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val pickUp = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-    assertEquals(
-      service.openShareRequest(alice, shareId, ShareRequestType.Retrieve),
-      Left(Error.Conflict)
-    )
-  }
-
-  test("openShareRequest allows a second pending request of a different type") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-    assert(service.openShareRequest(alice, shareId, ShareRequestType.Delete).isRight)
+    service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUp.id), None)
+    assert(service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Delete, Some(pickUp.id), None).isRight)
   }
 
   // --- respondToShareRequest (Retrieve) ---
 
-  test("respondToShareRequest approve Retrieve stores and returns the ciphertext") {
+  test("Approving Retrieve stores and returns the ciphertext") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val pickUpReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    val result = service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext))
+    val retrieveReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUpReq.id), None)
+      .getOrElse(fail("retrieve request failed"))
+    val result = service.respondToShareRequest(bob, retrieveReq.id, approved = true, Some(ciphertext))
     assert(result.isRight)
-    val req = result.getOrElse(fail("no result"))
-    assertEquals(req.state, ShareRequestState.Approved)
-    assert(java.util.Arrays.equals(req.ciphertext.getOrElse(Array.empty[Byte]), ciphertext))
+    val responded = result.getOrElse(fail("not right"))
+    assertEquals(responded.state, ShareRequestState.Approved)
+    assert(java.util.Arrays.equals(responded.ciphertext.getOrElse(Array.empty[Byte]), ciphertext))
   }
 
-  test("respondToShareRequest approve Retrieve without ciphertext returns BadRequest") {
+  test("Approving Retrieve without ciphertext returns BadRequest") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val pickUpReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    assertEquals(
-      service.respondToShareRequest(bob, requestId, approved = true, None),
-      Left(Error.BadRequest)
-    )
+    val retrieveReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUpReq.id), None)
+      .getOrElse(fail("retrieve request failed"))
+    assertEquals(service.respondToShareRequest(bob, retrieveReq.id, approved = true, None), Left(Error.BadRequest))
   }
 
-  test("respondToShareRequest returns NotFound for an unknown request") {
+  test("Denying Retrieve marks Denied with no ciphertext") {
     val (_, service) = newService()
-    assertEquals(
-      service.respondToShareRequest(bob, UUID.randomUUID(), approved = true, Some(ciphertext)),
-      Left(Error.NotFound)
-    )
-  }
-
-  test("respondToShareRequest returns Forbidden when caller is not the recipient") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val pickUpReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    assertEquals(
-      service.respondToShareRequest(charlie, requestId, approved = true, Some(ciphertext)),
-      Left(Error.Forbidden)
-    )
-  }
-
-  test("respondToShareRequest returns Conflict when the request is not Pending") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext))
-    assertEquals(
-      service.respondToShareRequest(bob, requestId, approved = true, Some(ciphertext)),
-      Left(Error.Conflict)
-    )
-  }
-
-  // --- respondToShareRequest (Deny) ---
-
-  test("respondToShareRequest deny marks the request Denied with no ciphertext") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    val result = service.respondToShareRequest(bob, requestId, approved = false, None)
+    val retrieveReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUpReq.id), None)
+      .getOrElse(fail("retrieve request failed"))
+    val result = service.respondToShareRequest(bob, retrieveReq.id, approved = false, None)
     assert(result.isRight)
-    val req = result.getOrElse(fail("no result"))
-    assertEquals(req.state, ShareRequestState.Denied)
-    assertEquals(req.ciphertext, None)
-  }
-
-  test("respondToShareRequest deny on already-processed request returns Conflict") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    service.respondToShareRequest(bob, requestId, approved = false, None)
-    assertEquals(
-      service.respondToShareRequest(bob, requestId, approved = false, None),
-      Left(Error.Conflict)
-    )
+    assertEquals(result.getOrElse(fail("not right")).state, ShareRequestState.Denied)
+    assertEquals(result.getOrElse(fail("not right")).ciphertext, None)
   }
 
   // --- respondToShareRequest (Delete) ---
 
-  test("respondToShareRequest approve Delete removes the targeted share") {
+  test("Approving Delete removes all rows for that (secretId, senderKey, recipientKey)") {
     val (repo, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
+    val secretId = freshSecretId()
+    val pickUpReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Delete)
-      .getOrElse(fail("request failed"))
-      .id
-    assert(service.respondToShareRequest(bob, requestId, approved = true, None).isRight)
-    assertEquals(repo.getShareById(shareId), None)
+    val deleteReq = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Delete, Some(pickUpReq.id), None)
+      .getOrElse(fail("delete request failed"))
+    assert(service.respondToShareRequest(bob, deleteReq.id, approved = true, None).isRight)
+    assertEquals(repo.getShareRequestById(pickUpReq.id), None)
+    assertEquals(repo.getShareRequestById(deleteReq.id), None)
   }
 
   // --- getShareRequest ---
 
   test("getShareRequest returns the request for the sender") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    assert(service.getShareRequest(alice, requestId).isRight)
+    val req = deposit(service)
+    assert(service.getShareRequest(alice, req.id).isRight)
   }
 
   test("getShareRequest returns the request for the recipient") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    assert(service.getShareRequest(bob, requestId).isRight)
+    val req = deposit(service)
+    assert(service.getShareRequest(bob, req.id).isRight)
   }
 
   test("getShareRequest returns Forbidden for an unrelated caller") {
     val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    val requestId = service
-      .openShareRequest(alice, shareId, ShareRequestType.Retrieve)
-      .getOrElse(fail("request failed"))
-      .id
-    assertEquals(service.getShareRequest(charlie, requestId), Left(Error.Forbidden))
+    val req = deposit(service)
+    assertEquals(service.getShareRequest(charlie, req.id), Left(Error.Forbidden))
   }
 
-  // --- deleteShareById ---
+  test("getShareRequest returns NotFound for unknown id") {
+    val (_, service) = newService()
+    assertEquals(service.getShareRequest(alice, UUID.randomUUID()), Left(Error.NotFound))
+  }
 
-  test("deleteShareById removes the share for the authenticated recipient") {
+  // --- listShareRequests ---
+
+  test("listShareRequests as sender returns PickUp requests deposited by caller") {
+    val (_, service) = newService()
+    val req = deposit(service)
+    val result = service.listShareRequests(alice, asSender = true, Some(ShareRequestType.PickUp), None)
+    assert(result.isRight)
+    assertEquals(result.getOrElse(Seq.empty).map(_.id), Seq(req.id))
+  }
+
+  test("listShareRequests as recipient returns PickUp requests directed at caller") {
+    val (_, service) = newService()
+    deposit(service)
+    val result = service.listShareRequests(bob, asSender = false, Some(ShareRequestType.PickUp), None)
+    assert(result.isRight)
+    assertEquals(result.getOrElse(Seq.empty).size, 1)
+  }
+
+  test("listShareRequests filters by state correctly") {
+    val (_, service) = newService()
+    val req = deposit(service)
+    service.respondToShareRequest(bob, req.id, approved = true, None)
+    val pending  = service.listShareRequests(alice, asSender = true, None, Some(ShareRequestState.Pending))
+    val approved = service.listShareRequests(alice, asSender = true, None, Some(ShareRequestState.Approved))
+    assertEquals(pending.getOrElse(Seq.empty).size, 0)
+    assertEquals(approved.getOrElse(Seq.empty).size, 1)
+  }
+
+  // --- deleteShareRequestById ---
+
+  test("deleteShareRequestById removes the row for the authenticated recipient") {
     val (repo, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(service.deleteShareById(bob, shareId), Right(()))
-    assertEquals(repo.getShareById(shareId), None)
+    val req = deposit(service)
+    assertEquals(service.deleteShareRequestById(bob, req.id), Right(()))
+    assertEquals(repo.getShareRequestById(req.id), None)
   }
 
-  test("deleteShareById returns Forbidden when caller is not sender or recipient") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(service.deleteShareById(charlie, shareId), Left(Error.Forbidden))
-  }
-
-  test("deleteShareById returns NotFound for an unknown share") {
-    val (_, service) = newService()
-    assertEquals(service.deleteShareById(bob, UUID.randomUUID()), Left(Error.NotFound))
-  }
-
-  test("deleteShareById allows the sender to delete after pickup") {
-    val (repo, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.pickUpShare(bob, shareId)
-    assertEquals(service.deleteShareById(alice, shareId), Right(()))
-    assertEquals(repo.getShareById(shareId), None)
-  }
-
-  test("deleteShareById returns Conflict when sender tries to delete before pickup") {
-    val (_, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(service.deleteShareById(alice, shareId), Left(Error.Conflict))
-  }
-
-  // --- deleteShares (recipient-initiated bulk deletion) ---
-
-  test("deleteShares removes a specific share without consent") {
+  test("deleteShareRequestById cascades Retrieve/Delete rows when deleting a PickUp") {
     val (repo, service) = newService()
     val secretId = freshSecretId()
-    val shareId = service
-      .depositShare(alice, bob, secretId, freshLabel(), Instant.now(), ciphertext)
+    val pickUp = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
       .getOrElse(fail("deposit failed"))
-      .id
-    assertEquals(service.deleteShares(bob, Some(alice), Some(secretId)), Right(()))
-    assertEquals(repo.getShareById(shareId), None)
+    val retrieve = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUp.id), None)
+      .getOrElse(fail("retrieve request failed"))
+    service.deleteShareRequestById(alice, pickUp.id)
+    assertEquals(repo.getShareRequestById(pickUp.id), None)
+    assertEquals(repo.getShareRequestById(retrieve.id), None)
   }
 
-  test("deleteShares removes all shares from a given sender") {
-    val (repo, service) = newService()
-    service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-    service.depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-    assertEquals(service.deleteShares(bob, Some(alice), None), Right(()))
-    assertEquals(repo.getSharesAsSender(alice, Some(bob)), Seq.empty)
+  test("deleteShareRequestById returns Forbidden when caller is not sender or recipient") {
+    val (_, service) = newService()
+    val req = deposit(service)
+    assertEquals(service.deleteShareRequestById(charlie, req.id), Left(Error.Forbidden))
   }
 
-  test("deleteShares does not remove shares held for a different sender") {
+  test("deleteShareRequestById returns NotFound for unknown id") {
+    val (_, service) = newService()
+    assertEquals(service.deleteShareRequestById(bob, UUID.randomUUID()), Left(Error.NotFound))
+  }
+
+  // --- deleteShareRequests (bulk recipient-initiated) ---
+
+  test("deleteShareRequests removes all rows for the recipient") {
     val (repo, service) = newService()
-    val shareId = service
-      .depositShare(alice, bob, freshSecretId(), freshLabel(), Instant.now(), ciphertext)
-      .getOrElse(fail("deposit failed"))
-      .id
-    service.deleteShares(bob, Some(charlie), None)
-    assert(repo.getShareById(shareId).isDefined)
+    deposit(service)
+    deposit(service)
+    service.deleteShareRequests(bob, None, None)
+    assertEquals(repo.getShareRequestsAsRecipient(bob, None, None), Seq.empty)
+  }
+
+  test("deleteShareRequests filtered by sender removes only matching rows") {
+    val (repo, service) = newService()
+    val req1 = deposit(service, sender = alice, recipient = bob)
+    val req2 = deposit(service, sender = charlie, recipient = bob)
+    service.deleteShareRequests(bob, Some(alice), None)
+    assertEquals(repo.getShareRequestById(req1.id), None)
+    assert(repo.getShareRequestById(req2.id).isDefined)
   }

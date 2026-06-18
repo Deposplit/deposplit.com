@@ -29,11 +29,11 @@ import org.scalatestplus.play.guice.*
 import play.api.test.*
 import play.api.test.Helpers.*
 
-/** Verifies AuthHelper header validation against GET /shares (simplest authenticated endpoint). */
+/** Verifies AuthHelper header validation against GET /share-requests (simplest authenticated endpoint). */
 class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
 
   // All auth tests target this endpoint; the response body is irrelevant.
-  private val path = "/shares?role=sender"
+  private val path = "/share-requests?role=sender"
 
   "AuthHelper" should {
 

@@ -26,9 +26,9 @@ package persistence.phon
 
 import driven_ports.ShareRelay
 import driving_ports.Identity
+import jakarta.inject.Inject
 import play.api.libs.json.*
 import value_objects.svo.Role
-import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareRequestType
@@ -43,7 +43,6 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
-import jakarta.inject.Inject
 
 class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
 
@@ -53,44 +52,35 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
 
   // ── ShareRelay ────────────────────────────────────────────────────────────
 
-  override def depositShare(
+  override def openShareRequest(
       secretId: UUID,
-      label: String,
       recipientKey: Array[Byte],
-      createdAt: Instant,
-      ciphertext: Array[Byte]
-  ): ShareMetadata =
-    val body = Json.obj(
-      "secretId" -> secretId.toString,
-      "label" -> label,
-      "recipientKey" -> encodeBase64Url(recipientKey),
-      "createdAt" -> createdAt.toString,
-      "ciphertext" -> encodeBase64(ciphertext)
-    )
-    parseShareMetadata(send("POST", "/shares", Some(body)))
-
-  override def listShares(role: Role, counterpartyKey: Option[Array[Byte]] = None): List[ShareMetadata] =
-    val q = s"?role=${role.toString.toLowerCase}" +
-      counterpartyKey.fold("")(k => s"&counterpartyKey=${encodeBase64Url(k)}")
-    send("GET", s"/shares$q").as[JsArray].value.map(parseShareMetadata).toList
-
-  override def pickUpShare(shareId: UUID): Array[Byte] =
-    decodeBase64((send("GET", s"/shares/$shareId") \ "ciphertext").as[String])
-
-  override def deleteShare(shareId: UUID): Unit =
-    send("DELETE", s"/shares/$shareId")
-    ()
-
-  override def openShareRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest =
-    val body = Json.obj(
-      "shareId" -> shareId.toString,
-      "requestType" -> requestType.toString.toLowerCase
-    )
+      label: String,
+      secretCreatedAt: Instant,
+      requestType: ShareRequestType,
+      shareId: Option[UUID],
+      ciphertext: Option[Array[Byte]]
+  ): ShareRequest =
+    val body = Json
+      .obj(
+        "secretId"        -> secretId.toString,
+        "recipientKey"    -> encodeBase64Url(recipientKey),
+        "label"           -> label,
+        "secretCreatedAt" -> secretCreatedAt.toString,
+        "requestType"     -> requestTypeStr(requestType)
+      )
+      .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
+      .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
     parseShareRequest(send("POST", "/share-requests", Some(body)))
 
-  override def listShareRequests(role: Role, state: Option[ShareRequestState] = None): List[ShareRequest] =
+  override def listShareRequests(
+      role: Role,
+      requestType: Option[ShareRequestType] = None,
+      state: Option[ShareRequestState] = None
+  ): List[ShareRequest] =
     val q = s"?role=${role.toString.toLowerCase}" +
-      state.fold("")(s => s"&state=${s.toString.toLowerCase}")
+      requestType.fold("")(rt => s"&type=${requestTypeStr(rt)}") +
+      state.fold("")(st => s"&state=${st.toString.toLowerCase}")
     send("GET", s"/share-requests$q").as[JsArray].value.map(parseShareRequest).toList
 
   override def getShareRequest(requestId: UUID): ShareRequest =
@@ -101,11 +91,20 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
       approved: Boolean,
       ciphertext: Option[Array[Byte]] = None
   ): ShareRequest =
-    val body = Json.obj(
-      "state" -> JsString(if approved then "approved" else "denied"),
-      "ciphertext" -> ciphertext.fold[JsValue](JsNull)(ct => JsString(encodeBase64(ct)))
-    )
+    val body = Json
+      .obj("state" -> JsString(if approved then "approved" else "denied"))
+      .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
     parseShareRequest(send("PATCH", s"/share-requests/$requestId", Some(body)))
+
+  override def deleteShareRequest(requestId: UUID): Unit =
+    send("DELETE", s"/share-requests/$requestId")
+    ()
+
+  override def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit =
+    val q = senderKey.fold("")(k => s"?senderKey=${encodeBase64Url(k)}") +
+      secretId.fold("")(id => s"${if senderKey.isDefined then "&" else "?"}secretId=$id")
+    send("DELETE", s"/share-requests$q")
+    ()
 
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
@@ -148,24 +147,23 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
   private def sha256Hex(bytes: Array[Byte]): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).map("%02x".format(_)).mkString
 
-  // ── JSON parsing ──────────────────────────────────────────────────────────
+  // ── JSON ──────────────────────────────────────────────────────────────────
 
-  private def parseShareMetadata(json: JsValue): ShareMetadata =
-    ShareMetadata(
-      id = UUID.fromString((json \ "id").as[String]),
-      secretId = UUID.fromString((json \ "secretId").as[String]),
-      label = (json \ "label").as[String],
-      senderKey = decodeBase64Url((json \ "senderKey").as[String]),
-      recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
-      createdAt = Instant.parse((json \ "createdAt").as[String]),
-      pickedUpAt = (json \ "pickedUpAt").asOpt[String].map(Instant.parse)
-    )
+  private def requestTypeStr(rt: ShareRequestType): String = rt match
+    case ShareRequestType.PickUp   => "pick_up"
+    case ShareRequestType.Retrieve => "retrieve"
+    case ShareRequestType.Delete   => "delete"
 
   private def parseShareRequest(json: JsValue): ShareRequest =
     ShareRequest(
-      id = UUID.fromString((json \ "id").as[String]),
-      share = parseShareMetadata((json \ "share").as[JsValue]),
+      id              = UUID.fromString((json \ "id").as[String]),
+      secretId        = UUID.fromString((json \ "secretId").as[String]),
+      senderKey       = decodeBase64Url((json \ "senderKey").as[String]),
+      recipientKey    = decodeBase64Url((json \ "recipientKey").as[String]),
+      label           = (json \ "label").as[String],
+      secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
       requestType = (json \ "requestType").as[String] match
+        case "pick_up"  => ShareRequestType.PickUp
         case "retrieve" => ShareRequestType.Retrieve
         case "delete"   => ShareRequestType.Delete
         case other      => throw IllegalArgumentException(s"Unknown requestType: $other"),
@@ -174,9 +172,10 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
         case "approved" => ShareRequestState.Approved
         case "denied"   => ShareRequestState.Denied
         case other      => throw IllegalArgumentException(s"Unknown state: $other"),
-      requestedAt = Instant.parse((json \ "requestedAt").as[String]),
-      respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
-      ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64)
+      shareId         = (json \ "shareId").asOpt[String].map(UUID.fromString),
+      requestedAt     = Instant.parse((json \ "requestedAt").as[String]),
+      respondedAt     = (json \ "respondedAt").asOpt[String].map(Instant.parse),
+      ciphertext      = (json \ "ciphertext").asOpt[String].map(decodeBase64)
     )
 
   // ── Base64 ────────────────────────────────────────────────────────────────

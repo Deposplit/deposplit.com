@@ -27,18 +27,28 @@ package value_objects
 import java.time.Instant
 import java.util.UUID
 
-/** A consent request created by the sender and awaiting the recipient's response.
+/** A share request row — self-describing with embedded routing metadata.
   *
-  * `ciphertext` is non-None only when `requestType == Retrieve && state == Approved`. The recipient's
-  * app provides it in the approve response body (from local storage, since the relay no longer holds it
-  * after pickup); it is stored in the `share_requests` table until the sender deletes the shares row.
+  * `shareId` is None for PickUp rows (they are the root share record).
+  * For Retrieve and Delete rows it holds the id of the originating PickUp request,
+  * supplied by the client and stored opaquely by the relay.
+  *
+  * `ciphertext` semantics differ by type:
+  *   - PickUp:   provided by Alice at creation; delivered to Bob on approval and cleared.
+  *   - Retrieve: provided by Bob on approval; stored until Alice collects it.
+  *   - Delete:   always None.
   */
 case class ShareRequest(
     id: UUID,
-    share: ShareMetadata,
+    secretId: SecretId,
+    senderKey: PublicKey,
+    recipientKey: PublicKey,
+    label: Label,
+    secretCreatedAt: Instant,
     requestType: ShareRequestType,
     state: ShareRequestState,
-    createdAt: Instant,
+    shareId: Option[UUID],
+    requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]]
 )

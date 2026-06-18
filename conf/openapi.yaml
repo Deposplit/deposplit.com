@@ -38,11 +38,22 @@ info:
 
     The server never sees X25519 keys.
 
+    ## Unified consent model
+
+    All three share operations are modelled as consent requests:
+
+    | Type | Direction | Initiator | Consent required from |
+    |---|---|---|---|
+    | `pick_up` | Alice deposits → Bob receives | Alice (sender) | Bob (recipient) |
+    | `retrieve` | Bob sends back → Alice receives | Alice (sender) | Bob (recipient) |
+    | `delete` | Bob deletes locally | Alice (sender) | Bob (recipient) |
+
+    Every request starts in state `pending`; the recipient approves or denies via `PATCH`.
+
     ## Binary encoding
 
-    - **Public key fields** (`senderKey`, `recipientKey` in responses; `recipientKey`
-      in deposit requests) use **base64url encoding without padding**, matching the
-      encoding used in the `X-Deposplit-Public-Key` auth header.
+    - **Public key fields** (`senderKey`, `recipientKey`) use **base64url encoding without padding**,
+      matching the `X-Deposplit-Public-Key` auth header.
     - **`ciphertext`** uses **standard base64 encoding with padding** (`format: byte`).
 
     ## Notifications
@@ -79,86 +90,53 @@ components:
       type: string
       description: Base64url-encoded Ed25519 public key (32 bytes, no padding) — used for API authentication and as the routing identity.
 
-    # ── Shares ───────────────────────────────────────────────────────────────
-
-    ShareMetadata:
-      description: Share record without ciphertext — safe to return to both parties.
-      type: object
-      required: [id, secretId, label, senderKey, recipientKey, createdAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        secretId:
-          $ref: '#/components/schemas/SecretId'
-        label:
-          type: string
-        senderKey:
-          $ref: '#/components/schemas/PublicKey'
-        recipientKey:
-          $ref: '#/components/schemas/PublicKey'
-        createdAt:
-          type: string
-          format: date-time
-        pickedUpAt:
-          type: string
-          format: date-time
-          nullable: true
-          description: >
-            Set once the recipient has picked up the share from the relay inbox.
-            Always null in recipient-role listings (which only show undelivered shares).
-            May be null or non-null in sender-role listings.
-
-    ShareDeposit:
-      type: object
-      required: [secretId, label, recipientKey, createdAt, ciphertext]
-      properties:
-        secretId:
-          $ref: '#/components/schemas/SecretId'
-        label:
-          type: string
-          minLength: 1
-        recipientKey:
-          $ref: '#/components/schemas/PublicKey'
-        createdAt:
-          type: string
-          format: date-time
-          description: >
-            When the secret was created on the sender's device (ISO-8601).
-            Supplied by the client; the server stores it as-is without trusting it for security decisions.
-        ciphertext:
-          type: string
-          format: byte
-          description: >
-            Share bytes encrypted to the recipient's X25519 public key
-            (X25519 + HKDF-SHA-256 + ChaCha20-Poly1305). Opaque to the server.
-
-    # ── Share requests (consent model) ───────────────────────────────────────
-
     ShareRequestType:
       type: string
-      enum: [retrieve, delete]
+      enum: [pick_up, retrieve, delete]
       description: >
-        `retrieve` — sender wants the share bytes back (requires recipient approval).
-        `delete`   — sender wants the recipient to delete the share (requires recipient approval).
+        `pick_up` — sender deposits an encrypted share for the recipient to approve and collect.
+        `retrieve` — sender wants the share bytes back from the recipient (requires approval + ciphertext).
+        `delete`   — sender wants the recipient to delete their local copy (requires approval).
 
     ShareRequestState:
       type: string
       enum: [pending, approved, denied]
 
     ShareRequest:
+      description: >
+        A self-describing share request row. All three request types (pick_up, retrieve, delete)
+        use the same flat structure. `ciphertext` and `shareId` semantics depend on `requestType`
+        — see field descriptions.
       type: object
-      required: [id, share, requestType, state, requestedAt]
+      required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, requestType, state, requestedAt]
       properties:
         id:
           type: string
           format: uuid
-        share:
-          $ref: '#/components/schemas/ShareMetadata'
+        secretId:
+          $ref: '#/components/schemas/SecretId'
+        senderKey:
+          $ref: '#/components/schemas/PublicKey'
+        recipientKey:
+          $ref: '#/components/schemas/PublicKey'
+        label:
+          type: string
+          description: Human-readable label for the secret (display only).
+        secretCreatedAt:
+          type: string
+          format: date-time
+          description: Client-supplied timestamp of when the secret was created on the sender's device.
         requestType:
           $ref: '#/components/schemas/ShareRequestType'
         state:
           $ref: '#/components/schemas/ShareRequestState'
+        shareId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            For `retrieve` and `delete` rows: the `id` of the originating `pick_up` request,
+            supplied by the client and stored opaquely by the relay. `null` for `pick_up` rows.
         requestedAt:
           type: string
           format: date-time
@@ -171,10 +149,45 @@ components:
           format: byte
           nullable: true
           description: >
-            Only present when requestType is `retrieve` and state is `approved`.
-            Contains the encrypted share bytes — same value originally deposited.
+            Semantics differ by type:
 
-    # ── Errors ───────────────────────────────────────────────────────────────
+            `pick_up`: populated by the sender at creation (opaque encrypted share bytes);
+            delivered to the recipient in the PATCH response on approval and cleared from the relay.
+            Not returned on GET after delivery.
+
+            `retrieve`: absent at creation; supplied by the recipient in the PATCH body on approval;
+            stored temporarily until the sender collects it via GET.
+
+            `delete`: always null.
+
+    OpenShareRequestBody:
+      type: object
+      required: [requestType, secretId, label, recipientKey, secretCreatedAt]
+      properties:
+        requestType:
+          $ref: '#/components/schemas/ShareRequestType'
+        secretId:
+          $ref: '#/components/schemas/SecretId'
+        label:
+          type: string
+          minLength: 1
+        recipientKey:
+          $ref: '#/components/schemas/PublicKey'
+        secretCreatedAt:
+          type: string
+          format: date-time
+        shareId:
+          type: string
+          format: uuid
+          description: >
+            Required for `retrieve` and `delete` requests: the `id` of the originating `pick_up` row.
+            Must be omitted or null for `pick_up` requests.
+        ciphertext:
+          type: string
+          format: byte
+          description: >
+            Required for `pick_up` requests: the encrypted share bytes.
+            Must be omitted for `retrieve` and `delete` requests.
 
     Error:
       type: object
@@ -187,200 +200,41 @@ components:
 
 paths:
 
-  # ── Shares ─────────────────────────────────────────────────────────────────
-
-  /shares:
-    post:
-      operationId: depositShare
-      summary: "Message 1 — Deposit a share with a recipient"
-      description: >
-        Sender deposits an encrypted share. The Web app/service stores the ciphertext
-        keyed by the recipient's Ed25519 public key. The server never decrypts.
-      tags: [Shares]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ShareDeposit'
-      responses:
-        '201':
-          description: Share deposited.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ShareMetadata'
-        '409':
-          description: A share for this (secretId, recipientKey) pair already exists.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    get:
-      operationId: listShares
-      summary: "Message 2 — List shares (metadata only, no ciphertext)"
-      description: |
-        Returns share metadata without ciphertext.
-
-        - `role=sender`    — shares I have deposited (optionally filtered by recipient)
-        - `role=recipient` — shares I hold (optionally filtered by sender)
-      tags: [Shares]
-      parameters:
-        - name: role
-          in: query
-          required: true
-          schema:
-            type: string
-            enum: [sender, recipient]
-        - name: counterpartyKey
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/PublicKey'
-          description: Filter to shares exchanged with this specific Ed25519 public key.
-      responses:
-        '200':
-          description: Share metadata list.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ShareMetadata'
-
-  /shares/{shareId}:
-    get:
-      operationId: pickUpShare
-      summary: "Message 1 (recipient side) — Pick up a deposited share"
-      description: >
-        The authenticated recipient retrieves the ciphertext of a deposited share.
-        This is a one-time delivery: the server clears the ciphertext from the relay and
-        records the pickup timestamp. The ciphertext now lives only on the recipient's device.
-        Returns `409` if the share has already been picked up.
-      tags: [Shares]
-      parameters:
-        - name: shareId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Ciphertext delivered; cleared from relay.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ciphertext]
-                properties:
-                  ciphertext:
-                    type: string
-                    format: byte
-        '403':
-          description: Caller is not the recipient of this share.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Share not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Share has already been picked up.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    delete:
-      operationId: deleteShare
-      summary: Delete a share row from the relay
-      description: >
-        Deletes the share row (and any associated consent requests) from the relay.
-
-        - **Recipient**: always allowed — unilateral inbox management, no sender approval required.
-        - **Sender**: allowed only after the recipient has picked up the share (`409` otherwise).
-          Use a `delete` consent request (Message 4) to ask the recipient to delete their local copy.
-      tags: [Shares]
-      parameters:
-        - name: shareId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Share row deleted.
-        '403':
-          description: Caller is neither the sender nor the recipient.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Share not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Sender tried to delete before the recipient picked up the share.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  # ── Share requests (consent model) ─────────────────────────────────────────
-
   /share-requests:
     post:
       operationId: openShareRequest
-      summary: "Messages 3 & 4 (sender side) — Open a consent request"
+      summary: Open a share request (pick_up, retrieve, or delete)
       description: >
-        Sender opens a `retrieve` or `delete` request for a share they deposited.
-        The recipient is notified and must respond via `PATCH /share-requests/{id}`.
-        At most one pending request of each type may exist per share at a time.
+        Opens any share request type. The authenticated caller becomes `senderKey`.
+
+        **pick_up**: Sender deposits an encrypted share for the recipient. `ciphertext` is required.
+        At most one non-denied pick_up may exist per (secretId, recipientKey) pair.
+
+        **retrieve / delete**: Sender opens a consent request. `shareId` (the originating pick_up id)
+        should be supplied so the recipient can look up the share in their local storage.
+        At most one pending request of each type may exist per (secretId, senderKey, recipientKey) triple.
       tags: [ShareRequests]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [shareId, requestType]
-              properties:
-                shareId:
-                  type: string
-                  format: uuid
-                requestType:
-                  $ref: '#/components/schemas/ShareRequestType'
+              $ref: '#/components/schemas/OpenShareRequestBody'
       responses:
         '201':
-          description: Request opened; recipient notified.
+          description: Request opened.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShareRequest'
-        '403':
-          description: Caller is not the sender of the referenced share.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Share not found.
+        '400':
+          description: Missing required field (e.g. ciphertext absent for pick_up).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: A pending request of this type already exists for this share.
+          description: An active pick_up or a pending request of this type already exists.
           content:
             application/json:
               schema:
@@ -388,10 +242,12 @@ paths:
 
     get:
       operationId: listShareRequests
-      summary: List share requests
+      summary: List share requests visible to the caller
       description: |
-        - `role=sender`    — requests I have opened (to poll for resolution)
-        - `role=recipient` — requests pending my approval
+        - `role=sender`    — requests the caller opened (to poll for resolution)
+        - `role=recipient` — requests directed at the caller (pending approvals)
+
+        Optionally filter by `type` and/or `state`.
       tags: [ShareRequests]
       parameters:
         - name: role
@@ -400,11 +256,18 @@ paths:
           schema:
             type: string
             enum: [sender, recipient]
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ShareRequestType'
+          description: Filter to requests of this type.
         - name: state
           in: query
           required: false
           schema:
             $ref: '#/components/schemas/ShareRequestState'
+          description: Filter to requests in this state.
       responses:
         '200':
           description: Share request list.
@@ -415,13 +278,38 @@ paths:
                 items:
                   $ref: '#/components/schemas/ShareRequest'
 
+    delete:
+      operationId: deleteShareRequests
+      summary: Recipient-initiated bulk delete
+      description: >
+        Deletes all share request rows where the authenticated caller is the recipient.
+        Optionally scoped to a specific sender and/or secret.
+      tags: [ShareRequests]
+      parameters:
+        - name: senderKey
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PublicKey'
+          description: Limit deletion to rows from this sender.
+        - name: secretId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/SecretId'
+          description: Limit deletion to rows for this secret.
+      responses:
+        '204':
+          description: Rows deleted (or nothing matched — idempotent).
+
   /share-requests/{requestId}:
     get:
       operationId: getShareRequest
-      summary: Get a share request
+      summary: Get a single share request
       description: >
-        Used by the sender to poll for resolution. When `state` is `approved`
-        and `requestType` is `retrieve`, the response includes `ciphertext`.
+        Accessible by both the sender and the recipient of the request.
+        When a `pick_up` has been approved and the ciphertext delivered, `ciphertext` is null.
+        When a `retrieve` has been approved, `ciphertext` contains the share bytes until deleted.
       tags: [ShareRequests]
       parameters:
         - name: requestId
@@ -452,14 +340,17 @@ paths:
 
     patch:
       operationId: respondToShareRequest
-      summary: "Messages 3 & 4 (recipient side) — Approve or deny a consent request"
+      summary: Approve or deny a pending share request (recipient only)
       description: >
-        Called by the recipient (share holder) to approve or deny a pending request.
+        Called by the recipient to approve or deny a pending request.
 
-        - Approving a `retrieve` request requires the recipient to include `ciphertext` in the body
-          (the share bytes from their local storage). The server stores this temporarily so the sender
-          can retrieve it. Returns `400` if `ciphertext` is absent for a retrieve approval.
-        - Approving a `delete` request causes the share row to be deleted server-side.
+        - Approving a `pick_up`: the relay delivers `ciphertext` to the recipient in the response body
+          and clears it from the relay (one-time delivery). No `ciphertext` needed in the request body.
+        - Approving a `retrieve`: the recipient must supply `ciphertext` (the share bytes from their
+          local storage) in the request body. Returns `400` if absent.
+        - Approving a `delete`: the relay cascades a delete of all rows for the same
+          (secretId, senderKey, recipientKey) triple. No `ciphertext` involved.
+        - Any denial: records `state=denied` and `respondedAt`. No ciphertext exchanged.
       tags: [ShareRequests]
       parameters:
         - name: requestId
@@ -482,18 +373,22 @@ paths:
                 ciphertext:
                   type: string
                   format: byte
-                  description: >
-                    Required when approving a `retrieve` request. The encrypted share bytes
-                    from the recipient's local storage.
+                  description: Required when approving a `retrieve` request.
       responses:
         '200':
-          description: Decision recorded.
+          description: Decision recorded. For `pick_up` approval, includes `ciphertext`.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShareRequest'
+        '400':
+          description: Ciphertext required (retrieve approval) but absent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '403':
-          description: Caller is not the recipient of the share associated with this request.
+          description: Caller is not the recipient of this request.
           content:
             application/json:
               schema:
@@ -506,6 +401,37 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: Request is no longer pending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteShareRequest
+      summary: Delete a single share request
+      description: >
+        Accessible by both the sender and the recipient.
+        When deleting a `pick_up` row, the relay also cascades deletion of all associated
+        `retrieve` and `delete` rows for the same (secretId, senderKey, recipientKey) triple.
+      tags: [ShareRequests]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Request row deleted.
+        '403':
+          description: Caller is neither the sender nor the recipient.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found.
           content:
             application/json:
               schema:

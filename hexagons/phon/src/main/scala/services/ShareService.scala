@@ -51,98 +51,117 @@ class ShareService @Inject() (
     contactRepository: ContactRepository
 ) extends ShareManagement:
 
+  // ── Sender flows ──────────────────────────────────────────────────────────
+
   override def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit =
     val shares = SecretSharing.split(secret, contacts.size, threshold)
     val secretId = UUID.randomUUID()
     val createdAt = Instant.now()
     shares.zip(contacts).foreach { (share, contact) =>
-      val ciphertext = encryption.encrypt(share, contact.xPublicKey)
-      val metadata = relay.depositShare(secretId, label, contact.edPublicKey, createdAt, ciphertext)
-      shareMetadataRepository.save(metadata)
+      val ct = encryption.encrypt(share, contact.xPublicKey)
+      val req = relay.openShareRequest(secretId, contact.edPublicKey, label, createdAt, ShareRequestType.PickUp, None, Some(ct))
+      shareMetadataRepository.save(ShareMetadata(req.id, secretId, label, contact.edPublicKey, createdAt))
     }
 
   override def syncDistributed(): Unit =
-    relay.listShares(Role.Sender).foreach(shareMetadataRepository.save)
+    relay
+      .listShareRequests(Role.Sender, Some(ShareRequestType.PickUp))
+      .foreach(req => shareMetadataRepository.save(ShareMetadata(req.id, req.secretId, req.label, req.recipientKey, req.secretCreatedAt)))
 
   override def listDistributed(): List[ShareMetadata] = shareMetadataRepository.getAll()
 
-  override def listSentRequests(): List[ShareRequest] = relay.listShareRequests(Role.Sender)
+  override def listSentRequests(): List[ShareRequest] =
+    relay.listShareRequests(Role.Sender).filterNot(_.requestType == ShareRequestType.PickUp)
 
   override def requestAll(secretId: UUID): Unit =
-    val distributed = relay.listShares(Role.Sender).filter(_.secretId == secretId)
-    val existing = relay.listShareRequests(Role.Sender)
-    distributed.foreach { share =>
-      val hasActive = existing.exists { r =>
-        r.share.id == share.id &&
-        r.requestType == ShareRequestType.Retrieve &&
-        (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
-      }
-      if !hasActive then Try(relay.openShareRequest(share.id, ShareRequestType.Retrieve))
+    val deposited = shareMetadataRepository.getAll().filter(_.secretId == secretId)
+    val existing  = relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))
+    deposited.foreach { meta =>
+      val hasActive = existing.exists(r =>
+        r.shareId.contains(meta.id) &&
+          (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
+      )
+      if !hasActive then
+        Try(relay.openShareRequest(meta.secretId, meta.recipientKey, meta.label, meta.secretCreatedAt, ShareRequestType.Retrieve, Some(meta.id), None))
     }
 
   override def openRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest =
-    relay.openShareRequest(shareId, requestType)
+    val meta = shareMetadataRepository.getAll().find(_.id == shareId)
+      .getOrElse(throw IllegalArgumentException(s"No local share record for id $shareId"))
+    relay.openShareRequest(meta.secretId, meta.recipientKey, meta.label, meta.secretCreatedAt, requestType, Some(shareId), None)
 
   override def reconstruct(secretId: UUID): Array[Byte] =
-    val allRequests = relay.listShareRequests(Role.Sender)
-    val approved = allRequests.filter { r =>
-      r.share.secretId == secretId &&
-      r.requestType == ShareRequestType.Retrieve &&
-      r.state == ShareRequestState.Approved &&
-      r.ciphertext.isDefined
-    }
+    val allRequests = relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))
+    val approved = allRequests.filter(r =>
+      r.secretId == secretId &&
+        r.state == ShareRequestState.Approved &&
+        r.ciphertext.isDefined
+    )
     require(approved.size >= 2, s"Need at least 2 approved shares (have ${approved.size})")
     val contacts = contactRepository.getAll()
     val decrypted = approved.map { req =>
       val contact = contacts
-        .find(_.edPublicKey.sameElements(req.share.recipientKey))
-        .getOrElse(throw IllegalStateException("Contact not found for recipient key"))
+        .find(_.edPublicKey.sameElements(req.recipientKey))
+        .getOrElse(throw IllegalStateException(s"Contact not found for recipient key"))
       encryption.decrypt(req.ciphertext.get, contact.xPublicKey)
     }
     val secretBytes = SecretSharing.combine(decrypted)
+    // Delete the PickUp rows — the relay cascades to Retrieve/Delete rows
     approved.foreach { req =>
-      Try(relay.deleteShare(req.share.id))
-      Try(shareMetadataRepository.delete(req.share.id))
+      req.shareId.foreach { pickUpId =>
+        Try(relay.deleteShareRequest(pickUpId))
+        Try(shareMetadataRepository.delete(pickUpId))
+      }
     }
     secretBytes
 
+  // ── Recipient flows ───────────────────────────────────────────────────────
+
   override def syncInbox(): Unit =
-    val inbox = relay.listShares(Role.Recipient)
-    inbox.foreach { meta =>
-      if shareRepository.getCiphertext(meta.id).isEmpty then
+    val pending = relay.listShareRequests(Role.Recipient, Some(ShareRequestType.PickUp), Some(ShareRequestState.Pending))
+    pending.foreach { req =>
+      if shareRepository.getCiphertext(req.id).isEmpty then
         Try {
-          val ciphertext = relay.pickUpShare(meta.id)
-          shareRepository.save(
-            HeldShare(
-              id = meta.id,
-              secretId = meta.secretId,
-              label = meta.label,
-              senderKey = meta.senderKey,
-              createdAt = meta.createdAt,
-              pickedUpAt = Instant.now(),
-              ciphertext = ciphertext
+          val responded = relay.respondToShareRequest(req.id, approved = true)
+          responded.ciphertext.foreach { ct =>
+            shareRepository.save(
+              HeldShare(
+                id         = req.id,
+                secretId   = req.secretId,
+                label      = req.label,
+                senderKey  = req.senderKey,
+                createdAt  = req.secretCreatedAt,
+                pickedUpAt = Instant.now(),
+                ciphertext = ct
+              )
             )
-          )
+          }
         }
     }
 
   override def listHeld(): List[HeldShare] = shareRepository.getAll()
 
   override def listPendingRequests(): List[ShareRequest] =
-    relay.listShareRequests(Role.Recipient, Some(ShareRequestState.Pending))
+    relay
+      .listShareRequests(Role.Recipient, state = Some(ShareRequestState.Pending))
+      .filterNot(_.requestType == ShareRequestType.PickUp)
 
   override def respond(requestId: UUID, approved: Boolean): Unit =
     val request = relay.getShareRequest(requestId)
     val ciphertext =
       if approved && request.requestType == ShareRequestType.Retrieve then
+        val pickUpId = request.shareId.getOrElse(
+          throw IllegalStateException(s"Retrieve request $requestId has no shareId")
+        )
         Some(
           shareRepository
-            .getCiphertext(request.share.id)
-            .getOrElse(throw IllegalStateException("Share ciphertext not found in local storage"))
+            .getCiphertext(pickUpId)
+            .getOrElse(throw IllegalStateException(s"Share $pickUpId not in local storage"))
         )
       else None
     relay.respondToShareRequest(requestId, approved, ciphertext)
-    if approved && request.requestType == ShareRequestType.Delete then shareRepository.delete(request.share.id)
+    if approved && request.requestType == ShareRequestType.Delete then
+      request.shareId.foreach(shareRepository.delete)
 
   override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)
 

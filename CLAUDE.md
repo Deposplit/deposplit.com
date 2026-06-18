@@ -20,6 +20,8 @@ Deposplit's architecture evolved through several design sessions:
 
 5. **Web App/Service redesigned as a stateless relay:** The initial Web app/service design included a `users` registry and a `contacts` table with a server-mediated invitation flow. This violated the trust-minimising philosophy: the server knew who the users were and who knew whom. The Web app/service was simplified to a pure relay with no user registration and no contact storage. Key exchange happens out-of-band (QR code in person, or via Signal/Threema). The server authenticates callers by verifying Ed25519 signatures against the public key supplied in each request header — no pre-registration required. The DB schema shrank from four tables (`users`, `contacts`, `shares`, `share_requests`) to two (`shares`, `share_requests`).
 
+6. **Unified single-table relay:** The two-table schema (`shares` + `share_requests`) was collapsed into a single `share_requests` table with three request types: `pick_up` (deposit), `retrieve`, and `delete`. All three follow the same symmetric consent model — Alice requests something of Bob; Bob can approve or deny. Every row is self-describing with embedded `sender_key` and `recipient_key`, making the relay fully stateless. The DB schema now has one table.
+
 ## Architecture Decisions
 
 ### Communication Layer: Custom Web App/Service
@@ -82,9 +84,9 @@ The hexagons and root both programme **synchronously (blocking)** — no Scala `
 - **Twirl** (built into Play) for the landing page
 - **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
-- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `SharesService` instead and must be added to production PostgreSQL manually (see comment in `1.sql`). The `NULL`-able `ciphertext` and `picked_up_at` columns in `shares`, and the `ciphertext` column in `share_requests`, use standard nullable `BYTEA` / `TIMESTAMP WITH TIME ZONE` — H2 handles these without special treatment. `shares.created_at` is `NOT NULL` with no `DEFAULT` (client-supplied, always provided explicitly in the `INSERT`); `shares.dropped_off_at` is `NOT NULL DEFAULT now()` (server-generated relay deposit timestamp, never read back by the application layer)
+- **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `ShareRequestsService` (`hasActivePickUp` + `hasPendingRequest`) instead and must be added to production PostgreSQL manually (see comment in `1.sql`). The `NULL`-able `share_id`, `ciphertext`, and `responded_at` columns in `share_requests` use standard nullable types — H2 handles these without special treatment. `secret_created_at` is `NOT NULL` with no `DEFAULT` (client-supplied); `requested_at` is `NOT NULL DEFAULT now()` (server-generated).
 - **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
-- **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (two tables: `shares`, `share_requests`)
+- **Play Evolutions** for schema migrations — initial schema at `conf/evolutions/default/1.sql` (one table: `share_requests`)
 - **OpenAPI 3.0** spec at `conf/openapi.yaml` — covers all REST endpoints; kept in sync with the Play routes file
 
 **Why PostgreSQL over MongoDB:**
@@ -166,26 +168,27 @@ Both test suites contain three identical hand-derived test vectors (in `ShamirTe
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata — two secrets with the same label are distinguished by their UUIDs.
 
-There are four message types exchanged via the deposplit.com Web app/service API:
+There are three request types exchanged via the deposplit.com Web app/service API. All three follow the same symmetric consent model — Alice requests something of Bob; Bob can approve or deny:
 
-| # | Direction | Payload | Purpose |
+| Type | Direction | Payload | Purpose |
 |---|---|---|---|
-| 1 | Sender → recipient | `secret_id` (UUID), `label`, `created_at` (client-supplied secret creation time), share bytes (encrypted to recipient's public key) | **Deposit** a share with a recipient |
-| 2 | Sender → recipient → sender | Request: sender identity. Response: list of `{secret_id, label, created_at}` — **no share bytes** | **List** shares the recipient holds for the sender |
-| 3 | Sender → recipient → sender | Request: `secret_id`. Response: share bytes or denial | **Retrieve** a specific share |
-| 4 | Sender → recipient → sender | Request: `secret_id` (or all shares). Response: ack or denial | **Delete** a share (sender-initiated) |
+| `pick_up` | Sender → recipient | `secret_id`, `label`, `secret_created_at`, encrypted share bytes | **Deposit** a share; Bob approves to receive it |
+| `retrieve` | Sender → recipient → sender | Request: references PickUp ID. Response: share bytes from Bob's local storage | **Retrieve** a specific share |
+| `delete` | Sender → recipient | Request: references PickUp ID. Response: ack | **Delete** a share (sender-initiated, requires Bob's approval) |
 
 **Recipient-initiated deletion** is purely local — no message is needed. The recipient can unilaterally delete individual shares or all shares from a given sender at any time.
 
 **The Web app/service is a pure relay — ciphertext is ephemeral:**
 
-Message 1 has two sub-phases, both mediated by the relay:
-- **Deposit sub-phase** (sender → relay): Alice posts the ciphertext; the relay stores it temporarily.
-- **Pickup sub-phase** (relay → recipient): Bob explicitly fetches his share (`GET /shares/:shareId`); the relay delivers the ciphertext once, then clears it (`shares.ciphertext` set to NULL, `shares.picked_up_at` recorded). The ciphertext now lives only on Bob's device.
+PickUp flow (deposit):
+- **Request sub-phase** (sender → relay): Alice opens a PickUp request with the encrypted share bytes; the relay stores them.
+- **Response sub-phase** (relay → recipient): Bob approves the PickUp; the relay delivers the ciphertext once and clears it from the relay row. The ciphertext now lives only on Bob's device.
 
-Message 3 (Retrieve) is symmetric:
-- **Request sub-phase** (sender → relay): Alice opens a retrieve request; the relay stores it as pending.
-- **Response sub-phase** (recipient → relay → sender): Bob approves and **sends the ciphertext from his local storage** in the response body; the relay stores it temporarily in `share_requests.ciphertext`. Alice polls, fetches the ciphertext, then deletes the share row (which cascade-deletes the request row) to clean up the relay.
+Retrieve flow:
+- **Request sub-phase** (sender → relay): Alice opens a Retrieve request referencing the PickUp ID; the relay stores it as pending.
+- **Response sub-phase** (recipient → relay → sender): Bob approves and sends the ciphertext from his local storage; the relay stores it temporarily. Alice polls, fetches the ciphertext, then deletes the PickUp row (which cascade-deletes the Retrieve/Delete rows).
+
+Every row is self-describing — it embeds both `sender_key` and `recipient_key`. The relay never needs to look up any other row to authorize a request.
 
 Consequence: a relay database wipe after all recipients have picked up their shares does not destroy the secret — the shares live on the recipients' devices. The relay is a mailbox, not a store.
 
@@ -302,7 +305,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
 ### What is next
 
 1. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
-2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves retrieval, Android reconstructs) against a live `sbt run` Web app/service.
+2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves PickUp and later Retrieve, Android reconstructs) against a live `sbt run` Web app/service.
 3. **Freemium one-time unlock (optional, future)**: Cap free usage at *n* deposited secrets; a one-time in-app purchase removes the cap. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status). Implementation outline:
    - Add a `PurchaseRepository` driven port to the hexagon (`isPremium(): Boolean`, `secretsDepositedCount(): Int`).
    - Add a limit check in the deposit flow (hexagon service or UI layer).

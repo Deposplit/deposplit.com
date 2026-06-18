@@ -42,7 +42,7 @@ Rejected alternatives:
 | Language / framework | Scala + Play 3 | sbt build; `hexagon` subproject (pure Scala, no Play) + root Play app (adapters, controllers, Twirl views) |
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
-| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | Two tables: `shares`, `share_requests` |
+| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (three request types: `pick_up`, `retrieve`, `delete`) |
 | Dev / test DB | H2 (file-backed, `./.devDBs/deposplit`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
@@ -89,16 +89,18 @@ The architectural sweet spot is native apps for the persistent/receiver role, wi
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata.
 
-| Message | Direction | Description |
+All interactions are modelled as consent requests — Alice requests something of Bob; Bob can approve or deny. Three request types, one table:
+
+| Type | Direction | Description |
 |---|---|---|
-| **Deposit** | Sender → recipient | Delivers a share with its `secret_id`, `label`, and `created_at` |
-| **List** | Sender ↔ recipient | Sender asks "what shares do you hold for me?"; recipient replies with `{secret_id, label, created_at}` entries — no share bytes |
-| **Retrieve** | Sender ↔ recipient | Sender requests a specific `secret_id`; recipient approves or denies, then sends share bytes or a rejection |
-| **Delete** (sender-initiated) | Sender ↔ recipient | Sender requests deletion of a share; recipient approves or denies |
+| `pick_up` | Sender → recipient | Alice deposits a share (ciphertext included); Bob approves to receive it and the relay delivers ciphertext once, then clears it |
+| `retrieve` | Sender ↔ recipient | Alice requests a specific share back; Bob approves (sends ciphertext from local storage) or denies |
+| `delete` | Sender ↔ recipient | Alice requests deletion of a share; Bob approves or denies |
 
 Recipient-initiated deletion is purely local — no message required. The recipient can delete individual shares or all shares from a given sender at any time without approval.
 
 **Consent model:**
+- *PickUp* — recipient must approve to receive the share. The relay holds the ciphertext until Bob approves; it is delivered once and then cleared from the relay.
 - *Retrieval* — recipient must approve. Allows out-of-band verification (e.g. a phone call) before returning a share, protecting against an attacker who has stolen the sender's device.
 - *Sender-initiated deletion* — recipient must approve. The sender cannot force deletion.
 - *Recipient-initiated deletion* — unilateral.
@@ -121,7 +123,7 @@ Both apps follow the **Ports & Adapters** pattern, applied strictly to the domai
 
 **Structural enforcement:**
 - Android: the hexagon is a pure Kotlin Gradle module (`:hexagon`) — infrastructure modules depend on it, never the reverse. Driving ports (`Identity`, `ContactManagement`, `ShareManagement`) are implemented by hexagon services (`IdentityService`, `ContactService`, `ShareService`). `ShareEncryption` is an intra-hexagon service interface — both its consumer (`ShareService`) and implementer (`IdentityService`) are inside the hexagon. Driven ports (`IdentityStore`, `ContactRepository`, `ShareRepository`, `ShareRelay`) are implemented by adapters in `:app`.
-- iOS: the hexagon is a local Swift Package (`iOS/hexagon/`) — the compiler enforces the boundary; the package has no `Security`, `UIKit`, `SwiftUI`, or `URLSession` dependencies so any accidental import is a build error. Driving ports and hexagon services mirror the Android structure; splitting `ShareEncryption` out of `Identity` and merging `RequestSigner` back into `Identity` is pending (see `iOS/CLAUDE.md`).
+- iOS: the hexagon is a local Swift Package (`iOS/hexagon/`) — the compiler enforces the boundary; the package has no `Security`, `UIKit`, `SwiftUI`, or `URLSession` dependencies so any accidental import is a build error. Driving ports and hexagon services mirror the Android structure.
 
 ## Share holder onboarding
 

@@ -25,7 +25,6 @@
 package driven_ports
 
 import value_objects.svo.Role
-import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareRequestType
@@ -34,11 +33,40 @@ import java.time.Instant
 import java.util.UUID
 
 trait ShareRelay:
-  def depositShare(secretId: UUID, label: String, recipientKey: Array[Byte], createdAt: Instant, ciphertext: Array[Byte]): ShareMetadata
-  def listShares(role: Role, counterpartyKey: Option[Array[Byte]] = None): List[ShareMetadata]
-  def pickUpShare(shareId: UUID): Array[Byte]
-  def deleteShare(shareId: UUID): Unit
-  def openShareRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest
-  def listShareRequests(role: Role, state: Option[ShareRequestState] = None): List[ShareRequest]
+  /** Open a PickUp, Retrieve, or Delete request on the relay.
+    * For PickUp: ciphertext must be supplied (the encrypted share).
+    * For Retrieve/Delete: shareId should carry the originating PickUp's id; ciphertext is absent.
+    */
+  def openShareRequest(
+      secretId: UUID,
+      recipientKey: Array[Byte],
+      label: String,
+      secretCreatedAt: Instant,
+      requestType: ShareRequestType,
+      shareId: Option[UUID],
+      ciphertext: Option[Array[Byte]]
+  ): ShareRequest
+
+  def listShareRequests(
+      role: Role,
+      requestType: Option[ShareRequestType] = None,
+      state: Option[ShareRequestState] = None
+  ): List[ShareRequest]
+
   def getShareRequest(requestId: UUID): ShareRequest
-  def respondToShareRequest(requestId: UUID, approved: Boolean, ciphertext: Option[Array[Byte]] = None): ShareRequest
+
+  def respondToShareRequest(
+      requestId: UUID,
+      approved: Boolean,
+      ciphertext: Option[Array[Byte]] = None
+  ): ShareRequest
+
+  /** Delete a single request by id.
+    * When the caller deletes a PickUp, the relay cascades to Retrieve/Delete rows for the same share.
+    */
+  def deleteShareRequest(requestId: UUID): Unit
+
+  /** Recipient-initiated bulk delete — removes all requests where the caller is the recipient,
+    * optionally filtered by sender key and/or secret id.
+    */
+  def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit

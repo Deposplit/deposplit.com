@@ -25,58 +25,62 @@
 package driven_ports.persistence
 
 import value_objects.*
+
 import java.time.Instant
 import java.util.UUID
 
 trait ShareRepository:
 
-  // --- Shares ---
+  def saveShareRequest(request: ShareRequest): Unit
 
-  def saveShare(share: Share): Unit
+  def getShareRequestById(id: UUID): Option[ShareRequest]
 
-  def getShareById(id: UUID): Option[Share]
+  /** Requests opened by `senderKey`, optionally filtered by type and/or state. */
+  def getShareRequestsAsSender(
+      senderKey: PublicKey,
+      requestType: Option[ShareRequestType],
+      state: Option[ShareRequestState]
+  ): Seq[ShareRequest]
 
-  def getShare(secretId: SecretId, senderKey: PublicKey, recipientKey: PublicKey): Option[Share]
+  /** Requests directed at `recipientKey`, optionally filtered by type and/or state. */
+  def getShareRequestsAsRecipient(
+      recipientKey: PublicKey,
+      requestType: Option[ShareRequestType],
+      state: Option[ShareRequestState]
+  ): Seq[ShareRequest]
 
-  /** Shares deposited by `senderKey`, optionally filtered to a specific recipient.
-    * Returns all rows regardless of pickup status so the sender can track delivery.
+  /** True if a non-denied PickUp already exists for this (secretId, recipientKey) pair.
+    * Used to prevent duplicate deposits (a denied PickUp allows re-deposit).
     */
-  def getSharesAsSender(senderKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
+  def hasActivePickUp(secretId: SecretId, recipientKey: PublicKey): Boolean
 
-  /** Shares in `recipientKey`'s inbox (not yet picked up), optionally filtered to a specific sender. */
-  def getSharesAsRecipient(recipientKey: PublicKey, counterpartyKey: Option[PublicKey]): Seq[ShareMetadata]
-
-  /** Clears the ciphertext from a share row and records the pickup timestamp.
-    * The service reads the ciphertext from the share before calling this.
+  /** True if a Pending request of the given type already exists for this
+    * (secretId, senderKey, recipientKey) triple. Used for Retrieve and Delete.
     */
-  def pickUpShare(shareId: UUID): Unit
+  def hasPendingRequest(
+      secretId: SecretId,
+      senderKey: PublicKey,
+      recipientKey: PublicKey,
+      requestType: ShareRequestType
+  ): Boolean
 
-  /** Deletes a share row by primary key. Auth checks are the caller's responsibility. */
-  def deleteShareByPK(shareId: UUID): Unit
+  /** Updates the state, response timestamp, and ciphertext of a request. */
+  def updateShareRequest(
+      requestId: UUID,
+      state: ShareRequestState,
+      respondedAt: Instant,
+      ciphertext: Option[Array[Byte]]
+  ): Unit
 
-  /** Bulk recipient-initiated deletion — filtered by `recipientKey` plus optional `senderKey`/`secretId`. */
-  def deleteShares(
+  /** Deletes a single request row by primary key. */
+  def deleteShareRequestById(id: UUID): Unit
+
+  /** Bulk delete — all rows where `recipientKey` matches, optionally filtered
+    * by `senderKey` and/or `secretId`. Used for recipient-initiated cleanup and
+    * cascaded deletion when a PickUp row is removed.
+    */
+  def deleteShareRequests(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],
       secretId: Option[SecretId]
   ): Unit
-
-  // --- Share requests ---
-
-  def saveShareRequest(request: ShareRequest): Unit
-
-  def getShareRequestById(requestId: UUID): Option[ShareRequest]
-
-  /** Requests opened by `senderKey`, optionally filtered by state. */
-  def getShareRequestsAsSender(senderKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest]
-
-  /** Requests directed at `recipientKey`, optionally filtered by state. */
-  def getShareRequestsAsRecipient(recipientKey: PublicKey, state: Option[ShareRequestState]): Seq[ShareRequest]
-
-  /** True if a Pending request of the given type already exists for this share. */
-  def hasPendingRequest(shareId: UUID, requestType: ShareRequestType): Boolean
-
-  /** Updates the state and response timestamp of a request.
-    * `ciphertext` is stored for approved retrieve requests (provided by the recipient's app).
-    */
-  def updateShareRequest(requestId: UUID, state: ShareRequestState, respondedAt: Instant, ciphertext: Option[Array[Byte]]): Unit
