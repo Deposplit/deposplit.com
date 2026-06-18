@@ -111,7 +111,7 @@ components:
 
     ShareDeposit:
       type: object
-      required: [secretId, label, recipientKey, ciphertext]
+      required: [secretId, label, recipientKey, createdAt, ciphertext]
       properties:
         secretId:
           $ref: '#/components/schemas/SecretId'
@@ -120,6 +120,12 @@ components:
           minLength: 1
         recipientKey:
           $ref: '#/components/schemas/PublicKey'
+        createdAt:
+          type: string
+          format: date-time
+          description: >
+            When the secret was created on the sender's device (ISO-8601).
+            Supplied by the client; the server stores it as-is without trusting it for security decisions.
         ciphertext:
           type: string
           format: byte

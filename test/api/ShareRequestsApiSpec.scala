@@ -46,7 +46,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   private var requestId: String = ""
 
   private def depositShare(sender: RequestSigner, recipient: RequestSigner, ct: String = "AQID"): String =
-    val body = s"""{"secretId":"${UUID.randomUUID()}","label":"test","recipientKey":"${recipient.publicKeyHeader}","ciphertext":"$ct"}"""
+    val body = s"""{"secretId":"${UUID.randomUUID()}","label":"test","recipientKey":"${recipient.publicKeyHeader}","createdAt":"2026-01-01T00:00:00Z","ciphertext":"$ct"}"""
       .getBytes("UTF-8")
     val result = route(app, sender.post("/shares", body)).get
     status(result) mustBe CREATED

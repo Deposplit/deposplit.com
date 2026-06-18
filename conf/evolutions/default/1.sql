@@ -17,7 +17,8 @@ CREATE TABLE shares (
     sender_key     BYTEA       NOT NULL,
     recipient_key  BYTEA       NOT NULL,
     ciphertext     BYTEA,
-    created_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    created_at     TIMESTAMP WITH TIME ZONE NOT NULL,
+    dropped_off_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     picked_up_at   TIMESTAMP WITH TIME ZONE,
     UNIQUE (secret_id, recipient_key)
 );

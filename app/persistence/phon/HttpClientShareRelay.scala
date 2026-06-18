@@ -57,12 +57,14 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
       secretId: UUID,
       label: String,
       recipientKey: Array[Byte],
+      createdAt: Instant,
       ciphertext: Array[Byte]
   ): ShareMetadata =
     val body = Json.obj(
       "secretId" -> secretId.toString,
       "label" -> label,
       "recipientKey" -> encodeBase64Url(recipientKey),
+      "createdAt" -> createdAt.toString,
       "ciphertext" -> encodeBase64(ciphertext)
     )
     parseShareMetadata(send("POST", "/shares", Some(body)))

@@ -30,10 +30,11 @@ import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareRequestType
 
+import java.time.Instant
 import java.util.UUID
 
 trait ShareRelay:
-  def depositShare(secretId: UUID, label: String, recipientKey: Array[Byte], ciphertext: Array[Byte]): ShareMetadata
+  def depositShare(secretId: UUID, label: String, recipientKey: Array[Byte], createdAt: Instant, ciphertext: Array[Byte]): ShareMetadata
   def listShares(role: Role, counterpartyKey: Option[Array[Byte]] = None): List[ShareMetadata]
   def pickUpShare(shareId: UUID): Array[Byte]
   def deleteShare(shareId: UUID): Unit

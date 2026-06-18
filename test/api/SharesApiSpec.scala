@@ -47,7 +47,7 @@ class SharesApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   private var shareId: String = ""
 
   private def depositBody(recipient: RequestSigner, ct: String = "AQID"): Array[Byte] =
-    s"""{"secretId":"$secretId","label":"test secret","recipientKey":"${recipient.publicKeyHeader}","ciphertext":"$ct"}"""
+    s"""{"secretId":"$secretId","label":"test secret","recipientKey":"${recipient.publicKeyHeader}","createdAt":"2026-01-01T00:00:00Z","ciphertext":"$ct"}"""
       .getBytes("UTF-8")
 
   "POST /shares" should {

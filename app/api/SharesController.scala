@@ -67,8 +67,13 @@ class SharesController @Inject() (
         .toRight(BadRequest(errorJson("missing_field", "ciphertext is required")))
       ciphertext <- decodeBase64(ctStr)
         .toRight(BadRequest(errorJson("invalid_field", "ciphertext must be valid base64")))
+      createdAtStr <- (json \ "createdAt")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "createdAt is required")))
+      createdAt <- parseInstant(createdAtStr)
+        .toRight(BadRequest(errorJson("invalid_field", "createdAt must be a valid ISO-8601 date-time")))
       meta <- shares
-        .depositShare(callerKey, recipientKey, secretId, Label(labelStr), Instant.now(), ciphertext)
+        .depositShare(callerKey, recipientKey, secretId, Label(labelStr), createdAt, ciphertext)
         .left
         .map(domainErrorToResult)
     yield Created(shareMetadataJson(meta))
@@ -128,4 +133,8 @@ class SharesController @Inject() (
 
   private def decodeBase64(s: String): Option[Array[Byte]] =
     try Some(b64Dec.decode(s))
+    catch case _: Exception => None
+
+  private def parseInstant(s: String): Option[Instant] =
+    try Some(Instant.parse(s))
     catch case _: Exception => None
