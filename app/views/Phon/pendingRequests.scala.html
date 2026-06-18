@@ -46,7 +46,7 @@
       @for(shareRequest <- shareManagement.listPendingRequests()){
         <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
         <tr id="ESC@shareRequest.id.toString">
-          <th scope="row" title="@shareRequest.id.toString">@shareRequest.share.label</td>
+          <th scope="row" title="@shareRequest.id.toString">@shareRequest.share.label</th>
           <td>@shareRequest.requestType</td>
           <td>@shareRequest.state</td>
           <td>@shareRequest.requestedAt</td>

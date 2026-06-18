@@ -14,6 +14,7 @@ DELETE /contacts/:contactId controllers.phon.PhonyPhoneController.deleteContact(
 GET    /forms/secretSharing controllers.phon.PhonyPhoneController.getSecretSharingForm()
 POST   /mySecrets           controllers.phon.PhonyPhoneController.createMySecret()
 GET    /mySecrets           controllers.phon.PhonyPhoneController.readMySecrets()
+DELETE /mySecrets/:secretId controllers.phon.PhonyPhoneController.deleteMySecret(secretId: java.util.UUID)
 
 GET    /theirShares         controllers.phon.PhonyPhoneController.readTheirShares()
 POST   /theirShares         controllers.phon.PhonyPhoneController.createTheirShares()
@@ -23,4 +24,3 @@ GET    /pendingRequests     controllers.phon.PhonyPhoneController.readPendingReq
 # GET /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.readSharedSecret(secretId: Int)
 # PATCH /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.updateSharedSecret(secretId: Int) <- change label and or pick-up time(s)
 # POST /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.recoverSharedSecret(secretId: Int)
-# DELETE /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.deleteSharedSecret(secretId: Int)

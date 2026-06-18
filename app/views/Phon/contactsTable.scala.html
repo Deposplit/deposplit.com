@@ -46,7 +46,7 @@
       @for(contact <- contacts.listContacts()){
         <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
         <tr id="ESC@contact.id.toString">
-          <th scope="row" title="@contact.id.toString">@contact.pseudonym</td>
+          <th scope="row" title="@contact.id.toString">@contact.pseudonym</th>
           <td>@QrPayload.encodeKey(contact.edPublicKey)</td>
           <td>@QrPayload.encodeKey(contact.xPublicKey)</td>
           <td>@if(contact.verificationLevel==VerificationLevel.Verified){<span class="text-success"><i class="bi bi-person-add"></i></span>}else{<span class="text-warning"><i class="bi bi-person"></i></span>}</td>
