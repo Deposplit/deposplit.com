@@ -198,10 +198,12 @@ class PhonyPhoneController @Inject() (
 
   def readMySecrets = Action { implicit request: Request[AnyContent] =>
     if identity.isRegistered() then
+      shareManagement.syncDistributed()
       Ok(
         views.html.Phon
           .mySecrets(
-            shareManagement
+            shareManagement,
+            contactManagement.listContacts().map(contact => (contact.edPublicKey.toSeq, contact.pseudonym)).toMap
           )
       )
     else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
