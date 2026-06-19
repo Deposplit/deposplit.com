@@ -50,9 +50,9 @@ import scala.util.Try
 
 class PhonyPhoneController @Inject() (
     val controllerComponents: ControllerComponents,
-    val identity: ForgettableIdentity,
-    val contactManagement: ContactManagement,
-    val shareManagement: ShareManagement
+    identity: ForgettableIdentity,
+    contactManagement: ContactManagement,
+    shareManagement: ShareManagement
 ) extends BaseController,
       I18nSupport,
       Logging:

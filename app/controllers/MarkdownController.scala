@@ -77,8 +77,8 @@ object MarkdownFilePath {
 
 @Singleton
 class MarkdownController @Inject() (val controllerComponents: ControllerComponents, env: Environment)
-    extends BaseController
-    with I18nSupport {
+    extends BaseController,
+      I18nSupport:
 
   private val parser = MarkupParser.of(Markdown).using(Markdown.GitHubFlavor).build
   private val renderer = Renderer.of(laika.format.HTML).build
@@ -127,4 +127,3 @@ class MarkdownController @Inject() (val controllerComponents: ControllerComponen
       .getOrElse(NotFound)
   }
    */
-}

@@ -37,8 +37,8 @@ import java.util.UUID
 class ShareRequestsController @Inject() (
     val controllerComponents: ControllerComponents,
     shares: ShareRequests
-) extends BaseController
-    with ApiSupport:
+) extends BaseController,
+      ApiSupport:
 
   private val b64Dec = Base64.getDecoder
 
@@ -46,33 +46,50 @@ class ShareRequestsController @Inject() (
   def openShareRequest() = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
     val result = for
-      callerKey  <- AuthHelper.verify(request, bodyBytes)
-      json       <- parseJson(bodyBytes)
-      rtStr      <- (json \ "requestType").asOpt[String]
-                      .toRight(BadRequest(errorJson("missing_field", "requestType is required")))
+      callerKey <- AuthHelper.verify(request, bodyBytes)
+      json <- parseJson(bodyBytes)
+      rtStr <- (json \ "requestType")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "requestType is required")))
       requestType <- rtStr match
         case "pick_up"  => Right(ShareRequestType.PickUp)
         case "retrieve" => Right(ShareRequestType.Retrieve)
         case "delete"   => Right(ShareRequestType.Delete)
-        case _          => Left(BadRequest(errorJson("invalid_field", "requestType must be 'pick_up', 'retrieve', or 'delete'")))
-      secretIdStr <- (json \ "secretId").asOpt[String]
-                      .toRight(BadRequest(errorJson("missing_field", "secretId is required")))
-      secretId    <- parseUuid(secretIdStr).map(SecretId(_))
-                      .toRight(BadRequest(errorJson("invalid_field", "secretId must be a UUID")))
-      labelStr    <- (json \ "label").asOpt[String].filter(_.nonEmpty)
-                      .toRight(BadRequest(errorJson("missing_field", "label is required and must be non-empty")))
-      rkStr       <- (json \ "recipientKey").asOpt[String]
-                      .toRight(BadRequest(errorJson("missing_field", "recipientKey is required")))
+        case _ => Left(BadRequest(errorJson("invalid_field", "requestType must be 'pick_up', 'retrieve', or 'delete'")))
+      secretIdStr <- (json \ "secretId")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "secretId is required")))
+      secretId <- parseUuid(secretIdStr)
+        .map(SecretId(_))
+        .toRight(BadRequest(errorJson("invalid_field", "secretId must be a UUID")))
+      labelStr <- (json \ "label")
+        .asOpt[String]
+        .filter(_.nonEmpty)
+        .toRight(BadRequest(errorJson("missing_field", "label is required and must be non-empty")))
+      rkStr <- (json \ "recipientKey")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "recipientKey is required")))
       recipientKey <- PublicKey.fromBase64Url(rkStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
-      createdAtStr <- (json \ "secretCreatedAt").asOpt[String]
-                      .toRight(BadRequest(errorJson("missing_field", "secretCreatedAt is required")))
+      createdAtStr <- (json \ "secretCreatedAt")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "secretCreatedAt is required")))
       secretCreatedAt <- parseInstant(createdAtStr)
-                      .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
+        .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
       shareId = (json \ "shareId").asOpt[String].flatMap(parseUuid)
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
       req <- shares
-               .openShareRequest(callerKey, recipientKey, secretId, Label(labelStr), secretCreatedAt, requestType, shareId, ciphertext)
-               .left.map(domainErrorToResult)
+        .openShareRequest(
+          callerKey,
+          recipientKey,
+          secretId,
+          Label(labelStr),
+          secretCreatedAt,
+          requestType,
+          shareId,
+          ciphertext
+        )
+        .left
+        .map(domainErrorToResult)
     yield Created(shareRequestJson(req))
     result.merge
   }
@@ -81,9 +98,10 @@ class ShareRequestsController @Inject() (
   def listShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
-      roleStr   <- request.getQueryString("role")
-                     .toRight(BadRequest(errorJson("missing_param", "role is required")))
-      asSender  <- roleStr match
+      roleStr <- request
+        .getQueryString("role")
+        .toRight(BadRequest(errorJson("missing_param", "role is required")))
+      asSender <- roleStr match
         case "sender"    => Right(true)
         case "recipient" => Right(false)
         case _           => Left(BadRequest(errorJson("invalid_param", "role must be 'sender' or 'recipient'")))
@@ -108,25 +126,25 @@ class ShareRequestsController @Inject() (
   def getShareRequest(requestId: String) = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
-      id        <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
-      req       <- shares.getShareRequest(callerKey, id).left.map(domainErrorToResult)
+      id <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
+      req <- shares.getShareRequest(callerKey, id).left.map(domainErrorToResult)
     yield Ok(shareRequestJson(req))
     result.merge
   }
 
-  /** PATCH /share-requests/:requestId — approve or deny (recipient).
-    * Approving a PickUp returns the ciphertext in the response body (one-time delivery).
-    * Approving a Retrieve requires `ciphertext` in the request body.
+  /** PATCH /share-requests/:requestId — approve or deny (recipient). Approving a PickUp returns the ciphertext in the
+    * response body (one-time delivery). Approving a Retrieve requires `ciphertext` in the request body.
     */
   def respondToShareRequest(requestId: String) = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
     val result = for
       callerKey <- AuthHelper.verify(request, bodyBytes)
-      id        <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
-      json      <- parseJson(bodyBytes)
-      stateStr  <- (json \ "state").asOpt[String]
-                     .toRight(BadRequest(errorJson("missing_field", "state is required")))
-      approved  <- stateStr match
+      id <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
+      json <- parseJson(bodyBytes)
+      stateStr <- (json \ "state")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "state is required")))
+      approved <- stateStr match
         case "approved" => Right(true)
         case "denied"   => Right(false)
         case _          => Left(BadRequest(errorJson("invalid_field", "state must be 'approved' or 'denied'")))
@@ -140,8 +158,8 @@ class ShareRequestsController @Inject() (
   def deleteShareRequest(requestId: String) = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
-      id        <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
-      _         <- shares.deleteShareRequestById(callerKey, id).left.map(domainErrorToResult)
+      id <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
+      _ <- shares.deleteShareRequestById(callerKey, id).left.map(domainErrorToResult)
     yield NoContent
     result.merge
   }
@@ -151,8 +169,8 @@ class ShareRequestsController @Inject() (
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
       senderKey = request.getQueryString("senderKey").flatMap(s => PublicKey.fromBase64Url(s).toOption)
-      secretId  = request.getQueryString("secretId").flatMap(parseUuid).map(SecretId(_))
-      _         <- shares.deleteShareRequests(callerKey, senderKey, secretId).left.map(domainErrorToResult)
+      secretId = request.getQueryString("secretId").flatMap(parseUuid).map(SecretId(_))
+      _ <- shares.deleteShareRequests(callerKey, senderKey, secretId).left.map(domainErrorToResult)
     yield NoContent
     result.merge
   }
