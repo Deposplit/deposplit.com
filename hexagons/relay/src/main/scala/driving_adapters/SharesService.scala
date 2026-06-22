@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package services
+package driving_adapters
 
 import driven_ports.persistence.ShareRepository
 import driving_ports.ShareRequests
@@ -52,8 +52,7 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         if ciphertext.isEmpty then return Left(Error.BadRequest)
         if repository.hasActivePickUp(secretId, recipientKey) then return Left(Error.Conflict)
       case _ =>
-        if repository.hasPendingRequest(secretId, senderKey, recipientKey, requestType) then
-          return Left(Error.Conflict)
+        if repository.hasPendingRequest(secretId, senderKey, recipientKey, requestType) then return Left(Error.Conflict)
     val request = ShareRequest(
       id = UUID.randomUUID(),
       secretId = secretId,
@@ -98,10 +97,10 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       ciphertext: Option[Array[Byte]]
   ): Either[Error, ShareRequest] =
     repository.getShareRequestById(requestId) match
-      case None                                                        => Left(Error.NotFound)
-      case Some(req) if !sameKey(req.recipientKey, recipientKey)      => Left(Error.Forbidden)
-      case Some(req) if req.state != ShareRequestState.Pending        => Left(Error.Conflict)
-      case Some(req) =>
+      case None                                                  => Left(Error.NotFound)
+      case Some(req) if !sameKey(req.recipientKey, recipientKey) => Left(Error.Forbidden)
+      case Some(req) if req.state != ShareRequestState.Pending   => Left(Error.Conflict)
+      case Some(req)                                             =>
         if approved && req.requestType == ShareRequestType.Retrieve && ciphertext.isEmpty then
           return Left(Error.BadRequest)
         val now = Instant.now()
@@ -109,7 +108,7 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         // For PickUp approval: return stored ciphertext to Bob and clear it from relay.
         // For Retrieve approval: store Bob's ciphertext for Alice to collect later.
         val returnedCt = if approved && req.requestType == ShareRequestType.PickUp then req.ciphertext else None
-        val storedCt   = if approved && req.requestType == ShareRequestType.Retrieve then ciphertext else None
+        val storedCt = if approved && req.requestType == ShareRequestType.Retrieve then ciphertext else None
         repository.updateShareRequest(requestId, newState, now, storedCt)
         if approved && req.requestType == ShareRequestType.Delete then
           repository.deleteShareRequests(req.recipientKey, Some(req.senderKey), Some(req.secretId))

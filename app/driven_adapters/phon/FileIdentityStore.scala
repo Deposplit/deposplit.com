@@ -22,56 +22,66 @@
  * THE SOFTWARE.
  */
 
-package persistence.phon
+package driven_adapters.phon
 
-import driven_ports.ContactRepository
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Configuration
 import play.api.Logging
-import value_objects.svo.Contact
 
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import java.util.UUID
-import scala.collection.mutable.ListBuffer
+import driven_ports.ForgettableIdentityStore
+
+case class DevIdentity(
+    pseudonym: String,
+    edPrivateKey: Array[Byte],
+    edPublicKey: Array[Byte],
+    xPrivateKey: Array[Byte],
+    xPublicKey: Array[Byte]
+) extends Serializable
 
 @Singleton
-class FileContactRepository @Inject() (config: Configuration) extends ContactRepository, Logging:
+class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIdentityStore, Logging:
 
   private val httpPort = config.getOptional[Int]("http.port").getOrElse(9000)
-  private val file = File(s"./.devDBs/contacts${httpPort}.ser")
-  private var contacts = ListBuffer.empty[Contact]
+  private val file = File(s"./.devDBs/identity${httpPort}.ser")
+  private var optionalIdentity: Option[DevIdentity] = None
 
   if file.exists then
     // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
-    val ois = new ObjectInputStream(FileInputStream(file)):
-      override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
-        try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
-        catch case _: ClassNotFoundException => super.resolveClass(desc)
-    contacts = ois.readObject().asInstanceOf[ListBuffer[Contact]]
+    val ois = ObjectInputStream(FileInputStream(file))
+    val devIdentity = ois.readObject().asInstanceOf[DevIdentity]
     ois.close()
+    optionalIdentity = Option(devIdentity)
   end if
 
-  private def serializeContacts(): Unit =
+  override def edPrivateKey(): Array[Byte] = optionalIdentity.get.edPrivateKey
+
+  override def edPublicKey(): Array[Byte] = optionalIdentity.get.edPublicKey
+
+  override def isRegistered(): Boolean = optionalIdentity.isDefined
+
+  override def pseudonym(): String = optionalIdentity.get.pseudonym
+
+  override def save(pseudonym: String, edPk: Array[Byte], edSk: Array[Byte], xPk: Array[Byte], xSk: Array[Byte]): Unit =
+    val devIdentity = DevIdentity(pseudonym, edSk, edPk, xSk, xPk)
+
     val createdNewFile = file.createNewFile()
     if createdNewFile then logger.info(s"file $file created") else logger.info(s"file $file not created again")
     val oos = ObjectOutputStream(FileOutputStream(file))
-    oos.writeObject(contacts)
+    oos.writeObject(devIdentity)
     oos.close()
 
-  override def delete(contactId: UUID): Unit =
-    contacts.filterInPlace(_.id != contactId)
-    serializeContacts()
+    optionalIdentity = Option(devIdentity)
 
-  override def getAll(): List[Contact] = contacts.toList
+  override def xPrivateKey(): Array[Byte] = optionalIdentity.get.xPrivateKey
 
-  override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] =
-    contacts.find(_.edPublicKey == edPublicKey)
+  override def xPublicKey(): Array[Byte] = optionalIdentity.get.xPublicKey
 
-  override def save(contact: Contact): Unit =
-    contacts += contact
-    serializeContacts()
+  override def forget() =
+    optionalIdentity = None
+    file.delete()

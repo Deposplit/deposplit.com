@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package api
+package controllers.api
 
 import org.scalatestplus.play.*
 import org.scalatestplus.play.guice.*
@@ -44,44 +44,56 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "reject a request with a missing nonce" in {
       val signer = new RequestSigner()
-      val result = route(app, FakeRequest("GET", path).withHeaders(
-        "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
-        "X-Deposplit-Signature"  -> "placeholder"
-      )).get
+      val result = route(
+        app,
+        FakeRequest("GET", path).withHeaders(
+          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Signature" -> "placeholder"
+        )
+      ).get
       status(result) mustBe UNAUTHORIZED
     }
 
     "reject a request with a missing signature" in {
       val signer = new RequestSigner()
-      val result = route(app, FakeRequest("GET", path).withHeaders(
-        "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
-        "X-Deposplit-Nonce"      -> s"${System.currentTimeMillis()}.abc"
-      )).get
+      val result = route(
+        app,
+        FakeRequest("GET", path).withHeaders(
+          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Nonce" -> s"${System.currentTimeMillis()}.abc"
+        )
+      ).get
       status(result) mustBe UNAUTHORIZED
     }
 
     "reject a request with an expired nonce" in {
       // Nonce timestamp is 10 minutes in the past — outside the 5-minute window.
       // All three headers must be present; the expiry check happens before signature parsing.
-      val signer    = new RequestSigner()
+      val signer = new RequestSigner()
       val expiredMs = System.currentTimeMillis() - 10 * 60 * 1000L
-      val result = route(app, FakeRequest("GET", path).withHeaders(
-        "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
-        "X-Deposplit-Nonce"      -> s"$expiredMs.abc",
-        "X-Deposplit-Signature"  -> "placeholder"
-      )).get
+      val result = route(
+        app,
+        FakeRequest("GET", path).withHeaders(
+          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Nonce" -> s"$expiredMs.abc",
+          "X-Deposplit-Signature" -> "placeholder"
+        )
+      ).get
       status(result) mustBe UNAUTHORIZED
     }
 
     "reject a request with an invalid signature" in {
       // 86 base64url 'A' chars = 64 zero-bytes: valid length for Ed25519 but won't verify.
-      val signer   = new RequestSigner()
+      val signer = new RequestSigner()
       val wrongSig = "A" * 86
-      val result = route(app, FakeRequest("GET", path).withHeaders(
-        "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
-        "X-Deposplit-Nonce"      -> s"${System.currentTimeMillis()}.abc",
-        "X-Deposplit-Signature"  -> wrongSig
-      )).get
+      val result = route(
+        app,
+        FakeRequest("GET", path).withHeaders(
+          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Nonce" -> s"${System.currentTimeMillis()}.abc",
+          "X-Deposplit-Signature" -> wrongSig
+        )
+      ).get
       status(result) mustBe UNAUTHORIZED
     }
 

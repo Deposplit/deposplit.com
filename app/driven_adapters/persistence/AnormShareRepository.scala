@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package persistence
+package driven_adapters.persistence
 
 import anorm.*
 import anorm.SqlParser.*
@@ -46,10 +46,12 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       case ts: java.sql.Timestamp        => Right(ts.toInstant)
       case odt: java.time.OffsetDateTime => Right(odt.toInstant)
       case d: java.util.Date             => Right(d.toInstant)
-      case _ =>
-        Left(TypeDoesNotMatch(
-          s"Cannot convert $value: ${value.getClass.getName} to Instant for column ${meta.column}"
-        ))
+      case _                             =>
+        Left(
+          TypeDoesNotMatch(
+            s"Cannot convert $value: ${value.getClass.getName} to Instant for column ${meta.column}"
+          )
+        )
   }
 
   private def parseKey(bytes: Array[Byte]): PublicKey =
@@ -125,14 +127,14 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
            {requestType}, {shareId}::uuid, {ciphertext}, {secretCreatedAt})
       """)
         .on(
-          "id"              -> request.id.toString,
-          "secretId"        -> request.secretId.value.toString,
-          "label"           -> request.label.value,
-          "senderKey"       -> request.senderKey.toBytes,
-          "recipientKey"    -> request.recipientKey.toBytes,
-          "requestType"     -> requestTypeStr(request.requestType),
-          "shareId"         -> request.shareId.map(_.toString).orNull,
-          "ciphertext"      -> request.ciphertext.orNull,
+          "id" -> request.id.toString,
+          "secretId" -> request.secretId.value.toString,
+          "label" -> request.label.value,
+          "senderKey" -> request.senderKey.toBytes,
+          "recipientKey" -> request.recipientKey.toBytes,
+          "requestType" -> requestTypeStr(request.requestType),
+          "shareId" -> request.shareId.map(_.toString).orNull,
+          "ciphertext" -> request.ciphertext.orNull,
           "secretCreatedAt" -> request.secretCreatedAt
         )
         .executeUpdate()
@@ -221,9 +223,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       """)
         .on(
           "sid" -> secretId.value.toString,
-          "sk"  -> senderKey.toBytes,
-          "rk"  -> recipientKey.toBytes,
-          "rt"  -> requestTypeStr(requestType)
+          "sk" -> senderKey.toBytes,
+          "rk" -> recipientKey.toBytes,
+          "rt" -> requestTypeStr(requestType)
         )
         .as(scalar[Long].single)
       count > 0
@@ -242,10 +244,10 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
         WHERE id = {id}::uuid
       """)
         .on(
-          "id"          -> requestId.toString,
-          "state"       -> stateStr(state),
+          "id" -> requestId.toString,
+          "state" -> stateStr(state),
           "respondedAt" -> respondedAt,
-          "ciphertext"  -> ciphertext.orNull
+          "ciphertext" -> ciphertext.orNull
         )
         .executeUpdate()
     }

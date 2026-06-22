@@ -22,10 +22,15 @@
  * THE SOFTWARE.
  */
 
-package services
+package controllers.gui
 
-trait ShareEncryption:
-  /** Encrypts plaintext to recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. Returns nonce(12) || ciphertext+tag. */
-  def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]
-  /** Decrypts noncePlusCiphertext (nonce(12) || ciphertext+tag) using recipientXPublicKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. */
-  def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte]
+import jakarta.inject.*
+import play.api.*
+import play.api.i18n.I18nSupport
+import play.api.mvc.*
+
+class HomeController @Inject() (val controllerComponents: ControllerComponents) extends BaseController, I18nSupport:
+
+  def index() = Action { implicit request: Request[AnyContent] =>
+    Ok(views.html.index())
+  }

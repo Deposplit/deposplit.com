@@ -33,15 +33,15 @@ import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import driving_ports.Identity
 import driving_ports.ShareManagement
-import persistence.phon.FileContactRepository
-import persistence.phon.FileIdentityStore
-import persistence.phon.FileShareMetadataRepository
-import persistence.phon.FileShareRepository
-import persistence.phon.HttpClientShareRelay
-import services.ContactService
-import services.IdentityService
-import services.ShareEncryption
-import services.ShareService
+import driven_adapters.phon.FileContactRepository
+import driven_adapters.phon.FileIdentityStore
+import driven_adapters.phon.FileShareMetadataRepository
+import driven_adapters.phon.FileShareRepository
+import driven_adapters.phon.HttpClientShareRelay
+import driving_adapters.ContactService
+import driving_adapters.IdentityService
+import driving_adapters.ShareEncryption
+import driving_adapters.ShareService
 
 class PhonModule extends AbstractModule:
   override def configure(): Unit =

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package api
+package controllers.api
 
 import org.scalatestplus.play.*
 import org.scalatestplus.play.guice.*

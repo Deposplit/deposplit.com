@@ -25,8 +25,8 @@
 import com.google.inject.AbstractModule
 import driven_ports.persistence.ShareRepository
 import driving_ports.ShareRequests
-import persistence.AnormShareRepository
-import services.ShareRequestsService
+import driven_adapters.persistence.AnormShareRepository
+import driving_adapters.ShareRequestsService
 
 class Module extends AbstractModule:
   override def configure(): Unit =

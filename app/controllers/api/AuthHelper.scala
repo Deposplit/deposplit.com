@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package api
+package controllers.api
 
 import play.api.libs.json.Json
 import play.api.mvc.RequestHeader

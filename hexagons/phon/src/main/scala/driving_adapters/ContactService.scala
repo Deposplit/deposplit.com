@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package services
+package driving_adapters
 
 import driven_ports.ContactRepository
 import driving_ports.ContactManagement

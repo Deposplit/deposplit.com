@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package api
+package controllers.api
 
 import org.scalatestplus.play.*
 import org.scalatestplus.play.guice.*
@@ -34,18 +34,17 @@ import java.util.UUID
 
 /** Integration tests for POST/GET/PATCH/DELETE /share-requests.
   *
-  * Tests run in declaration order and share a single in-memory H2 database via
-  * GuiceOneAppPerSuite. Each suite uses fresh keypairs so data is naturally isolated
-  * from other suites even when the DB is shared across the test JVM.
+  * Tests run in declaration order and share a single in-memory H2 database via GuiceOneAppPerSuite. Each suite uses
+  * fresh keypairs so data is naturally isolated from other suites even when the DB is shared across the test JVM.
   */
 class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
-  private val alice    = new RequestSigner()
-  private val bob      = new RequestSigner()
+  private val alice = new RequestSigner()
+  private val bob = new RequestSigner()
   private val secretId = UUID.randomUUID().toString
 
   // Populated by tests; used by subsequent tests in declaration order.
-  private var pickUpId:   String = ""
+  private var pickUpId: String = ""
   private var retrieveId: String = ""
 
   // ── Body builders ──────────────────────────────────────────────────────────
@@ -97,23 +96,23 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "deposit a share and return a PickUp ShareRequest with all required fields" in {
       val result = route(app, alice.post("/share-requests", pickUpBody(alice, bob))).get
-      status(result)      mustBe CREATED
+      status(result) mustBe CREATED
       contentType(result) mustBe Some("application/json")
       val json = contentAsJson(result)
       pickUpId = (json \ "id").as[String]
-      pickUpId                                  must not be empty
-      (json \ "requestType").as[String]         mustBe "pick_up"
-      (json \ "state").as[String]               mustBe "pending"
-      (json \ "secretId").as[String]            mustBe secretId
-      (json \ "label").as[String]               mustBe "test secret"
-      (json \ "senderKey").as[String]           mustBe alice.publicKeyHeader
-      (json \ "recipientKey").as[String]        mustBe bob.publicKeyHeader
-      (json \ "secretCreatedAt").asOpt[String]  must not be empty
-      (json \ "requestedAt").asOpt[String]      must not be empty
-      (json \ "respondedAt").asOpt[String]      mustBe None
-      (json \ "shareId").asOpt[String]          mustBe None
+      pickUpId must not be empty
+      (json \ "requestType").as[String] mustBe "pick_up"
+      (json \ "state").as[String] mustBe "pending"
+      (json \ "secretId").as[String] mustBe secretId
+      (json \ "label").as[String] mustBe "test secret"
+      (json \ "senderKey").as[String] mustBe alice.publicKeyHeader
+      (json \ "recipientKey").as[String] mustBe bob.publicKeyHeader
+      (json \ "secretCreatedAt").asOpt[String] must not be empty
+      (json \ "requestedAt").asOpt[String] must not be empty
+      (json \ "respondedAt").asOpt[String] mustBe None
+      (json \ "shareId").asOpt[String] mustBe None
       // ciphertext not returned on PickUp creation (only on approval)
-      (json \ "ciphertext").asOpt[String]       mustBe None
+      (json \ "ciphertext").asOpt[String] mustBe None
     }
 
     "reject a duplicate active PickUp for the same (secretId, recipientKey)" in {
@@ -122,7 +121,8 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
 
     "reject a PickUp without ciphertext" in {
-      val body = s"""{"requestType":"pick_up","secretId":"${UUID.randomUUID()}","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"2026-01-01T00:00:00Z"}"""
+      val body = s"""{"requestType":"pick_up","secretId":"${UUID
+          .randomUUID()}","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"2026-01-01T00:00:00Z"}"""
         .getBytes("UTF-8")
       val result = route(app, alice.post("/share-requests", body)).get
       status(result) mustBe BAD_REQUEST
@@ -149,7 +149,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "return an empty list for a key with no requests" in {
       val stranger = new RequestSigner()
-      val result   = route(app, stranger.get("/share-requests?role=recipient")).get
+      val result = route(app, stranger.get("/share-requests?role=recipient")).get
       status(result) mustBe OK
       contentAsJson(result).as[JsArray].value mustBe empty
     }
@@ -159,9 +159,9 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "return the PickUp to the sender" in {
       val result = route(app, alice.get(s"/share-requests/$pickUpId")).get
-      status(result)      mustBe OK
+      status(result) mustBe OK
       val json = contentAsJson(result)
-      (json \ "id").as[String]    mustBe pickUpId
+      (json \ "id").as[String] mustBe pickUpId
       (json \ "state").as[String] mustBe "pending"
     }
 
@@ -173,7 +173,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "reject access by an unrelated third party" in {
       val stranger = new RequestSigner()
-      val result   = route(app, stranger.get(s"/share-requests/$pickUpId")).get
+      val result = route(app, stranger.get(s"/share-requests/$pickUpId")).get
       status(result) mustBe FORBIDDEN
     }
   }
@@ -183,23 +183,23 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   "PATCH /share-requests/:requestId (approve PickUp)" should {
 
     "reject a response from the sender (who is not the recipient)" in {
-      val body   = """{"state":"approved"}""".getBytes("UTF-8")
+      val body = """{"state":"approved"}""".getBytes("UTF-8")
       val result = route(app, alice.patch(s"/share-requests/$pickUpId", body)).get
       status(result) mustBe FORBIDDEN
     }
 
     "allow the recipient to approve and receive the ciphertext (one-time delivery)" in {
-      val body   = """{"state":"approved"}""".getBytes("UTF-8")
+      val body = """{"state":"approved"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$pickUpId", body)).get
-      status(result)      mustBe OK
+      status(result) mustBe OK
       val json = contentAsJson(result)
-      (json \ "state").as[String]            mustBe "approved"
-      (json \ "respondedAt").asOpt[String]   must not be empty
-      (json \ "ciphertext").asOpt[String]    must not be empty
+      (json \ "state").as[String] mustBe "approved"
+      (json \ "respondedAt").asOpt[String] must not be empty
+      (json \ "ciphertext").asOpt[String] must not be empty
     }
 
     "reject a second response to an already-decided PickUp" in {
-      val body   = """{"state":"denied"}""".getBytes("UTF-8")
+      val body = """{"state":"denied"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$pickUpId", body)).get
       status(result) mustBe CONFLICT
     }
@@ -226,13 +226,13 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(result) mustBe CREATED
       val json = contentAsJson(result)
       retrieveId = (json \ "id").as[String]
-      retrieveId                               must not be empty
-      (json \ "requestType").as[String]        mustBe "retrieve"
-      (json \ "state").as[String]              mustBe "pending"
-      (json \ "shareId").as[String]            mustBe pickUpId
-      (json \ "requestedAt").asOpt[String]     must not be empty
-      (json \ "respondedAt").asOpt[String]     mustBe None
-      (json \ "ciphertext").asOpt[String]      mustBe None
+      retrieveId must not be empty
+      (json \ "requestType").as[String] mustBe "retrieve"
+      (json \ "state").as[String] mustBe "pending"
+      (json \ "shareId").as[String] mustBe pickUpId
+      (json \ "requestedAt").asOpt[String] must not be empty
+      (json \ "respondedAt").asOpt[String] mustBe None
+      (json \ "ciphertext").asOpt[String] mustBe None
     }
 
     "reject a duplicate pending Retrieve for the same (secretId, senderKey, recipientKey)" in {
@@ -244,23 +244,23 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   "PATCH /share-requests/:requestId (respond to Retrieve)" should {
 
     "reject approval of a Retrieve without ciphertext" in {
-      val body   = """{"state":"approved"}""".getBytes("UTF-8")
+      val body = """{"state":"approved"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$retrieveId", body)).get
       status(result) mustBe BAD_REQUEST
     }
 
     "allow the recipient to approve a Retrieve by supplying ciphertext" in {
-      val body   = """{"state":"approved","ciphertext":"AQID"}""".getBytes("UTF-8")
+      val body = """{"state":"approved","ciphertext":"AQID"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$retrieveId", body)).get
-      status(result)      mustBe OK
+      status(result) mustBe OK
       val json = contentAsJson(result)
-      (json \ "state").as[String]          mustBe "approved"
+      (json \ "state").as[String] mustBe "approved"
       (json \ "respondedAt").asOpt[String] must not be empty
-      (json \ "ciphertext").as[String]     mustBe "AQID"
+      (json \ "ciphertext").as[String] mustBe "AQID"
     }
 
     "reject a second response to an already-approved Retrieve" in {
-      val body   = """{"state":"denied"}""".getBytes("UTF-8")
+      val body = """{"state":"denied"}""".getBytes("UTF-8")
       val result = route(app, bob.patch(s"/share-requests/$retrieveId", body)).get
       status(result) mustBe CONFLICT
     }

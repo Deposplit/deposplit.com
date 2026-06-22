@@ -22,66 +22,54 @@
  * THE SOFTWARE.
  */
 
-package persistence.phon
+package driven_adapters.phon
 
+import driven_ports.ShareMetadataRepository
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Configuration
 import play.api.Logging
+import value_objects.svo.ShareMetadata
 
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import driven_ports.ForgettableIdentityStore
-
-case class DevIdentity(
-    pseudonym: String,
-    edPrivateKey: Array[Byte],
-    edPublicKey: Array[Byte],
-    xPrivateKey: Array[Byte],
-    xPublicKey: Array[Byte]
-) extends Serializable
+import java.util.UUID
+import scala.collection.mutable.ListBuffer
 
 @Singleton
-class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIdentityStore, Logging:
+class FileShareMetadataRepository @Inject() (config: Configuration) extends ShareMetadataRepository, Logging:
 
   private val httpPort = config.getOptional[Int]("http.port").getOrElse(9000)
-  private val file = File(s"./.devDBs/identity${httpPort}.ser")
-  private var optionalIdentity: Option[DevIdentity] = None
+  private val file = File(s"./.devDBs/sharemetadata${httpPort}.ser")
+  private var shares = ListBuffer.empty[ShareMetadata]
 
   if file.exists then
     // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
-    val ois = ObjectInputStream(FileInputStream(file))
-    val devIdentity = ois.readObject().asInstanceOf[DevIdentity]
+    val ois = new ObjectInputStream(FileInputStream(file)):
+      override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
+        try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
+        catch case _: ClassNotFoundException => super.resolveClass(desc)
+    shares = ois.readObject().asInstanceOf[ListBuffer[ShareMetadata]]
     ois.close()
-    optionalIdentity = Option(devIdentity)
   end if
 
-  override def edPrivateKey(): Array[Byte] = optionalIdentity.get.edPrivateKey
-
-  override def edPublicKey(): Array[Byte] = optionalIdentity.get.edPublicKey
-
-  override def isRegistered(): Boolean = optionalIdentity.isDefined
-
-  override def pseudonym(): String = optionalIdentity.get.pseudonym
-
-  override def save(pseudonym: String, edPk: Array[Byte], edSk: Array[Byte], xPk: Array[Byte], xSk: Array[Byte]): Unit =
-    val devIdentity = DevIdentity(pseudonym, edSk, edPk, xSk, xPk)
-
+  private def serializeShares(): Unit =
     val createdNewFile = file.createNewFile()
     if createdNewFile then logger.info(s"file $file created") else logger.info(s"file $file not created again")
     val oos = ObjectOutputStream(FileOutputStream(file))
-    oos.writeObject(devIdentity)
+    oos.writeObject(shares)
     oos.close()
 
-    optionalIdentity = Option(devIdentity)
+  override def getAll(): List[ShareMetadata] = shares.toList
 
-  override def xPrivateKey(): Array[Byte] = optionalIdentity.get.xPrivateKey
+  override def save(share: ShareMetadata): Unit =
+    val idx = shares.indexWhere(_.id == share.id)
+    if idx >= 0 then shares.update(idx, share) else shares += share
+    serializeShares()
 
-  override def xPublicKey(): Array[Byte] = optionalIdentity.get.xPublicKey
-
-  override def forget() =
-    optionalIdentity = None
-    file.delete()
+  override def delete(shareId: UUID): Unit =
+    shares.filterInPlace(_.id != shareId)
+    serializeShares()

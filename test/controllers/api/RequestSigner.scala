@@ -22,16 +22,17 @@
  * THE SOFTWARE.
  */
 
-package api
+package controllers.api
 
+import org.apache.pekko.util.ByteString
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
 import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
-import org.apache.pekko.util.ByteString
 import play.api.mvc.AnyContentAsRaw
 import play.api.test.FakeRequest
+
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -44,9 +45,9 @@ class RequestSigner:
 
   private val gen = new Ed25519KeyPairGenerator()
   gen.init(new Ed25519KeyGenerationParameters(new SecureRandom()))
-  private val pair    = gen.generateKeyPair()
+  private val pair = gen.generateKeyPair()
   private val privKey = pair.getPrivate.asInstanceOf[Ed25519PrivateKeyParameters]
-  private val pubKey  = pair.getPublic.asInstanceOf[Ed25519PublicKeyParameters]
+  private val pubKey = pair.getPublic.asInstanceOf[Ed25519PublicKeyParameters]
 
   val publicKeyHeader: String = b64url.encodeToString(pubKey.getEncoded)
 
@@ -54,15 +55,15 @@ class RequestSigner:
     MessageDigest.getInstance("SHA-256").digest(bytes).map("%02x".format(_)).mkString
 
   def authHeaders(method: String, path: String, body: Array[Byte] = Array.empty): Seq[(String, String)] =
-    val nonce  = s"${System.currentTimeMillis()}.${UUID.randomUUID().toString.take(8)}"
-    val canon  = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(body)}".getBytes("UTF-8")
+    val nonce = s"${System.currentTimeMillis()}.${UUID.randomUUID().toString.take(8)}"
+    val canon = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(body)}".getBytes("UTF-8")
     val signer = new Ed25519Signer()
     signer.init(true, privKey)
     signer.update(canon, 0, canon.length)
     Seq(
       "X-Deposplit-Public-Key" -> publicKeyHeader,
-      "X-Deposplit-Nonce"      -> nonce,
-      "X-Deposplit-Signature"  -> b64url.encodeToString(signer.generateSignature())
+      "X-Deposplit-Nonce" -> nonce,
+      "X-Deposplit-Signature" -> b64url.encodeToString(signer.generateSignature())
     )
 
   def get(path: String) =

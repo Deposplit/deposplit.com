@@ -22,14 +22,14 @@
  * THE SOFTWARE.
  */
 
-package persistence.phon
+package driven_adapters.phon
 
-import driven_ports.ShareRepository
+import driven_ports.ContactRepository
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Configuration
 import play.api.Logging
-import value_objects.svo.HeldShare
+import value_objects.svo.Contact
 
 import java.io.File
 import java.io.FileInputStream
@@ -40,11 +40,11 @@ import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 @Singleton
-class FileShareRepository @Inject() (config: Configuration) extends ShareRepository, Logging:
+class FileContactRepository @Inject() (config: Configuration) extends ContactRepository, Logging:
 
   private val httpPort = config.getOptional[Int]("http.port").getOrElse(9000)
-  private val file = File(s"./.devDBs/heldshares${httpPort}.ser")
-  private var shares = ListBuffer.empty[HeldShare]
+  private val file = File(s"./.devDBs/contacts${httpPort}.ser")
+  private var contacts = ListBuffer.empty[Contact]
 
   if file.exists then
     // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
@@ -52,25 +52,26 @@ class FileShareRepository @Inject() (config: Configuration) extends ShareReposit
       override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
         try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
         catch case _: ClassNotFoundException => super.resolveClass(desc)
-    shares = ois.readObject().asInstanceOf[ListBuffer[HeldShare]]
+    contacts = ois.readObject().asInstanceOf[ListBuffer[Contact]]
     ois.close()
   end if
 
-  private def serializeShares(): Unit =
+  private def serializeContacts(): Unit =
     val createdNewFile = file.createNewFile()
     if createdNewFile then logger.info(s"file $file created") else logger.info(s"file $file not created again")
     val oos = ObjectOutputStream(FileOutputStream(file))
-    oos.writeObject(shares)
+    oos.writeObject(contacts)
     oos.close()
 
-  override def delete(shareId: UUID): Unit =
-    shares.filterInPlace(_.id != shareId)
-    serializeShares()
+  override def delete(contactId: UUID): Unit =
+    contacts.filterInPlace(_.id != contactId)
+    serializeContacts()
 
-  override def getAll(): List[HeldShare] = shares.toList
+  override def getAll(): List[Contact] = contacts.toList
 
-  override def getCiphertext(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.ciphertext)
+  override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] =
+    contacts.find(_.edPublicKey == edPublicKey)
 
-  override def save(share: HeldShare): Unit =
-    shares += share
-    serializeShares()
+  override def save(contact: Contact): Unit =
+    contacts += contact
+    serializeContacts()

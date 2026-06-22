@@ -22,9 +22,10 @@
  * THE SOFTWARE.
  */
 
-package services
+package driving_adapters
 
 import driven_ports.ForgettableIdentityStore
+import driving_adapters.ShareEncryption
 import driving_ports.ForgettableIdentity
 import jakarta.inject.Inject
 import org.bouncycastle.crypto.agreement.X25519Agreement
@@ -46,9 +47,7 @@ import org.bouncycastle.crypto.signers.Ed25519Signer
 
 import java.security.SecureRandom
 
-class IdentityService @Inject() (identityStore: ForgettableIdentityStore)
-    extends ForgettableIdentity,
-      ShareEncryption:
+class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extends ForgettableIdentity, ShareEncryption:
 
   override def isRegistered(): Boolean = identityStore.isRegistered()
 
@@ -70,7 +69,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore)
     identityStore.save(pseudonym, edPk, edSk, xPk, xSk)
 
   override def unregister() = identityStore.forget()
-  
+
   override def pseudonym(): String = identityStore.pseudonym()
 
   override def edPublicKey(): Array[Byte] = identityStore.edPublicKey()

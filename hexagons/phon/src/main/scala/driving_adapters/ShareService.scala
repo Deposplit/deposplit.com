@@ -22,12 +22,13 @@
  * THE SOFTWARE.
  */
 
-package services
+package driving_adapters
 
 import driven_ports.ContactRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
 import driven_ports.ShareRepository
+import driving_adapters.ShareEncryption
 import driving_ports.ShareManagement
 import jakarta.inject.Inject
 import shamir.SecretSharing
@@ -59,14 +60,19 @@ class ShareService @Inject() (
     val createdAt = Instant.now()
     shares.zip(contacts).foreach { (share, contact) =>
       val ct = encryption.encrypt(share, contact.xPublicKey)
-      val req = relay.openShareRequest(secretId, contact.edPublicKey, label, createdAt, ShareRequestType.PickUp, None, Some(ct))
+      val req =
+        relay.openShareRequest(secretId, contact.edPublicKey, label, createdAt, ShareRequestType.PickUp, None, Some(ct))
       shareMetadataRepository.save(ShareMetadata(req.id, secretId, label, contact.edPublicKey, createdAt))
     }
 
   override def syncDistributed(): Unit =
     relay
       .listShareRequests(Role.Sender, Some(ShareRequestType.PickUp))
-      .foreach(req => shareMetadataRepository.save(ShareMetadata(req.id, req.secretId, req.label, req.recipientKey, req.secretCreatedAt)))
+      .foreach(req =>
+        shareMetadataRepository.save(
+          ShareMetadata(req.id, req.secretId, req.label, req.recipientKey, req.secretCreatedAt)
+        )
+      )
 
   override def listDistributed(): List[ShareMetadata] = shareMetadataRepository.getAll()
 
@@ -75,20 +81,40 @@ class ShareService @Inject() (
 
   override def requestAll(secretId: UUID): Unit =
     val deposited = shareMetadataRepository.getAll().filter(_.secretId == secretId)
-    val existing  = relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))
+    val existing = relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))
     deposited.foreach { meta =>
       val hasActive = existing.exists(r =>
         r.shareId.contains(meta.id) &&
           (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
       )
       if !hasActive then
-        Try(relay.openShareRequest(meta.secretId, meta.recipientKey, meta.label, meta.secretCreatedAt, ShareRequestType.Retrieve, Some(meta.id), None))
+        Try(
+          relay.openShareRequest(
+            meta.secretId,
+            meta.recipientKey,
+            meta.label,
+            meta.secretCreatedAt,
+            ShareRequestType.Retrieve,
+            Some(meta.id),
+            None
+          )
+        )
     }
 
   override def openRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest =
-    val meta = shareMetadataRepository.getAll().find(_.id == shareId)
+    val meta = shareMetadataRepository
+      .getAll()
+      .find(_.id == shareId)
       .getOrElse(throw IllegalArgumentException(s"No local share record for id $shareId"))
-    relay.openShareRequest(meta.secretId, meta.recipientKey, meta.label, meta.secretCreatedAt, requestType, Some(shareId), None)
+    relay.openShareRequest(
+      meta.secretId,
+      meta.recipientKey,
+      meta.label,
+      meta.secretCreatedAt,
+      requestType,
+      Some(shareId),
+      None
+    )
 
   override def reconstruct(secretId: UUID): Array[Byte] =
     val allRequests = relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))
@@ -118,7 +144,8 @@ class ShareService @Inject() (
   // ── Recipient flows ───────────────────────────────────────────────────────
 
   override def syncInbox(): Unit =
-    val pending = relay.listShareRequests(Role.Recipient, Some(ShareRequestType.PickUp), Some(ShareRequestState.Pending))
+    val pending =
+      relay.listShareRequests(Role.Recipient, Some(ShareRequestType.PickUp), Some(ShareRequestState.Pending))
     pending.foreach { req =>
       if shareRepository.getCiphertext(req.id).isEmpty then
         Try {
@@ -126,11 +153,11 @@ class ShareService @Inject() (
           responded.ciphertext.foreach { ct =>
             shareRepository.save(
               HeldShare(
-                id         = req.id,
-                secretId   = req.secretId,
-                label      = req.label,
-                senderKey  = req.senderKey,
-                createdAt  = req.secretCreatedAt,
+                id = req.id,
+                secretId = req.secretId,
+                label = req.label,
+                senderKey = req.senderKey,
+                createdAt = req.secretCreatedAt,
                 pickedUpAt = Instant.now(),
                 ciphertext = ct
               )
@@ -160,8 +187,7 @@ class ShareService @Inject() (
         )
       else None
     relay.respondToShareRequest(requestId, approved, ciphertext)
-    if approved && request.requestType == ShareRequestType.Delete then
-      request.shareId.foreach(shareRepository.delete)
+    if approved && request.requestType == ShareRequestType.Delete then request.shareId.foreach(shareRepository.delete)
 
   override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)
 

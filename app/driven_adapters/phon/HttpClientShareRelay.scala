@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package persistence.phon
+package driven_adapters.phon
 
 import driven_ports.ShareRelay
 import driving_ports.Identity
@@ -63,11 +63,11 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
   ): ShareRequest =
     val body = Json
       .obj(
-        "secretId"        -> secretId.toString,
-        "recipientKey"    -> encodeBase64Url(recipientKey),
-        "label"           -> label,
+        "secretId" -> secretId.toString,
+        "recipientKey" -> encodeBase64Url(recipientKey),
+        "label" -> label,
         "secretCreatedAt" -> secretCreatedAt.toString,
-        "requestType"     -> requestTypeStr(requestType)
+        "requestType" -> requestTypeStr(requestType)
       )
       .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
       .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
@@ -156,11 +156,11 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
 
   private def parseShareRequest(json: JsValue): ShareRequest =
     ShareRequest(
-      id              = UUID.fromString((json \ "id").as[String]),
-      secretId        = UUID.fromString((json \ "secretId").as[String]),
-      senderKey       = decodeBase64Url((json \ "senderKey").as[String]),
-      recipientKey    = decodeBase64Url((json \ "recipientKey").as[String]),
-      label           = (json \ "label").as[String],
+      id = UUID.fromString((json \ "id").as[String]),
+      secretId = UUID.fromString((json \ "secretId").as[String]),
+      senderKey = decodeBase64Url((json \ "senderKey").as[String]),
+      recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
+      label = (json \ "label").as[String],
       secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
       requestType = (json \ "requestType").as[String] match
         case "pick_up"  => ShareRequestType.PickUp
@@ -172,10 +172,10 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
         case "approved" => ShareRequestState.Approved
         case "denied"   => ShareRequestState.Denied
         case other      => throw IllegalArgumentException(s"Unknown state: $other"),
-      shareId         = (json \ "shareId").asOpt[String].map(UUID.fromString),
-      requestedAt     = Instant.parse((json \ "requestedAt").as[String]),
-      respondedAt     = (json \ "respondedAt").asOpt[String].map(Instant.parse),
-      ciphertext      = (json \ "ciphertext").asOpt[String].map(decodeBase64)
+      shareId = (json \ "shareId").asOpt[String].map(UUID.fromString),
+      requestedAt = Instant.parse((json \ "requestedAt").as[String]),
+      respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
+      ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64)
     )
 
   // ── Base64 ────────────────────────────────────────────────────────────────

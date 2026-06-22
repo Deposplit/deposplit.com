@@ -22,14 +22,14 @@
  * THE SOFTWARE.
  */
 
-package persistence.phon
+package driven_adapters.phon
 
-import driven_ports.ShareMetadataRepository
+import driven_ports.ShareRepository
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Configuration
 import play.api.Logging
-import value_objects.svo.ShareMetadata
+import value_objects.svo.HeldShare
 
 import java.io.File
 import java.io.FileInputStream
@@ -40,11 +40,11 @@ import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 @Singleton
-class FileShareMetadataRepository @Inject() (config: Configuration) extends ShareMetadataRepository, Logging:
+class FileShareRepository @Inject() (config: Configuration) extends ShareRepository, Logging:
 
   private val httpPort = config.getOptional[Int]("http.port").getOrElse(9000)
-  private val file = File(s"./.devDBs/sharemetadata${httpPort}.ser")
-  private var shares = ListBuffer.empty[ShareMetadata]
+  private val file = File(s"./.devDBs/heldshares${httpPort}.ser")
+  private var shares = ListBuffer.empty[HeldShare]
 
   if file.exists then
     // claude --resume 74829c30-8a8c-4097-a843-7e7ab067579b
@@ -52,7 +52,7 @@ class FileShareMetadataRepository @Inject() (config: Configuration) extends Shar
       override def resolveClass(desc: java.io.ObjectStreamClass): Class[?] =
         try Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
         catch case _: ClassNotFoundException => super.resolveClass(desc)
-    shares = ois.readObject().asInstanceOf[ListBuffer[ShareMetadata]]
+    shares = ois.readObject().asInstanceOf[ListBuffer[HeldShare]]
     ois.close()
   end if
 
@@ -63,13 +63,14 @@ class FileShareMetadataRepository @Inject() (config: Configuration) extends Shar
     oos.writeObject(shares)
     oos.close()
 
-  override def getAll(): List[ShareMetadata] = shares.toList
-
-  override def save(share: ShareMetadata): Unit =
-    val idx = shares.indexWhere(_.id == share.id)
-    if idx >= 0 then shares.update(idx, share) else shares += share
-    serializeShares()
-
   override def delete(shareId: UUID): Unit =
     shares.filterInPlace(_.id != shareId)
+    serializeShares()
+
+  override def getAll(): List[HeldShare] = shares.toList
+
+  override def getCiphertext(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.ciphertext)
+
+  override def save(share: HeldShare): Unit =
+    shares += share
     serializeShares()
