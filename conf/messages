@@ -3,6 +3,14 @@ locale = en
 notFound.title = Not Found
 notFound.page = The page that you have requested has not been found.
 
+abode = Abode
+# https://developer.apple.com/app-store/marketing/guidelines/
+abode.button.AS = Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg
+# https://partnermarketinghub.withgoogle.com/brands/google-play/visual-identity/badge-guidelines/
+abode.button.GP = GetItOnGooglePlay_Badge_Web_color_English.svg
+abode.chicken-and-egg = Maintaining secrets is a chicken-and-egg problem. Secret Sharing (also called Secret Splitting) solves it. Deposplit makes Secret Sharing convenient to use with people you trust – without having to entrust them with the actual secrets.
+abode.dude = Dude, where''s my secret?
+
 legalese = Legalese
 legalese.masthead = Imprint
 legalese.pp = Privacy Policy
