@@ -25,5 +25,73 @@
 @()(implicit request: RequestHeader, messages: Messages)
 
 @main("Deposplit") {
-  <h1>Deposplit</h1>
+
+  <div class="p-5 text-center bg-body-tertiary rounded">
+    <h1>@messages("abode.dude")</h1>
+    <p class="lead">@messages("abode.chicken-and-egg")</p>
+    <a href="#" class="btn"><img src="@routes.Assets.versioned("images/"+messages("abode.button.AS"))" height="80" alt="Download on the App Store"></a>
+    <a href="#" class="btn"><img src="@routes.Assets.versioned("images/"+messages("abode.button.GP"))" height="80" alt="Get It On Google Play"></a>
+  </div>
+
+  <div id="carouselIndicators" class="carousel slide">
+    <div class="carousel-indicators">
+      <button type="button" data-bs-target="#carouselIndicators" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+      <button type="button" data-bs-target="#carouselIndicators" data-bs-slide-to="1" aria-label="Slide 2"></button>
+    </div>
+    <div class="carousel-inner">
+      <div class="carousel-item active">
+        <div class="row">
+          <div class="col bg-danger">
+          </div>
+          <div class="col-4 bg-danger-subtle p-4 text-start" hx-trigger="load" hx-get="/problem?embedded=false">
+            <output class="spinner-border">
+              <span class="visually-hidden">Loading …</span>
+            </output>
+          </div>
+          <div class="col-4 bg-success-subtle p-4 text-end" hx-trigger="load" hx-get="/solution?embedded=false">
+            <output class="spinner-border">
+              <span class="visually-hidden">Loading …</span>
+            </output>
+          </div>
+          <div class="col bg-success">
+          </div>
+        </div>
+      </div>
+      <div class="carousel-item">
+        <div class="row">
+          <div class="col bg-info">
+          </div>
+          <div class="col-4 bg-info-subtle p-4 text-start" hx-trigger="load" hx-get="/theory?embedded=false">
+            <output class="spinner-border">
+              <span class="visually-hidden">Loading …</span>
+            </output>
+          </div>
+          <div class="col-4 bg-warning-subtle p-4 text-end" hx-trigger="load" hx-get="/practice?embedded=false">
+            <output class="spinner-border">
+              <span class="visually-hidden">Loading …</span>
+            </output>
+          </div>
+          <div class="col bg-warning">
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#carouselIndicators" data-bs-slide="prev">
+      <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+      <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#carouselIndicators" data-bs-slide="next">
+      <span class="carousel-control-next-icon" aria-hidden="true"></span>
+      <span class="visually-hidden">Next</span>
+    </button>
+  </div>
+
+  <div class="p-5 text-center bg-body rounded">
+    <h2>@messages("abode.name")</h2>
+    <span hx-trigger="load" hx-get="/name?embedded=false">
+      <output class="spinner-border">
+        <span class="visually-hidden">Loading …</span>
+      </output>
+    </span>
+  </div>
 }

@@ -1,0 +1,1 @@
+*Deposplit* ist ein Wortspiel, nämlich von [*Depot*](https://www.duden.de/rechtschreibung/Depot) und [*split*](https://de.pons.com/%C3%BCbersetzung/englisch-deutsch/split). Meine Wenigkeit hatte Secret Sharing im Kontext vom [*Secure Distributed Deposits*-Projekt](/origin) kennengelernt.

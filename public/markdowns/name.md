@@ -1,0 +1,1 @@
+*Deposplit* is a play on words, namely on [*deposit*](https://www.merriam-webster.com/dictionary/deposit)/[*depository*](https://www.merriam-webster.com/dictionary/depository) and [*split*](https://www.merriam-webster.com/dictionary/split). Yours truly had learned of secret sharing in the context of the [*Secure Distributed Deposits* project](/origin).
