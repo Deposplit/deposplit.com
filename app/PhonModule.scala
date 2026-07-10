@@ -27,7 +27,7 @@ import driven_ports.ContactRepository
 import driven_ports.ForgettableIdentityStore
 import driven_ports.IdentityStore
 import driven_ports.ShareMetadataRepository
-import driven_ports.ShareRelay
+import driven_ports.ShareRelayResolver
 import driven_ports.ShareRepository
 import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
@@ -37,7 +37,7 @@ import driven_adapters.phon.FileContactRepository
 import driven_adapters.phon.FileIdentityStore
 import driven_adapters.phon.FileShareMetadataRepository
 import driven_adapters.phon.FileShareRepository
-import driven_adapters.phon.HttpClientShareRelay
+import driven_adapters.phon.HttpClientRelayResolver
 import driving_adapters.ContactService
 import driving_adapters.IdentityService
 import driving_adapters.ShareEncryption
@@ -54,5 +54,5 @@ class PhonModule extends AbstractModule:
     bind(classOf[ContactManagement]).to(classOf[ContactService])
     bind(classOf[ShareManagement]).to(classOf[ShareService])
     bind(classOf[ShareMetadataRepository]).to(classOf[FileShareMetadataRepository])
-    bind(classOf[ShareRelay]).to(classOf[HttpClientShareRelay])
+    bind(classOf[ShareRelayResolver]).to(classOf[HttpClientRelayResolver])
     bind(classOf[ShareRepository]).to(classOf[FileShareRepository])

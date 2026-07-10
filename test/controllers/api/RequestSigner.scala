@@ -57,14 +57,48 @@ class RequestSigner:
   def authHeaders(method: String, path: String, body: Array[Byte] = Array.empty): Seq[(String, String)] =
     val nonce = s"${System.currentTimeMillis()}.${UUID.randomUUID().toString.take(8)}"
     val canon = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(body)}".getBytes("UTF-8")
-    val signer = new Ed25519Signer()
-    signer.init(true, privKey)
-    signer.update(canon, 0, canon.length)
     Seq(
       "X-Deposplit-Public-Key" -> publicKeyHeader,
       "X-Deposplit-Nonce" -> nonce,
-      "X-Deposplit-Signature" -> b64url.encodeToString(signer.generateSignature())
+      "X-Deposplit-Signature" -> b64url.encodeToString(rawSign(canon))
     )
+
+  private def rawSign(bytes: Array[Byte]): Array[Byte] =
+    val signer = new Ed25519Signer()
+    signer.init(true, privKey)
+    signer.update(bytes, 0, bytes.length)
+    signer.generateSignature()
+
+  // ── Payload-level signatures (senderSignature / recipientSignature) ────────
+  // Mirrors hexagons/relay's PayloadCanonical byte-for-byte — see that object for the
+  // rationale (epoch-millis timestamps, lowercase UUIDs) behind this exact construction.
+
+  /** Signs an `openShareRequest` payload. `secretCreatedAt` is the ISO-8601 wire string (e.g.
+    * "2026-01-01T00:00:00Z"); `ciphertext` is the standard-base64 string as it appears on the wire.
+    */
+  def signOpen(
+      secretId: String,
+      requestType: String,
+      recipientKey: String,
+      label: String,
+      secretCreatedAt: String,
+      shareId: Option[String] = None,
+      ciphertext: Option[String] = None
+  ): String =
+    val epochMs = java.time.Instant.parse(secretCreatedAt).toEpochMilli
+    val canon = Seq(secretId, requestType, recipientKey, label, epochMs.toString, shareId.getOrElse(""), ciphertext.getOrElse(""))
+      .mkString("\n")
+      .getBytes("UTF-8")
+    b64url.encodeToString(rawSign(canon))
+
+  /** Signs a `respondToShareRequest` payload. `ciphertext` is the standard-base64 string as it
+    * appears on the wire.
+    */
+  def signRespond(requestId: String, approved: Boolean, ciphertext: Option[String] = None): String =
+    val canon = Seq(requestId, if approved then "approved" else "denied", ciphertext.getOrElse(""))
+      .mkString("\n")
+      .getBytes("UTF-8")
+    b64url.encodeToString(rawSign(canon))
 
   def get(path: String) =
     FakeRequest("GET", path).withHeaders(authHeaders("GET", path)*)

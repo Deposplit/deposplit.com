@@ -37,7 +37,11 @@ case class Contact(
     xPublicKey: Array[Byte],
     verificationLevel: VerificationLevel,
     verifiedAt: Option[Instant],
-    addedAt: Instant
+    addedAt: Instant,
+    /** BYOR override — None means "use the device's configured default relay". A pinned snapshot
+      * at contact-add time, not a live pointer, same TOFU trust model as the public keys.
+      */
+    relayBaseUrl: Option[String] = None
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id

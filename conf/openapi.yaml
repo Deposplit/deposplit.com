@@ -26,6 +26,40 @@ info:
     The Web app/service verifies the signature against the public key supplied in `X-Deposplit-Public-Key`.
     No pre-registration is required — the keypair is the identity.
 
+    ## Payload signatures
+
+    Two additional Ed25519 signatures ride with every `ShareRequest` row, independent of the
+    transport-auth signature above. The transport signature authenticates the HTTP caller for one
+    specific call and is never persisted — it gives a later reader of a row (via `GET`) nothing to
+    re-verify authorship against. `senderSignature` and `recipientSignature` close that gap: any
+    holder of the author's Ed25519 public key can independently re-verify who authored a row,
+    regardless of which relay served it. This is what makes BYOR (routing a contact's shares
+    through a relay other than deposplit.com, e.g. a self-hosted instance) safe — a passive
+    third-party relay performs no verification of its own, so recipients verify client-side
+    instead.
+
+    `senderSignature` (required on every `POST /share-requests`) is an Ed25519 signature by the
+    caller (who becomes `senderKey`) over:
+
+    ```
+    secretId || "\n" || requestType || "\n" || recipientKey(base64url) || "\n" || label || "\n"
+      || epochMillis(secretCreatedAt) || "\n" || (shareId or "") || "\n" || (base64-standard(ciphertext) or "")
+    ```
+
+    `recipientSignature` (required on every `PATCH /share-requests/{requestId}`, including
+    denials) is an Ed25519 signature by the caller (who must be `recipientKey`) over:
+
+    ```
+    requestId || "\n" || ("approved" or "denied") || "\n" || (base64-standard(ciphertext) or "")
+    ```
+
+    `secretCreatedAt` is signed as epoch milliseconds (not the ISO-8601 wire string) and UUIDs are
+    signed lowercase — both choices exist solely to keep the signed bytes identical across
+    independently-implemented clients. Both signatures are base64url-encoded (no padding) on the
+    wire, matching `X-Deposplit-Signature`. The Web app/service also verifies both server-side as
+    defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
+    this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
+
     ## Key exchange
 
     Contacts exchange public keys out-of-band (QR code scanned in person, or a link shared
@@ -108,7 +142,7 @@ components:
         use the same flat structure. `ciphertext` and `shareId` semantics depend on `requestType`
         — see field descriptions.
       type: object
-      required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, requestType, state, requestedAt]
+      required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, requestType, state, requestedAt, senderSignature]
       properties:
         id:
           type: string
@@ -159,10 +193,21 @@ components:
             stored temporarily until the sender collects it via GET.
 
             `delete`: always null.
+        senderSignature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by senderKey — see "Payload signatures" above.
+            Set at creation, never cleared.
+        recipientSignature:
+          type: string
+          nullable: true
+          description: >
+            Base64url Ed25519 signature by recipientKey — see "Payload signatures" above.
+            Null while the request is pending.
 
     OpenShareRequestBody:
       type: object
-      required: [requestType, secretId, label, recipientKey, secretCreatedAt]
+      required: [requestType, secretId, label, recipientKey, secretCreatedAt, senderSignature]
       properties:
         requestType:
           $ref: '#/components/schemas/ShareRequestType'
@@ -188,6 +233,11 @@ components:
           description: >
             Required for `pick_up` requests: the encrypted share bytes.
             Must be omitted for `retrieve` and `delete` requests.
+        senderSignature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by the caller over this request's canonical bytes —
+            see "Payload signatures" above. Returns `400` if it doesn't verify.
 
     Error:
       type: object
@@ -228,7 +278,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShareRequest'
         '400':
-          description: Missing required field (e.g. ciphertext absent for pick_up).
+          description: Missing required field (e.g. ciphertext absent for pick_up), or senderSignature missing/invalid.
           content:
             application/json:
               schema:
@@ -365,7 +415,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [state]
+              required: [state, recipientSignature]
               properties:
                 state:
                   type: string
@@ -374,6 +424,12 @@ paths:
                   type: string
                   format: byte
                   description: Required when approving a `retrieve` request.
+                recipientSignature:
+                  type: string
+                  description: >
+                    Base64url Ed25519 signature by the caller over this response's canonical
+                    bytes — see "Payload signatures" above. Required unconditionally, including
+                    denials. Returns `400` if it doesn't verify.
       responses:
         '200':
           description: Decision recorded. For `pick_up` approval, includes `ciphertext`.
@@ -382,7 +438,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShareRequest'
         '400':
-          description: Ciphertext required (retrieve approval) but absent.
+          description: Ciphertext required (retrieve approval) but absent, or recipientSignature missing/invalid.
           content:
             application/json:
               schema:

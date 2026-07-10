@@ -64,12 +64,13 @@ trait ShareRepository:
       requestType: ShareRequestType
   ): Boolean
 
-  /** Updates the state, response timestamp, and ciphertext of a request. */
+  /** Updates the state, response timestamp, ciphertext, and recipient signature of a request. */
   def updateShareRequest(
       requestId: UUID,
       state: ShareRequestState,
       respondedAt: Instant,
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      recipientSignature: Signature
   ): Unit
 
   /** Deletes a single request row by primary key. */

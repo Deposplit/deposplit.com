@@ -37,6 +37,11 @@ import java.util.UUID
   *   - PickUp:   provided by Alice at creation; delivered to Bob on approval and cleared.
   *   - Retrieve: provided by Bob on approval; stored until Alice collects it.
   *   - Delete:   always None.
+  *
+  * `senderSignature` and `recipientSignature` are Ed25519 signatures over `PayloadCanonical`'s
+  * byte constructions — independent of the transport-auth signature, they let any reader
+  * re-verify authorship, which is what makes BYOR (a passive third-party relay) safe. See
+  * `PayloadCanonical` for the exact bytes signed.
   */
 case class ShareRequest(
     id: UUID,
@@ -50,5 +55,7 @@ case class ShareRequest(
     shareId: Option[UUID],
     requestedAt: Instant,
     respondedAt: Option[Instant],
-    ciphertext: Option[Array[Byte]]
+    ciphertext: Option[Array[Byte]],
+    senderSignature: Signature,
+    recipientSignature: Option[Signature]
 )

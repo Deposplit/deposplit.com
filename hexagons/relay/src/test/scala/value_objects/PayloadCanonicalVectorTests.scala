@@ -1,0 +1,88 @@
+/*
+ * The MIT License
+ *
+ * Copyright (c) 2026 Squeng AG
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+package value_objects
+
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
+import org.bouncycastle.crypto.signers.Ed25519Signer
+
+import java.time.Instant
+import java.util.Base64
+import java.util.UUID
+
+/** Cross-platform interop vector for `PayloadCanonical.forOpen`'s byte construction — mirrors
+  * the existing hand-derived SSS test vectors (`ShamirTest.kt` / `ShamirSecretSharingTests.swift`,
+  * see deposplit.com/CLAUDE.md "Cross-Platform Compatibility"). Ed25519 sign/verify interop across
+  * BouncyCastle/CryptoKit is already proven via the transport-auth signature; what this vector
+  * actually exercises is the *canonical byte construction* itself — a field-order or encoding
+  * slip on any one platform would silently produce a different signature than the other two even
+  * though each platform's own sign/verify round-trips fine internally.
+  *
+  * Identical fixed inputs, keypair, and expected outputs are checked into
+  * `Android/hexagon/src/test/kotlin/com/deposplit/value_objects/PayloadCanonicalVectorTest.kt` and
+  * `iOS/hexagon/Tests/PayloadCanonicalVectorTests.swift`. All three must produce byte-identical
+  * canonical bytes and the same signature for the same 32-byte private key seed.
+  */
+class PayloadCanonicalVectorTests extends munit.FunSuite:
+
+  private val b64url = Base64.getUrlEncoder.withoutPadding
+
+  // Private key seed: bytes 0x00..0x1f. Not a real identity — a fixed, reproducible fixture.
+  private val privateKeySeed: Array[Byte] = (0 until 32).map(_.toByte).toArray
+  private val expectedPublicKeyBase64Url = "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+  private val expectedSignatureBase64Url =
+    "_EvKOl019mJekfMc34HdAkiEULJGph_zAz-yqwqgX25_JlBkTweeqOeSJJKf2tEb0peCZez_3YKY-DHdHF7NAw"
+
+  private val secretId = SecretId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+  private val recipientKey = PublicKey.fromBytes(Array.fill(32)(0x02.toByte)).getOrElse(fail("bad fixture key"))
+  private val label = Label("cross-platform test vector")
+  private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
+  private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
+
+  test("forOpen produces the fixed canonical bytes") {
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val expected =
+      "11111111-1111-1111-1111-111111111111\npick_up\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU="
+    assertEquals(new String(canon, "UTF-8"), expected)
+  }
+
+  test("signing the canonical bytes with the fixed seed reproduces the fixed signature") {
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val privKey = Ed25519PrivateKeyParameters(privateKeySeed, 0)
+    val pubKey = privKey.generatePublicKey()
+    assertEquals(b64url.encodeToString(pubKey.getEncoded), expectedPublicKeyBase64Url)
+
+    val signer = Ed25519Signer()
+    signer.init(true, privKey)
+    signer.update(canon, 0, canon.length)
+    val sig = signer.generateSignature()
+    assertEquals(b64url.encodeToString(sig), expectedSignatureBase64Url)
+  }
+
+  test("the fixed signature verifies against the fixed public key via PublicKey.verify") {
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val pk = PublicKey.fromBase64Url(expectedPublicKeyBase64Url).getOrElse(fail("bad fixture key"))
+    val sig = Signature.fromBase64Url(expectedSignatureBase64Url).getOrElse(fail("bad fixture signature"))
+    assert(pk.verify(canon, sig))
+  }

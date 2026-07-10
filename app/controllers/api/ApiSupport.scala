@@ -31,6 +31,7 @@ import value_objects.Error
 import value_objects.ShareRequest
 import value_objects.ShareRequestState
 import value_objects.ShareRequestType
+import value_objects.Signature
 
 import java.util.Base64
 
@@ -66,7 +67,10 @@ trait ApiSupport { self: BaseController =>
         case ShareRequestState.Denied   => "denied"),
       "shareId"          -> req.shareId.map(_.toString),
       "requestedAt"      -> req.requestedAt.toString,
-      "respondedAt"      -> req.respondedAt.map(_.toString)
+      "respondedAt"      -> req.respondedAt.map(_.toString),
+      "senderSignature"  -> req.senderSignature.toBase64Url
     )
-    req.ciphertext.fold(base)(ct => base + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
+    val withRecipientSig =
+      req.recipientSignature.fold(base)(sig => base + ("recipientSignature" -> JsString(sig.toBase64Url)))
+    req.ciphertext.fold(withRecipientSig)(ct => withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
 }

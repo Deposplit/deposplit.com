@@ -29,7 +29,13 @@ import play.api.libs.json.OFormat
 
 import java.util.Base64
 
-final case class QrPayload(v: Int, pseudonym: String, ed: String, x: String)
+/** `relay` carries the *displaying* device's currently-configured relay — the out-of-band
+  * exchange mechanism BYOR uses (deposplit.com/CLAUDE.md "BYOR"). `None`/absent means "use the
+  * scanning device's own default relay". Compatible both directions regardless of the `v` bump:
+  * Play JSON's `Option[T]` macro treats a missing key as `None`, and old (`v=1`) readers simply
+  * ignore the extra field.
+  */
+final case class QrPayload(v: Int, pseudonym: String, ed: String, x: String, relay: Option[String] = None)
 
 object QrPayload:
 
@@ -38,12 +44,13 @@ object QrPayload:
   private val encoder = Base64.getUrlEncoder.withoutPadding()
   private val decoder = Base64.getUrlDecoder()
 
-  def apply(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): QrPayload =
+  def apply(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String]): QrPayload =
     QrPayload(
-      v = 1,
+      v = 2,
       pseudonym = pseudonym,
       ed = encoder.encodeToString(edPublicKey),
-      x = encoder.encodeToString(xPublicKey)
+      x = encoder.encodeToString(xPublicKey),
+      relay = relayBaseUrl
     )
 
   def encodeKey(key: Array[Byte]): String = encoder.encodeToString(key)
@@ -51,8 +58,8 @@ object QrPayload:
   def encode(qrPayload: QrPayload): String =
     Json.toJson(qrPayload).toString
 
-  def encode(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): String =
-    encode(apply(pseudonym, edPublicKey, xPublicKey))
+  def encode(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String]): String =
+    encode(apply(pseudonym, edPublicKey, xPublicKey, relayBaseUrl))
 
   def decode(raw: String): QrPayload = Json.parse(raw).as[QrPayload]
 

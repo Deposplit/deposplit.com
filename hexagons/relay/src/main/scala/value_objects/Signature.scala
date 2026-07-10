@@ -32,6 +32,7 @@ opaque type Signature = Array[Byte]
 object Signature:
   private val SigLength = 64
   private val decoder = Base64.getUrlDecoder
+  private val encoder = Base64.getUrlEncoder.withoutPadding
 
   def fromBase64Url(s: String): Either[String, Signature] =
     try
@@ -40,4 +41,10 @@ object Signature:
       else Right(bytes)
     catch case _: IllegalArgumentException => Left(s"invalid base64url: $s")
 
-  extension (sig: Signature) def toBytes: Array[Byte] = sig
+  def fromBytes(bytes: Array[Byte]): Either[String, Signature] =
+    if bytes.length != SigLength then Left(s"Ed25519 signature must be $SigLength bytes")
+    else Right(bytes)
+
+  extension (sig: Signature)
+    def toBytes: Array[Byte] = sig
+    def toBase64Url: String = encoder.encodeToString(sig)

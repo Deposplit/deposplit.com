@@ -42,6 +42,10 @@ trait ShareRequests:
     *
     * `shareId` is ignored for PickUp. For Retrieve and Delete it should be the id of the
     * originating PickUp request — the relay stores it opaquely for the client's benefit.
+    *
+    * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the
+    * other arguments — defense-in-depth alongside the transport-auth signature already checked
+    * by the caller (`AuthHelper`). Returns `BadRequest` if it doesn't verify.
     */
   def openShareRequest(
       senderKey: PublicKey,
@@ -51,7 +55,8 @@ trait ShareRequests:
       secretCreatedAt: Instant,
       requestType: ShareRequestType,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      senderSignature: Signature
   ): Either[Error, ShareRequest]
 
   /** Lists share requests, optionally filtered by type and/or state.
@@ -78,12 +83,17 @@ trait ShareRequests:
     * - Denying any type:   state → Denied; ciphertext cleared if present.
     *
     * Returns `Conflict` if the request is no longer Pending.
+    *
+    * `recipientSignature` must verify against `recipientKey` over `PayloadCanonical.forRespond`
+    * of the other arguments — required unconditionally, including denials. Returns `BadRequest`
+    * if it doesn't verify.
     */
   def respondToShareRequest(
       recipientKey: PublicKey,
       requestId: UUID,
       approved: Boolean,
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      recipientSignature: Signature
   ): Either[Error, ShareRequest]
 
   /** Deletes a request from the relay. Sender or recipient may delete any request they are party to.

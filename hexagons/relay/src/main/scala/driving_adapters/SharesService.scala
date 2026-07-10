@@ -45,8 +45,11 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       secretCreatedAt: Instant,
       requestType: ShareRequestType,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      senderSignature: Signature
   ): Either[Error, ShareRequest] =
+    val canon = PayloadCanonical.forOpen(secretId, requestType, recipientKey, label, secretCreatedAt, shareId, ciphertext)
+    if !senderKey.verify(canon, senderSignature) then return Left(Error.BadRequest)
     requestType match
       case ShareRequestType.PickUp =>
         if ciphertext.isEmpty then return Left(Error.BadRequest)
@@ -65,7 +68,9 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       shareId = if requestType == ShareRequestType.PickUp then None else shareId,
       requestedAt = Instant.now(),
       respondedAt = None,
-      ciphertext = if requestType == ShareRequestType.PickUp then ciphertext else None
+      ciphertext = if requestType == ShareRequestType.PickUp then ciphertext else None,
+      senderSignature = senderSignature,
+      recipientSignature = None
     )
     repository.saveShareRequest(request)
     // Don't return the ciphertext on creation — it's stored in the relay for Bob to
@@ -94,8 +99,11 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       recipientKey: PublicKey,
       requestId: UUID,
       approved: Boolean,
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      recipientSignature: Signature
   ): Either[Error, ShareRequest] =
+    if !recipientKey.verify(PayloadCanonical.forRespond(requestId, approved, ciphertext), recipientSignature) then
+      return Left(Error.BadRequest)
     repository.getShareRequestById(requestId) match
       case None                                                  => Left(Error.NotFound)
       case Some(req) if !sameKey(req.recipientKey, recipientKey) => Left(Error.Forbidden)
@@ -109,10 +117,17 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         // For Retrieve approval: store Bob's ciphertext for Alice to collect later.
         val returnedCt = if approved && req.requestType == ShareRequestType.PickUp then req.ciphertext else None
         val storedCt = if approved && req.requestType == ShareRequestType.Retrieve then ciphertext else None
-        repository.updateShareRequest(requestId, newState, now, storedCt)
+        repository.updateShareRequest(requestId, newState, now, storedCt, recipientSignature)
         if approved && req.requestType == ShareRequestType.Delete then
           repository.deleteShareRequests(req.recipientKey, Some(req.senderKey), Some(req.secretId))
-        Right(req.copy(state = newState, respondedAt = Some(now), ciphertext = returnedCt.orElse(storedCt)))
+        Right(
+          req.copy(
+            state = newState,
+            respondedAt = Some(now),
+            ciphertext = returnedCt.orElse(storedCt),
+            recipientSignature = Some(recipientSignature)
+          )
+        )
 
   override def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit] =
     repository.getShareRequestById(requestId) match

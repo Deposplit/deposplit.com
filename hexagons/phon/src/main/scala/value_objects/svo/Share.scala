@@ -36,7 +36,11 @@ enum ShareRequestType:
 enum ShareRequestState:
   case Pending, Approved, Denied
 
-/** Flat mirror of the relay's ShareRequest — every request type uses the same structure. */
+/** Flat mirror of the relay's ShareRequest — every request type uses the same structure.
+  *
+  * `senderSignature`/`recipientSignature` are Ed25519 signatures over `PayloadCanonical`'s byte
+  * constructions, independent of the transport-auth signature — see `PayloadCanonical` for why.
+  */
 case class ShareRequest(
     id: UUID,
     secretId: UUID,
@@ -50,7 +54,9 @@ case class ShareRequest(
     shareId: Option[UUID],
     requestedAt: Instant,
     respondedAt: Option[Instant],
-    ciphertext: Option[Array[Byte]]
+    ciphertext: Option[Array[Byte]],
+    senderSignature: Array[Byte],
+    recipientSignature: Option[Array[Byte]]
 ):
   override def equals(other: Any): Boolean = other match
     case r: ShareRequest => id == r.id

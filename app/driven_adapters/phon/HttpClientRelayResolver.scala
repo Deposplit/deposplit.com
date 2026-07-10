@@ -22,18 +22,26 @@
  * THE SOFTWARE.
  */
 
-package driving_ports
+package driven_adapters.phon
 
-trait Identity:
-  def isRegistered(): Boolean
-  def register(pseudonym: String): Unit
-  def pseudonym(): String
-  def edPublicKey(): Array[Byte]
-  def xPublicKey(): Array[Byte]
-  def sign(message: Array[Byte]): Array[Byte]
+import driven_ports.ShareRelay
+import driven_ports.ShareRelayResolver
+import driving_ports.Identity
+import jakarta.inject.Inject
 
-  /** Verifies an Ed25519 `signature` over `message` against `publicKey` (someone else's, not this
-    * identity's own). Used to independently re-verify the `senderSignature`/`recipientSignature`
-    * that ride with a `ShareRequest` row — see `PayloadCanonical`.
-    */
-  def verify(message: Array[Byte], signature: Array[Byte], publicKey: Array[Byte]): Boolean
+import java.util.concurrent.ConcurrentHashMap
+
+/** phon is a manual-testing dev tool, not a real device — it has no persisted "default relay"
+  * setting (unlike Android/iOS's runtime-configurable default). It hardcodes the same
+  * `localhost:9000` default `HttpClientShareRelay` always used, but still honors a per-contact
+  * `relayBaseUrl` override so BYOR can be exercised in interop testing (e.g. two local `sbt run`
+  * instances on different ports).
+  */
+class HttpClientRelayResolver @Inject() (identity: Identity) extends ShareRelayResolver:
+
+  private val DefaultBaseUrl = "http://localhost:9000"
+  private val cache = ConcurrentHashMap[String, ShareRelay]()
+
+  override def resolve(relayBaseUrl: Option[String]): ShareRelay =
+    val url = relayBaseUrl.getOrElse(DefaultBaseUrl)
+    cache.computeIfAbsent(url, u => HttpClientShareRelay(identity, u))

@@ -83,6 +83,14 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     signer.update(message, 0, message.length)
     signer.generateSignature()
 
+  override def verify(message: Array[Byte], signature: Array[Byte], publicKey: Array[Byte]): Boolean =
+    try
+      val verifier = Ed25519Signer()
+      verifier.init(false, Ed25519PublicKeyParameters(publicKey, 0))
+      verifier.update(message, 0, message.length)
+      verifier.verifySignature(signature)
+    catch case _: Exception => false
+
   override def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] =
     val sk = X25519PrivateKeyParameters(identityStore.xPrivateKey())
     val nonce = Array.ofDim[Byte](IdentityService.NonceBytes)

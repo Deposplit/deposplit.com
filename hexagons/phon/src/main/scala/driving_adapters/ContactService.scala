@@ -38,7 +38,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
   def listContacts(): List[Contact] =
     contactRepository.getAll()
 
-  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): Unit =
+  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
     require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
     require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
@@ -51,11 +51,12 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         xPublicKey = xPublicKey,
         verificationLevel = VerificationLevel.Unverified,
         verifiedAt = None,
-        addedAt = now
+        addedAt = now,
+        relayBaseUrl = relayBaseUrl
       )
     )
 
-  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): Unit =
+  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
     require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
     require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
@@ -68,7 +69,8 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         xPublicKey = xPublicKey,
         verificationLevel = VerificationLevel.Verified,
         verifiedAt = Some(now),
-        addedAt = now
+        addedAt = now,
+        relayBaseUrl = relayBaseUrl
       )
     )
 

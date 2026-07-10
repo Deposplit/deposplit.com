@@ -77,6 +77,10 @@ class ShareRequestsController @Inject() (
         .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
       shareId = (json \ "shareId").asOpt[String].flatMap(parseUuid)
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
+      sigStr <- (json \ "senderSignature")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "senderSignature is required")))
+      senderSignature <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
       req <- shares
         .openShareRequest(
           callerKey,
@@ -86,7 +90,8 @@ class ShareRequestsController @Inject() (
           secretCreatedAt,
           requestType,
           shareId,
-          ciphertext
+          ciphertext,
+          senderSignature
         )
         .left
         .map(domainErrorToResult)
@@ -149,7 +154,14 @@ class ShareRequestsController @Inject() (
         case "denied"   => Right(false)
         case _          => Left(BadRequest(errorJson("invalid_field", "state must be 'approved' or 'denied'")))
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
-      req <- shares.respondToShareRequest(callerKey, id, approved, ciphertext).left.map(domainErrorToResult)
+      sigStr <- (json \ "recipientSignature")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "recipientSignature is required")))
+      recipientSignature <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
+      req <- shares
+        .respondToShareRequest(callerKey, id, approved, ciphertext, recipientSignature)
+        .left
+        .map(domainErrorToResult)
     yield Ok(shareRequestJson(req))
     result.merge
   }

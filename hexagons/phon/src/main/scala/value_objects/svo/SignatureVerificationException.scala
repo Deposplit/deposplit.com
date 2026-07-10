@@ -22,18 +22,11 @@
  * THE SOFTWARE.
  */
 
-package driving_ports
+package value_objects.svo
 
-trait Identity:
-  def isRegistered(): Boolean
-  def register(pseudonym: String): Unit
-  def pseudonym(): String
-  def edPublicKey(): Array[Byte]
-  def xPublicKey(): Array[Byte]
-  def sign(message: Array[Byte]): Array[Byte]
-
-  /** Verifies an Ed25519 `signature` over `message` against `publicKey` (someone else's, not this
-    * identity's own). Used to independently re-verify the `senderSignature`/`recipientSignature`
-    * that ride with a `ShareRequest` row — see `PayloadCanonical`.
-    */
-  def verify(message: Array[Byte], signature: Array[Byte], publicKey: Array[Byte]): Boolean
+/** Thrown by explicit user-initiated flows (`respond`) when a `senderSignature`/
+  * `recipientSignature` fails to verify against the sender/recipient's known public key.
+  * Background/fan-out flows (`syncInbox`, `listPendingRequests`) silently drop unverified rows
+  * instead of throwing — see `deposplit.com/CLAUDE.md`'s BYOR section.
+  */
+final case class SignatureVerificationException(message: String) extends Exception(message)

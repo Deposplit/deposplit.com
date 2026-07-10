@@ -57,6 +57,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   private def parseKey(bytes: Array[Byte]): PublicKey =
     PublicKey.fromBytes(bytes).getOrElse(sys.error(s"corrupt public key in DB (${bytes.length} bytes)"))
 
+  private def parseSignature(bytes: Array[Byte]): Signature =
+    Signature.fromBytes(bytes).getOrElse(sys.error(s"corrupt signature in DB (${bytes.length} bytes)"))
+
   // ---------------------------------------------------------------------------
   // Row parser
   // ---------------------------------------------------------------------------
@@ -73,8 +76,10 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Option[UUID]]("share_id") ~
       get[Instant]("requested_at") ~
       get[Option[Instant]]("responded_at") ~
-      get[Option[Array[Byte]]]("ciphertext") map {
-        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ rt ~ st ~ shId ~ reqAt ~ resAt ~ ct =>
+      get[Option[Array[Byte]]]("ciphertext") ~
+      get[Array[Byte]]("sender_signature") ~
+      get[Option[Array[Byte]]]("recipient_signature") map {
+        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ rt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ sSig ~ rSig =>
           ShareRequest(
             id = id,
             secretId = SecretId(sid),
@@ -95,7 +100,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             shareId = shId,
             requestedAt = reqAt,
             respondedAt = resAt,
-            ciphertext = ct
+            ciphertext = ct,
+            senderSignature = parseSignature(sSig),
+            recipientSignature = rSig.map(parseSignature)
           )
       }
 
@@ -121,10 +128,11 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO share_requests
-          (id, secret_id, label, sender_key, recipient_key, request_type, share_id, ciphertext, secret_created_at)
+          (id, secret_id, label, sender_key, recipient_key, request_type, share_id, ciphertext,
+           secret_created_at, sender_signature)
         VALUES
           ({id}::uuid, {secretId}::uuid, {label}, {senderKey}, {recipientKey},
-           {requestType}, {shareId}::uuid, {ciphertext}, {secretCreatedAt})
+           {requestType}, {shareId}::uuid, {ciphertext}, {secretCreatedAt}, {senderSignature})
       """)
         .on(
           "id" -> request.id.toString,
@@ -135,7 +143,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           "requestType" -> requestTypeStr(request.requestType),
           "shareId" -> request.shareId.map(_.toString).orNull,
           "ciphertext" -> request.ciphertext.orNull,
-          "secretCreatedAt" -> request.secretCreatedAt
+          "secretCreatedAt" -> request.secretCreatedAt,
+          "senderSignature" -> request.senderSignature.toBytes
         )
         .executeUpdate()
     }
@@ -235,19 +244,22 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       requestId: UUID,
       state: ShareRequestState,
       respondedAt: Instant,
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      recipientSignature: Signature
   ): Unit =
     db.withConnection { implicit conn =>
       SQL("""
         UPDATE share_requests
-        SET state = {state}, responded_at = {respondedAt}, ciphertext = {ciphertext}
+        SET state = {state}, responded_at = {respondedAt}, ciphertext = {ciphertext},
+            recipient_signature = {recipientSignature}
         WHERE id = {id}::uuid
       """)
         .on(
           "id" -> requestId.toString,
           "state" -> stateStr(state),
           "respondedAt" -> respondedAt,
-          "ciphertext" -> ciphertext.orNull
+          "ciphertext" -> ciphertext.orNull,
+          "recipientSignature" -> recipientSignature.toBytes
         )
         .executeUpdate()
     }

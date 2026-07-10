@@ -29,6 +29,6 @@ import value_objects.svo.Contact
 
 trait ContactManagement:
   def listContacts(): List[Contact]
-  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): Unit
-  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte]): Unit
+  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
+  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
   def deleteContact(contactId: UUID): Unit

@@ -44,7 +44,8 @@ trait ShareRelay:
       secretCreatedAt: Instant,
       requestType: ShareRequestType,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      senderSignature: Array[Byte]
   ): ShareRequest
 
   def listShareRequests(
@@ -58,7 +59,8 @@ trait ShareRelay:
   def respondToShareRequest(
       requestId: UUID,
       approved: Boolean,
-      ciphertext: Option[Array[Byte]] = None
+      ciphertext: Option[Array[Byte]] = None,
+      recipientSignature: Array[Byte]
   ): ShareRequest
 
   /** Delete a single request by id.

@@ -22,18 +22,12 @@
  * THE SOFTWARE.
  */
 
-package driving_ports
+package driven_ports
 
-trait Identity:
-  def isRegistered(): Boolean
-  def register(pseudonym: String): Unit
-  def pseudonym(): String
-  def edPublicKey(): Array[Byte]
-  def xPublicKey(): Array[Byte]
-  def sign(message: Array[Byte]): Array[Byte]
-
-  /** Verifies an Ed25519 `signature` over `message` against `publicKey` (someone else's, not this
-    * identity's own). Used to independently re-verify the `senderSignature`/`recipientSignature`
-    * that ride with a `ShareRequest` row — see `PayloadCanonical`.
-    */
-  def verify(message: Array[Byte], signature: Array[Byte], publicKey: Array[Byte]): Boolean
+/** Resolves which [[ShareRelay]] to use for a given contact's BYOR override — a factory/cache,
+  * not a fan-out mechanism (fan-out across multiple relays is a ShareService-level policy
+  * decision, not an infrastructure concern). `None` resolves to the device's configured default
+  * relay.
+  */
+trait ShareRelayResolver:
+  def resolve(relayBaseUrl: Option[String]): ShareRelay

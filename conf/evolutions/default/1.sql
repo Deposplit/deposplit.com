@@ -21,6 +21,12 @@ CREATE TYPE share_request_state AS ENUM ('pending', 'approved', 'denied');
 -- secret_created_at is the client-supplied secret creation timestamp.
 -- requested_at is the server-side timestamp when this request was opened.
 --
+-- sender_signature and recipient_signature are Ed25519 signatures (64 bytes) that ride with the
+-- row so any reader (not just this relay) can independently re-verify authorship — required for
+-- BYOR, since a third-party relay performs no verification of its own. sender_signature is set
+-- at INSERT and never cleared. recipient_signature is NULL while pending, set on response. See
+-- hexagons/relay's PayloadCanonical for the exact bytes signed.
+--
 -- Note: partial unique indexes would add defence-in-depth but H2 does not support them.
 -- The application layer (ShareRequestsService) enforces uniqueness constraints instead.
 -- Add to production PostgreSQL separately:
@@ -42,7 +48,9 @@ CREATE TABLE share_requests (
     ciphertext        BYTEA,
     secret_created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     requested_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-    responded_at      TIMESTAMP WITH TIME ZONE
+    responded_at      TIMESTAMP WITH TIME ZONE,
+    sender_signature    BYTEA NOT NULL,
+    recipient_signature BYTEA
 );
 
 CREATE INDEX ON share_requests (sender_key);

@@ -44,9 +44,8 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
+class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "http://localhost:9000") extends ShareRelay:
 
-  private val baseUrl = "http://localhost:9000"
   private val httpClient = HttpClient.newHttpClient()
   private val secureRandom = SecureRandom()
 
@@ -59,7 +58,8 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
       secretCreatedAt: Instant,
       requestType: ShareRequestType,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      senderSignature: Array[Byte]
   ): ShareRequest =
     val body = Json
       .obj(
@@ -67,7 +67,8 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
         "recipientKey" -> encodeBase64Url(recipientKey),
         "label" -> label,
         "secretCreatedAt" -> secretCreatedAt.toString,
-        "requestType" -> requestTypeStr(requestType)
+        "requestType" -> requestTypeStr(requestType),
+        "senderSignature" -> encodeBase64Url(senderSignature)
       )
       .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
       .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
@@ -89,10 +90,14 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
   override def respondToShareRequest(
       requestId: UUID,
       approved: Boolean,
-      ciphertext: Option[Array[Byte]] = None
+      ciphertext: Option[Array[Byte]] = None,
+      recipientSignature: Array[Byte]
   ): ShareRequest =
     val body = Json
-      .obj("state" -> JsString(if approved then "approved" else "denied"))
+      .obj(
+        "state" -> JsString(if approved then "approved" else "denied"),
+        "recipientSignature" -> encodeBase64Url(recipientSignature)
+      )
       .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
     parseShareRequest(send("PATCH", s"/share-requests/$requestId", Some(body)))
 
@@ -175,7 +180,9 @@ class HttpClientShareRelay @Inject() (identity: Identity) extends ShareRelay:
       shareId = (json \ "shareId").asOpt[String].map(UUID.fromString),
       requestedAt = Instant.parse((json \ "requestedAt").as[String]),
       respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
-      ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64)
+      ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64),
+      senderSignature = decodeBase64Url((json \ "senderSignature").as[String]),
+      recipientSignature = (json \ "recipientSignature").asOpt[String].map(decodeBase64Url)
     )
 
   // ── Base64 ────────────────────────────────────────────────────────────────
