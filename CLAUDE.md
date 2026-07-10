@@ -340,11 +340,31 @@ sbt dist         # produce a production distribution zip
 
 ### iOS/ (Swift Package Manager — Swift 6.2.3)
 
+`Package.swift` lives in `iOS/hexagon/`, not at the `iOS/` repo root — the root holds `Deposplit.xcodeproj` (the app target, built/tested via `xcodebuild`). Commands below run from `iOS/hexagon/`, or from `iOS/` with `--package-path hexagon`:
+
 ```bash
-# from iOS/
+# from iOS/hexagon/
 swift build              # compile
 swift test               # run all tests
 swift test --filter ShamirSecretSharingTests  # single test target
 ```
 
 > **Note:** Swift on Windows writes to the Windows Console API, so its output is not captured by Git Bash. Run `swift test` from VS Code (Swift extension) or a native Windows terminal (PowerShell / Windows Terminal) instead.
+
+## Continuous Integration
+
+Each of the three repos has its own `.github/workflows/test.yml` and `.github/dependabot.yml`:
+
+| Repo | Workflow job | Runs | Runner |
+|---|---|---|---|
+| `deposplit.com/` | `sbt` | `sbt test` | `ubuntu-latest` |
+| `Android/` | `gradle` | `./gradlew test` (`:hexagon` + `:app` unit tests) | `ubuntu-latest` |
+| `iOS/` | `swift` | `swift test` (`working-directory: hexagon`) | `macos-latest` |
+
+All three trigger on push to any branch and on pull requests targeting `main`, run with `permissions: contents: read`, cancel superseded runs via a `concurrency` group, and pin third-party actions to a commit SHA (with a version comment) rather than a mutable tag. None of the test suites needs external services: deposplit.com's `sbt test` runs against an in-memory H2 database (`conf/test.conf`), and the Android/iOS jobs are JVM/Swift unit tests only — no emulator, simulator, or device required. The iOS job does not build or test the `Deposplit.xcodeproj` app target, since that needs a simulator; only the `hexagon` Swift package is covered.
+
+`dependabot.yml` runs weekly and covers:
+- All three repos: `github-actions` (the pinned action SHAs above).
+- `Android/`: also `gradle`, scoped to the repo root — covers `build.gradle.kts` in the root, `app`, and `hexagon` modules, and the `gradle/libs.versions.toml` version catalog.
+- `iOS/`: also `swift`, scoped to `/hexagon` where `Package.swift` lives. Currently a no-op, since `hexagon/Package.swift` declares no external dependencies yet.
+- `deposplit.com/`: sbt is not a Dependabot-supported ecosystem, so the Scala library and webjar (`bootstrap`, `popperjs__core`) dependencies declared in `build.sbt` are not covered.

@@ -194,3 +194,7 @@ If Alice loses her phone and cannot recover her private key, she generates a new
 Recovery requires **k-of-n social approval** — the same threshold k as the original secret split. Verification level informs the trust decision: a single in-person-verified recipient approving the request carries stronger assurance than multiple unverified approvals. The exact quorum rule is TBD.
 
 Once re-associated, recipients are encouraged to re-scan Alice's QR code in person to restore the verified relationship.
+
+## Continuous Integration
+
+Each repo (`deposplit.com/`, `Android/`, `iOS/`) has its own `.github/workflows/test.yml` that runs the platform's test suite — `sbt test`, `./gradlew test`, and `swift test` against the `iOS/hexagon` Swift package, respectively — on every push and on pull requests targeting `main`. `.github/dependabot.yml` keeps GitHub Actions, Gradle, and Swift Package Manager dependencies current on a weekly schedule.
