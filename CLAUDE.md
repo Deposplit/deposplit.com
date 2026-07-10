@@ -328,7 +328,7 @@ sbt hexagon/test # test hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 
-### Android/ (Kotlin 2.3, AGP 9.x, JVM 21 bytecode, runs on Java 25+)
+### Android/ (Kotlin 2.4, AGP 9.x, JVM 21 bytecode, runs on Java 25+)
 
 ```bash
 # from Android/
