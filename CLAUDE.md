@@ -70,8 +70,8 @@ Architecture follows **Ports & Adapters** enforced by sbt's multi-project build,
 
 | sbt subproject | Role |
 |---|---|
-| `hexagon/relay` | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `services` |
-| `hexagons/phon` | Phone emulator for manual end-to-end testing — mirrors the Android/iOS hexagon structure; simulates a device calling the live `http://localhost:9000` backend. Packages: `value_objects`, `driving_ports` (`Identity`, `ShareManagement`, `ContactManagement`), `driven_ports` (`IdentityStore`, `ContactRepository`, `ShareRelay`, `ShareRepository`, `ShareMetadataRepository`), `services` (`IdentityService`, `ShareEncryption`, `ContactService`, `ShareService`) |
+| `hexagons/relay` (sbt project `relay`) | Pure Scala library — business logic, port interfaces, no Play/framework imports. Packages: `value_objects`, `driving_ports`, `driven_ports.persistence`, `driving_adapters` |
+| `hexagons/phon` (sbt project `phon`) | Phone emulator for manual end-to-end testing — mirrors the Android/iOS hexagon structure; simulates a device calling the live `http://localhost:9000` backend. Packages: `value_objects`, `driving_ports` (`Identity`, `ShareManagement`, `ContactManagement`), `driven_ports` (`IdentityStore`, `ContactRepository`, `ShareRelay`, `ShareRepository`, `ShareMetadataRepository`), `driving_adapters` (`IdentityService`, `ShareEncryption`, `ContactService`, `ShareService`) |
 | root (Play app) | Adapters (DB, Web app/service API controllers), Twirl views, routes |
 
 The `hexagons` subprojects have **no dependency on Play** or any infrastructure library. The root Play project depends on `hexagons`; `hexagons` must never depend on the root. This enforces the hexagonal boundary at the build level.
@@ -82,7 +82,7 @@ The hexagons and root both programme **synchronously (blocking)** — no Scala `
 - **sbt** build tool (use standard `build.sbt` and `project/` Scala/sbt files)
 - **Play JSON** (`play-json`) for API serialisation — bundled with Play
 - **Twirl** (built into Play) for the landing page
-- **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagon/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
+- **BouncyCastle** (`bcprov-jdk18on`) for Ed25519 signature verification — declared in `hexagons/relay/build.sbt` because signature verification is a domain concern; no native libsodium on the server — share content passes through as opaque bytes
 - **PostgreSQL** for persistent storage — see rationale below
 - **H2** as an in-memory database for development and testing (no PostgreSQL instance required locally); configured with `MODE=PostgreSQL` in `conf/localhost.conf`. H2 compatibility constraints to keep in mind when editing the evolutions script: use `TIMESTAMP WITH TIME ZONE` not `TIMESTAMPTZ`; place `DEFAULT expr` before `PRIMARY KEY` in column definitions; avoid semicolons inside `--` line comments (H2 tokenises them as statement terminators); partial indexes (`WHERE` clause) are not supported — the one-pending-request-per-type constraint is enforced at the application level in `ShareRequestsService` (`hasActivePickUp` + `hasPendingRequest`) instead and must be added to production PostgreSQL manually (see comment in `1.sql`). The `NULL`-able `share_id`, `ciphertext`, and `responded_at` columns in `share_requests` use standard nullable types — H2 handles these without special treatment. `secret_created_at` is `NOT NULL` with no `DEFAULT` (client-supplied); `requested_at` is `NOT NULL DEFAULT now()` (server-generated).
 - **Anorm** for database access (preferred over Slick) — SQL-first, minimal abstraction, fits cleanly in the adapter layer of the hexagonal architecture; Slick (type-safe DSL) is an acceptable alternative if type-safe query composition is preferred
@@ -281,6 +281,8 @@ Adding a contact is the natural moment to prompt for in-person QR verification.
 
 ### Contact Verification
 
+> ⚠ **Superseded by "What is next" item 6 (four-level verification model).** The two-level scheme below is being replaced by a four-level ordinal one (`VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`) derived from a trusted-channel × proof-of-life lattice; item 10 further adds a per-key *compromised/revoked* flag and the `min(level, LOW)` downgrade applied to an auto-accepted rotation. Migration: old `UNVERIFIED` → `VERY_LOW`, old `VERIFIED` → `VERY_HIGH`.
+
 Deposplit uses a two-level verification model inspired by Threema:
 
 | Level | How achieved | Meaning |
@@ -312,7 +314,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
 
 1. **iOS biometric unlock**: The Android app gates `reconstruct()` behind `BiometricPrompt`. The iOS `ShareDetailView` currently reconstructs immediately; it should gate via `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` from the `LocalAuthentication` framework.
 2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves PickUp and later Retrieve, Android reconstructs) against a live `sbt run` Web app/service. Now also needs to cover BYOR: two local `sbt run` instances on different ports, one contact configured with a `relayBaseUrl` override pointing at the second instance, verifying deposit/pickup/retrieve/delete correctly route through the override while a no-override contact still round-trips through the default.
-3. ~~**Defense in depth — recipient-side signature verification**~~ — **done.** Every `ShareRequest` row now carries `senderSignature` (set at open) and `recipientSignature` (set at response), Ed25519 signatures over `PayloadCanonical`'s byte constructions — independent of, and in addition to, the per-call transport-auth signature. Recipients (and senders reading back responses) independently re-verify these against the counterparty's public key from the local contact record before acting; deposplit.com's own `SharesService` also verifies them server-side as defense-in-depth. Implemented and tested on the backend (`hexagons/relay`, 89 tests) and Android (`:hexagon`, 31 tests); implemented on iOS but **not yet compiled or test-run** — see `iOS/CLAUDE.md`'s "TODO for Claude on macOS" section.
+3. ~~**Defense in depth — recipient-side signature verification**~~ — **done.** Every `ShareRequest` row now carries `senderSignature` (set at open) and `recipientSignature` (set at response), Ed25519 signatures over `PayloadCanonical`'s byte constructions — independent of, and in addition to, the per-call transport-auth signature. Recipients (and senders reading back responses) independently re-verify these against the counterparty's public key from the local contact record before acting; deposplit.com's own `ShareRequestsService` also verifies them server-side as defense-in-depth. Implemented and tested on the backend (`hexagons/relay`, 89 tests) and Android (`:hexagon`, 31 tests); implemented on iOS but **not yet compiled or test-run** — see `iOS/CLAUDE.md`'s "TODO for Claude on macOS" section.
 4. ~~**BYOR — Bring Your Own Relay**~~ — **self-hosted-instance backend done**, Airtable/Google Sheets adapters still future work. `Contact.relayBaseUrl` (a per-contact override, `null` = device default) plus a `ShareRelayResolver` driven port let `ShareService`/`ShareManagement` route any operation through a contact's own relay instead of deposplit.com; fan-out methods (`syncInbox`, `listPendingRequests`, `syncDistributed`, `listSentRequests`) poll every distinct relay referenced across the contact list, deduped, each independently soft-failed so one unreachable relay doesn't blank out the others. The relay override is exchanged out-of-band via the QR payload (bumped to `v:2`, new `relay` field — the *displaying* device's own configured relay) or a manual text field on "add contact". Android and iOS each gained a runtime-configurable "default relay" setting (`RelaySettings` port, a Settings screen) replacing Android's old compile-time `BuildConfig.BASE_URL`/`local.properties` mechanism entirely. Remaining: Airtable/Google Sheets adapters (need a `relayKind` discriminator on `Contact` since those aren't REST-API-shaped like a deposplit.com instance); real multi-device BYOR interop testing (item 2).
 
    **Deferred design note — relay-routing granularity (per-secret routing rejected).** Motivating scenario: a company mandates its own relay for company secrets only; the user also wants Deposplit for personal secrets, so appears to need per-secret relay selection. **Rejected as wrong-layer / overengineering:**
@@ -357,7 +359,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
 
    Work items:
    - **Spec**: rewrite the "Contact Verification" section (and the "Ready/Not added" + "Contacts Management" references to verification level) from two-level to this four-level model.
-   - **deposplit.com `hexagons/phon`**: expand the `VerificationLevel` value object 2→4, kept ordinal/comparable. *(The `hexagon/relay` backend is untouched — it never stores contacts or verification levels.)*
+   - **deposplit.com `hexagons/phon`**: expand the `VerificationLevel` value object 2→4, kept ordinal/comparable. *(The `hexagons/relay` backend is untouched — it never stores contacts or verification levels.)*
    - **Android** (`:hexagon` + `:app`): expand the enum, contact record, add-contact level picker + guidance text; on-device data migration for stored contacts.
    - **iOS** (`hexagon` + app): same.
    - **Identity recovery** (spec item under "Identity Recovery"): approver weighting now references four levels — actual rule still TBD (to be walked separately).
@@ -367,7 +369,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
    - **Retrieve** (Alice requests, Bob responds): Bob **re-encrypts** the stored plaintext to the *current* sender's X25519 pubkey (looked up live from his contact record for Alice) and returns that; Alice decrypts with her X25519 private key + Bob's X25519 public key. `reconstruct()` collects `k` approved responses, decrypts each, `combine`s.
 
    Why this shape:
-   - **Relay stays blind at every phase** (ciphertext at deposit, ciphertext at retrieve). The **deposplit.com relay is unchanged** — it still stores/forwards opaque bytes, and `SharesService`'s server-side `senderSignature`/`recipientSignature` checks still verify over whatever bytes each row carries. This is a **client-only** change (Android + iOS `hexagon`/app); the Play backend and DB schema are untouched.
+   - **Relay stays blind at every phase** (ciphertext at deposit, ciphertext at retrieve). The **deposplit.com relay is unchanged** — it still stores/forwards opaque bytes, and `ShareRequestsService`'s server-side `senderSignature`/`recipientSignature` checks still verify over whatever bytes each row carries. This is a **client-only** change (Android + iOS `hexagon`/app); the Play backend and DB schema are untouched.
    - **No stale key pinning.** You only ever encrypt to a party who is present and live, using their current key — so the previously-considered "pin the deposit-time X25519 pubkey" fix is unnecessary and dropped.
    - **Survives holder key rotation** (the holder isn't the decryptor at retrieve; they hold plaintext) **and sender key rotation/loss** (the holder re-encrypts to whoever the sender is *now*). This is what makes social recovery *cryptographically possible at all* — the old blind-courier model silently could not reconstruct after the sender lost her key, because the ciphertext was bound to the lost key.
 
@@ -453,7 +455,7 @@ sbt run          # start the Play dev server (auto-reloads on file change)
 sbt run -Dconfig.file=conf/localhost.conf # with the dev config
 sbt test         # run all tests (hexagon + root)
 sbt compile      # compile without running
-sbt hexagon/test # test hexagon subproject only
+sbt relay/test   # test the relay (domain) hexagon subproject only
 sbt dist         # produce a production distribution zip
 ```
 
