@@ -422,6 +422,26 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
    **Policy shift:** recipient-initiated deletion moves from "purely local, no message" to "unilateral, but best-effort notifies Alice" — the holder keeps full autonomy (no approval) but can't vanish *silently*.
 
    Work items: signed rotation-push message type; health-check request/ack message type + n_live/k per-secret health UI; "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling; reconstruct-and-re-split repair flow (shared with #6). Relay + Android + iOS. **No migrations** (pre-launch).
+10. **Malicious key substitution + stolen-key revocation.** Closes the key-change thread. Decided during the spec walk.
+
+    **Load-bearing reframe: a stolen key is not a stolen secret.** Even holding Alice's Ed25519 + X25519 private keys, an attacker must still get **`k` holders to approve retrieval**, and the consent model requires each holder to verify *out-of-band* that Alice genuinely asked. So the k-of-n consent layer — not the keypair — is the real backstop; the attacker must defeat `k` humans. This is why retrieval consent exists (not just deletion consent).
+
+    **The one rule for accepting a key change** (unifies items 8 and 9):
+    - **Auto-accept only on a valid `K_old` signature** (the item-9 rotation push). Cryptographically sound against outsiders (an attacker without `K_old` can't forge it).
+    - On auto-accept, **downgrade the verification level: `level(K_new) = min(level(K_old), LOW)`.** A signed rotation is, in item-6 terms, a *trusted-channel-without-POL* event (1 assurance = LOW): continuity of key control, **not** a fresh personhood check — so it can never carry VERY_HIGH/HIGH forward, and a rotation from an already-VERY_LOW key stays VERY_LOW (continuity from an unverified anchor adds no personhood assurance). Restored to a higher level only by fresh human re-verification (in-person re-scan → VERY_HIGH).
+    - Any change **not** backed by `K_old` — i.e. recovery (item 8, old key lost) — requires **human re-verification** and must be surfaced as a high-stakes trust decision, never a silent accept; its level is set fresh from the re-verification context (no carry-forward).
+
+    Unifying principle: *a contact's verification level always reflects the most recent **personhood** assurance about its **current** key; a cryptographic rotation isn't one, so it can never exceed LOW.*
+
+    **Revocation is socially anchored — a compromised key can't revoke itself.** If the attacker holds `K_stolen`, Alice and the attacker are cryptographically indistinguishable (both can sign), so `K_stolen` can't adjudicate competing "trust my new key" claims. Consequences:
+    - **No cryptographic revocation.** A relay blocklist can't work (blind relay; a block signed by `K_stolen` is ambiguous), and an unforgeable revocation would need a pre-provisioned recovery key — the self-custody chicken-and-egg rejected in item 8. Rejecting it there commits us to social revocation here (consistent).
+    - **Mechanism — a local "compromised/revoked" key flag.** Set via out-of-band notice, it **disables auto-accept** of any rotation signed by that key (forcing fresh human re-verification), so an attacker's rotation push signed by the stolen key is ignored. Any two conflicting "current keys" for one identity → a **conflict surfaced for manual resolution, never auto-resolved.** The tiebreaker is the k-of-n + verification layer (in-person beats a remote attacker).
+
+    **Retrieve-approval hardening.** The attack signature is *key change → quick retrieval*, so the holder's approve-retrieve UI surfaces **"this requester's key changed N days ago"** and urges a fresh out-of-band check. This composes with the downgrade above: a rotated (hence ≤ LOW) key requesting a retrieve automatically lands in the tightest scrutiny.
+
+    **Honest scope limit.** Revocation limits *future* damage only. If the attacker already defeated `k` holders and reconstructed during the exposure window, that secret is **burned** — Deposplit can't un-leak it. Post-compromise, Alice must: run item-8 recovery/rotation + flag the old key compromised; reconstruct + re-split affected secrets (item-9 repair); and **change the underlying secret itself** (rotate the BitLocker key, etc.) for anything that may have leaked. Existing hygiene (biometric-gated reconstruction, Keystore/Secure Enclave private keys) keeps *device* theft from becoming *key* theft, buying time for the social layer.
+
+    Work items: `K_old`-signed rotation with `min(level, LOW)` downgrade (Android + iOS; ties to item 9's rotation push); "compromised/revoked" key flag + conflict-resolution UI + auto-accept suppression; "key changed N days ago" indicator + fresh-OOB nudge on the approve-retrieve screen. **No migrations** (pre-launch).
 
 ## Build & Test Commands
 
