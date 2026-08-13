@@ -30,7 +30,7 @@ The transport layer is a **custom deposplit.com REST API** with end-to-end encry
 
 Key design decisions:
 - **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (display name only, stored locally on the device — never sent to the Web app/service). No server registration is required: the keypair IS the identity. Contacts exchange both public keys out-of-band — ideally in person via QR code, or via a trusted third-party channel (Signal, Threema, email).
-- **Server is an opaque relay.** The Web app/service stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires compromising at least *k* recipients' X25519 private keys, which live only on their devices.
+- **Server is an opaque relay.** The Web app/service stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires obtaining at least *k* of the recipients' shares, which live only on their devices — so a full relay breach yields nothing. *(Under the holder-decrypts-at-pickup redesign — "What is next" item 7 — the holder stores the plaintext share, so this means compromising *k* holders' devices or defeating *k* holders' retrieve-consent, not their X25519 private keys.)*
 - **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation. Mobile clients sign with BouncyCastle (Android) or Swift Crypto (iOS); the Web app/service verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The canonical signing string is:
   ```
   nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA-256(body))
@@ -178,6 +178,8 @@ There are three request types exchanged via the deposplit.com Web app/service AP
 | `retrieve` | Sender → recipient → sender | Request: references PickUp ID. Response: share bytes from Bob's local storage | **Retrieve** a specific share |
 | `delete` | Sender → recipient | Request: references PickUp ID. Response: ack | **Delete** a share (sender-initiated, requires Bob's approval) |
 
+> ⚠ **Being extended — see "What is next" items 7–10.** These are the *three current* request types. The redesign adds a **metadata-only recovery return** (item 8), a **signed rotation push** (items 9–10), and a **health-check request/ack** (item 9), plus a **"withdrawn by recipient"** row state (item 9). It also re-keys `retrieve` on **`secretId`** rather than the pickUp relay-row id (item 8), and adds **`k` and `n`** to the pick_up payload (item 8).
+
 **Recipient-initiated deletion** is unilateral (no approval needed). The recipient can delete individual shares or all shares from a given sender at any time. *(Revised — see "What is next" item 9: it stays unilateral but is no longer purely silent; the holder's app additionally writes a best-effort "withdrawn by recipient" tombstone so the sender isn't blindsided by silent redundancy erosion.)*
 
 **The Web app/service is a pure relay — ciphertext is ephemeral:**
@@ -275,7 +277,7 @@ Contact addition methods:
 - **QR code scan (preferred):** encodes both Ed25519 + X25519 public keys and the pseudonym directly — no server intermediary, eliminates TOFU risk
 - **Out-of-band link:** the app generates a shareable link carrying both public keys; Alice receives it via Signal, Threema, email, etc. Weaker TOFU assurance than an in-person QR scan, but convenient for remote contacts
 
-Each contact record stores: Ed25519 public key, X25519 public key, pseudonym, verification level, date verified. All stored locally on the device.
+Each contact record stores: Ed25519 public key, X25519 public key, pseudonym, verification level, date verified, and (BYOR) an optional per-contact `relayBaseUrl` override. All stored locally on the device. *(Planned additions — see "What is next" items 7–10: a stable local `contactId` anchor that survives key changes, and a per-key compromised/revoked flag.)*
 
 Adding a contact is the natural moment to prompt for in-person QR verification.
 
