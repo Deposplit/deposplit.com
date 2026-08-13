@@ -128,6 +128,8 @@ Both the Kotlin (Android) and Swift (iOS) implementations are **hand-ports of th
 
 #### Transport Encryption: X25519 + HKDF-SHA-256 + ChaCha20-Poly1305
 
+> ⚠ **Pending redesign — see "What is next" item 7 (holder-decrypts-at-pickup).** The description below is the current *encrypt-to-recipient blind-courier* model, which is being replaced: the holder will decrypt at pickup, store the plaintext share, and re-encrypt to the *current* sender at retrieve. The DH box construction and wire format below are unchanged; what changes is *who decrypts when* (and that the relay stays blind at both deposit and retrieve).
+
 Each share is encrypted by the sender to the recipient's X25519 public key before leaving the device. The construction is a standard static-static DH box:
 
 1. **Key agreement**: X25519(sender_private_key, recipient_public_key) → 32-byte shared secret
@@ -176,9 +178,11 @@ There are three request types exchanged via the deposplit.com Web app/service AP
 | `retrieve` | Sender → recipient → sender | Request: references PickUp ID. Response: share bytes from Bob's local storage | **Retrieve** a specific share |
 | `delete` | Sender → recipient | Request: references PickUp ID. Response: ack | **Delete** a share (sender-initiated, requires Bob's approval) |
 
-**Recipient-initiated deletion** is purely local — no message is needed. The recipient can unilaterally delete individual shares or all shares from a given sender at any time.
+**Recipient-initiated deletion** is unilateral (no approval needed). The recipient can delete individual shares or all shares from a given sender at any time. *(Revised — see "What is next" item 9: it stays unilateral but is no longer purely silent; the holder's app additionally writes a best-effort "withdrawn by recipient" tombstone so the sender isn't blindsided by silent redundancy erosion.)*
 
 **The Web app/service is a pure relay — ciphertext is ephemeral:**
+
+> ⚠ **Pending redesign — see "What is next" item 7.** Under the holder-decrypts-at-pickup model the *bytes* differ from what's written below (the holder stores the decrypted plaintext share, not the deposit ciphertext, and re-encrypts to the current sender at retrieve), but the relay's role — store/forward opaque ciphertext, blind at every phase — is unchanged.
 
 PickUp flow (deposit):
 - **Request sub-phase** (sender → relay): Alice opens a PickUp request with the encrypted share bytes; the relay stores them.
@@ -288,6 +292,8 @@ The in-person QR scan encodes the contact's public key (and optionally the pseud
 
 ### Identity Recovery
 
+> ⚠ **Superseded/detailed by "What is next" item 8 (holder-driven metadata reconstitution).** The prose below is the original sketch; the spec walk resolved its `k`-of-`n`-vs-single-approver TBD and specified the mechanism — see item 8. Key corrections: recovery is *holder-driven metadata reconstitution*, not a relay-side "re-association request"; reconstruction is `k`-of-`n` *by construction* (the "single verified approver" applies only to propagating a key change to non-holder contacts); and recovery returns *metadata only*, never shares.
+
 If Alice loses her phone and cannot recover her private key, she generates a new keypair on a new device and initiates a **re-association request**: "please map my new public key to my old one."
 
 Recovery uses **social recovery (k-of-n)**: the same threshold k used when the secret was split must approve the re-association before it takes effect. Verification level influences the trust calculus:
@@ -308,11 +314,114 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
 2. **End-to-end testing**: Test Android ↔ iOS interop (Android deposits a share, iOS recipient approves PickUp and later Retrieve, Android reconstructs) against a live `sbt run` Web app/service. Now also needs to cover BYOR: two local `sbt run` instances on different ports, one contact configured with a `relayBaseUrl` override pointing at the second instance, verifying deposit/pickup/retrieve/delete correctly route through the override while a no-override contact still round-trips through the default.
 3. ~~**Defense in depth — recipient-side signature verification**~~ — **done.** Every `ShareRequest` row now carries `senderSignature` (set at open) and `recipientSignature` (set at response), Ed25519 signatures over `PayloadCanonical`'s byte constructions — independent of, and in addition to, the per-call transport-auth signature. Recipients (and senders reading back responses) independently re-verify these against the counterparty's public key from the local contact record before acting; deposplit.com's own `SharesService` also verifies them server-side as defense-in-depth. Implemented and tested on the backend (`hexagons/relay`, 89 tests) and Android (`:hexagon`, 31 tests); implemented on iOS but **not yet compiled or test-run** — see `iOS/CLAUDE.md`'s "TODO for Claude on macOS" section.
 4. ~~**BYOR — Bring Your Own Relay**~~ — **self-hosted-instance backend done**, Airtable/Google Sheets adapters still future work. `Contact.relayBaseUrl` (a per-contact override, `null` = device default) plus a `ShareRelayResolver` driven port let `ShareService`/`ShareManagement` route any operation through a contact's own relay instead of deposplit.com; fan-out methods (`syncInbox`, `listPendingRequests`, `syncDistributed`, `listSentRequests`) poll every distinct relay referenced across the contact list, deduped, each independently soft-failed so one unreachable relay doesn't blank out the others. The relay override is exchanged out-of-band via the QR payload (bumped to `v:2`, new `relay` field — the *displaying* device's own configured relay) or a manual text field on "add contact". Android and iOS each gained a runtime-configurable "default relay" setting (`RelaySettings` port, a Settings screen) replacing Android's old compile-time `BuildConfig.BASE_URL`/`local.properties` mechanism entirely. Remaining: Airtable/Google Sheets adapters (need a `relayKind` discriminator on `Contact` since those aren't REST-API-shaped like a deposplit.com instance); real multi-device BYOR interop testing (item 2).
-5. **Freemium one-time unlock (optional, future)**: Cap free usage at *n* deposited secrets; a one-time in-app purchase removes the cap. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status). Implementation outline:
+
+   **Deferred design note — relay-routing granularity (per-secret routing rejected).** Motivating scenario: a company mandates its own relay for company secrets only; the user also wants Deposplit for personal secrets, so appears to need per-secret relay selection. **Rejected as wrong-layer / overengineering:**
+   - **Per-contact routing already keeps the two worlds apart** in the normal case — personal secrets are split among personal holders, so they only touch the company relay if a *personal* contact is deliberately pointed at it. No per-secret switch is needed to prevent contamination.
+   - The only case per-contact can't express — *same holder reached via two different relays depending on the secret* — is fundamentally an **identity/governance boundary, not a property of the secret**. The coherent home is a **company identity** (own keypair, company relay as default, colleagues as its contacts) distinct from the **personal identity**; a secret then inherits its identity's relay + contact scope, making contamination structurally impossible rather than a per-secret toggle to remember.
+   - **Governance honesty:** a client-side per-secret choice can't *guarantee* the company anything (a patched client could route personal data onto their relay anyway). The company's real control point is its relay **accepting only company-issued identities** — which already implies a separate company identity.
+   - **How the identity boundary is realized:**
+     - *OS-level separation (two app instances):* **Android** supports it user-side (Multiple users / Work Profile; Shelter/Island for a self-managed work profile; OEM "dual app"). **iOS** has no user-accessible multi-instance — only enterprise **MDM User Enrollment** (managed APFS volume + Managed Apple ID); a solo user can't. Zero Deposplit code, but the iOS gap is real.
+     - *In-app profiles (Deposplit builds multi-identity within one install):* OS-agnostic app-level feature; the natural future answer where iOS-without-MDM otherwise leaves the user stuck. Bigger lift (multiple keypairs, identity switching, per-identity keystore/relay/contact scope).
+   - **Billing consequence ("can one profile be Premium, the other Free?"):** *Yes, naturally, for OS-level separate instances* — the IAP entitlement is tied to the store account signed into each instance, so different Google/Apple (or Managed Apple ID) accounts give independent entitlements automatically; a company could even license the work instance's Premium centrally via managed Google Play / Apple Business Manager (a separate managed SKU is cleaner than an IAP for that). *No clean mapping for in-app profiles* — one install = one store account = one app-wide `isPremium()` bit; scoping Premium to a single in-app profile contradicts the store model. This asymmetry is itself an argument to prefer OS-level separation until iOS-without-MDM forces the in-app-profiles question.
+   - **Verdict:** not a v1 feature. If Deposplit ever pursues enterprise / work-personal separation, build **profiles/multi-identity**, not per-secret relay selection.
+5. **Freemium one-time unlock (optional, future)**: A single **one-time in-app purchase** ("Premium") that both removes the deposit cap and unlocks sender-side BYOR. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status), and therefore honor-system by design (a patched/rogue client bypasses it) — keep the paywall light-touch, no heavy voucher/gifting infrastructure. The free/premium line:
+
+   > **FREE:** up to *n* deposited secrets, via **our** (deposplit.com) relay only, default relay config.
+   > **PREMIUM** (one one-time IAP): **unlimited** deposits **and** BYOR — may configure own / per-contact relays for outgoing shares.
+
+   Business-model decisions settled during the spec walk:
+   - **Single SKU, not à la carte.** "Unlimited via our relay" and "BYOR" are folded into *one* Premium unlock (one entitlement bit). Two separate SKUs were rejected: because BYOR is per-contact, the two capabilities overlap awkwardly (a user with both default-relay and own-relay contacts would need *both* SKUs to be unlimited everywhere), the tier boundary can't be explained in one sentence, and it doubles the StoreKit/Play + paywall surface for an honor-system nudge. Bundling now doesn't foreclose splitting later; the reverse (merging) is the painful direction.
+   - **Recipient-side BYOR stays FREE.** Accepting and returning shares from a contact's own relay is never gated — a free user can be a custodian on a BYOR contact's relay. Rationale: that traffic bypasses deposplit.com entirely (no cost basis to recover), and gating it would charge the *custodian* for the *sender's* relay choice, creating a network externality. Only *originating* beyond *n*, or routing *your own* deposits through *your own* relay, sits behind the unlock.
+   - **The BYOR-as-free-escape-valve inversion was considered and set aside** in favor of gating sender-side BYOR (Premium). (Recorded for context in case the ethos argument — reward self-hosting rather than tax it — is revisited.)
+   - **No "gift a friend's Premium" mechanism for now.** Verifiable gifting to a specific Ed25519 key would require a signing issuer that sees a payment → recipient-key link (a small, opt-in dent in server-blindness); the zero-mechanism alternative is purely social (reimburse your friend out-of-band). Parked unless a growth loop justifies it.
+
+   Implementation outline:
    - Add a `PurchaseRepository` driven port to the hexagon (`isPremium(): Boolean`, `secretsDepositedCount(): Int`).
-   - Add a limit check in the deposit flow (hexagon service or UI layer).
+   - Add a limit check in the deposit flow (hexagon service or UI layer); gate sender-side relay-override configuration on `isPremium()` too.
    - Implement a StoreKit 2 adapter (iOS) and a Google Play Billing adapter (Android).
-   - Show a paywall screen when the free limit is hit in the deposit flow.
+   - Show a paywall screen when the free limit is hit in the deposit flow, or when a free user attempts to configure a sender-side relay override.
+6. **Four-level contact verification model**: Replace today's two-level (`UNVERIFIED` / `VERIFIED`) scheme with a four-level ordinal one derived from a 2×2 lattice over two independent assurance axes — **trusted channel** (untrusted/trusted) × **proof of life (POL)** (sine/cum). The two incomparable middle cells of the lattice (trusted-channel-but-no-POL vs. POL-but-untrusted-channel) are deliberately **merged** into one rung, so the linear order is simply the **number of independent assurances present**:
+
+   | Level | Assurances | Meaning | Examples |
+   |---|---|---|---|
+   | `VERY_LOW` | 0 | untrusted channel, no POL (today's `UNVERIFIED`) | e-mail, LinkedIn, website, business card |
+   | `LOW` | 1 | *either* a trusted channel *or* POL, not both | Signal message from a previously in-person-verified contact (trusted channel, no live POL); **or** a generic video call where she shows her QR (live POL, untrusted channel) |
+   | `HIGH` | 2 | trusted channel *and* POL | Signal **video call** with a verified safety number, showing her QR |
+   | `VERY_HIGH` | in-person | physical co-presence (today's `VERIFIED`) | in-person QR scan |
+
+   User-applicable rule: *"count your independent assurances — trusted channel? proof of life? — that's your level (0/1/2), or 3 if you were physically there."* Design notes settled during the spec walk:
+   - **Levels are user-asserted context labels, not cryptographic facts.** The app cannot distinguish an e-mailed key from a Signal-relayed key from a video-shown key; even an in-person QR "scan" can't be cryptographically proven (a QR displayed on a video screen scans identically). The cryptographic fact is only *"this key was pinned"*; the level is honest metadata about *how*. UI must let the user pick levels `VERY_LOW`–`HIGH`; `VERY_HIGH` can be defaulted from the in-person scan flow.
+   - **The "trusted channel" axis is kept binary** (trusted/untrusted) for usability; the user judges which side a given Threema-green/Signal-verified contact falls on. Grading it further re-explodes the lattice.
+   - **The QR/link payload does not change** — verification level is assigned by the *receiving* device from the context in which it obtained the key, never asserted by the sender on the wire.
+   - **Migration is clean:** old `UNVERIFIED` → `VERY_LOW`, old `VERIFIED` → `VERY_HIGH`; `LOW`/`HIGH` are net-new middle rungs, so no stored contact is mis-ranked.
+
+   Work items:
+   - **Spec**: rewrite the "Contact Verification" section (and the "Ready/Not added" + "Contacts Management" references to verification level) from two-level to this four-level model.
+   - **deposplit.com `hexagons/phon`**: expand the `VerificationLevel` value object 2→4, kept ordinal/comparable. *(The `hexagon/relay` backend is untouched — it never stores contacts or verification levels.)*
+   - **Android** (`:hexagon` + `:app`): expand the enum, contact record, add-contact level picker + guidance text; on-device data migration for stored contacts.
+   - **iOS** (`hexagon` + app): same.
+   - **Identity recovery** (spec item under "Identity Recovery"): approver weighting now references four levels — actual rule still TBD (to be walked separately).
+7. **Holder-decrypts-at-pickup share-crypto redesign** (supersedes the encrypt-to-recipient *blind-courier* model). Decided during the spec walk. Share encryption's *only* job is keeping the **relay** blind: the relay is the chokepoint that transiently sees all `n` shares of a secret (grouped by `secret_id`), and SSS gives **no** protection to an all-`n` observer — whereas a single holder's `< k` share is already information-theoretically empty. So the encryption is moved to where it earns its keep:
+   - **Deposit** (Alice→relay): encrypt each share to the holder's *current* X25519 pubkey (as today).
+   - **Pickup** (Bob approves): Bob **decrypts** with his X25519 private key + Alice's X25519 public key (from his contact record for Alice) and stores the **plaintext share** locally. Plaintext at rest is information-theoretically harmless (one share reveals nothing about the secret); it still sits in app-private storage under OS file-based encryption. Relay row cleared as before.
+   - **Retrieve** (Alice requests, Bob responds): Bob **re-encrypts** the stored plaintext to the *current* sender's X25519 pubkey (looked up live from his contact record for Alice) and returns that; Alice decrypts with her X25519 private key + Bob's X25519 public key. `reconstruct()` collects `k` approved responses, decrypts each, `combine`s.
+
+   Why this shape:
+   - **Relay stays blind at every phase** (ciphertext at deposit, ciphertext at retrieve). The **deposplit.com relay is unchanged** — it still stores/forwards opaque bytes, and `SharesService`'s server-side `senderSignature`/`recipientSignature` checks still verify over whatever bytes each row carries. This is a **client-only** change (Android + iOS `hexagon`/app); the Play backend and DB schema are untouched.
+   - **No stale key pinning.** You only ever encrypt to a party who is present and live, using their current key — so the previously-considered "pin the deposit-time X25519 pubkey" fix is unnecessary and dropped.
+   - **Survives holder key rotation** (the holder isn't the decryptor at retrieve; they hold plaintext) **and sender key rotation/loss** (the holder re-encrypts to whoever the sender is *now*). This is what makes social recovery *cryptographically possible at all* — the old blind-courier model silently could not reconstruct after the sender lost her key, because the ciphertext was bound to the lost key.
+
+   Data-model changes (same redesign, affirmed in the walk):
+   - `HeldShare`: `ciphertext` → `plaintextShare`; `senderKey` (Ed25519) → `contactId` (stable local UUID that survives the sender's key change). Optional denormalized `pseudonym` snapshot so a share from a since-deleted contact still renders. Rationale: `HeldShare` carries no cryptographic dependency on the sender's key (the holder is a courier for the decrypted share), so `contactId` fully decouples it.
+   - `ShareMetadata` (sender side): `recipientKey` (Ed25519) → `contactId`. Linkage now survives the holder's key change; no pinned pubkey needed since the holder re-encrypts fresh at retrieve.
+   - **Precondition** (shared with the key-change/recovery design): rotation/recovery must **update the existing contact record in place, preserving its `contactId`** — never create a *new* contact for the rotated identity, or the `contactId` anchor orphans held/distributed shares.
+
+   This redesign removes the *cryptographic* blocker to recovery; the *metadata reconstitution* half is now designed in **item 8**.
+
+   **No migrations** — Deposplit is pre-launch; test relays and test devices will be reset to a clean slate.
+8. **Identity recovery — holder-driven metadata reconstitution (pure-social).** Resolves the "Identity Recovery" section's `k`-of-`n`-vs-single-approver TBD *and* the metadata half left open by item 7. Decided during the spec walk.
+
+   **Framing that resolves the TBD** — two acts were conflated:
+   - *Reconstruction after key loss* structurally needs `k` holders to accept the new identity and return their shares; one holder supplies one share, so "a single verified approver suffices" is impossible here — it's `k`-of-`n` **by construction**, not a policy knob.
+   - *Propagating a key change to non-holder contacts* (people who have Alice in their address book but hold no share of the secret) is a lighter act where a single verified vouch may suffice. The old spec's "single verified approver" belongs *here*, not to reconstruction.
+
+   **Why pure-social (no recovery key):** a recovery key is itself a secret Alice must reliably self-custody — the exact problem Deposplit exists to solve. If she could safely keep a recovery key she could safely keep the original secret and wouldn't need `k`-of-`n` splitting. So social recovery is the only option *consistent with the app's premise*, not a usability compromise.
+
+   **The metadata problem:** on device loss new-Alice loses all local state — not just `ShareMetadata` but her entire contact list (public keys, pseudonyms, verification levels, relay overrides). The relay is no help: rows are keyed by old-Alice's Ed25519 and she can't authenticate as the lost identity. But after item 7 the holders collectively hold everything — each `HeldShare` carries the plaintext share + `secretId` + `label`. So recovery is **reconstitution from holders**, never a relay lookup.
+   - *Who are my holders?* Not derivable from the system — holders don't know each other (deliberate; raises the collusion bar). Source of truth = Alice's memory (+ optional catalog backup).
+   - *What did I deposit?* Each re-linked holder *is* the catalog for the shares it holds.
+
+   **Mechanism (per holder):**
+   1. Alice reaches a remembered holder out-of-band (ideally in person → `VERY_HIGH`) and they re-exchange QR: new-Alice gets the holder's current keys+relay; the holder gets new-Alice's new key.
+   2. The **holder's app manually links** the re-presented identity to the *existing* contact ("this new key is my old contact Alice — key change"), updating that record **in place, preserving `contactId`** (per item 7) — which re-associates the held shares.
+   3. The holder's app **pushes a metadata-only return** to new-Alice via the relay (new lightweight message type, **no ciphertext**): `{secretId, label, secretCreatedAt, holder-identity, k, n}` per share held. This rebuilds new-Alice's `ShareMetadata`.
+
+   **Recovery returns metadata only — never shares.** Returning shares would create a *mass-reconstruction moment*: every secret decrypted onto one fresh device at once — a fat single-point-in-time target. Metadata-only recovery restores just the *ability* to reconstruct; each secret is later assembled on demand, one at a time, via the normal retrieve flow, inheriting normal on-demand risk instead of concentrating it.
+
+   **Settled details:**
+   - **Retrieve keyed on `secretId`** (= `secret_id` in `share_requests`; one UUID generated per `deposit()`, shared across all `n` of a secret's rows), not the transient pickUp relay-row id — `secretId` survives device loss and uniquely locates a holder's share since a holder holds at most one share per `(secretId, sender)`.
+   - **Embed `k` and `n` in the pick_up payload** so holders report thresholds at recovery (cross-holder consistency check as a bonus). Cryptographically harmless — SSS never relied on hiding `k`/`n`. Demotes the catalog backup to pure convenience: re-linking any one holder of a secret already tells Alice `k`/`n`, hence how many more holders to find.
+   - **Never share co-holder identities** — holders report `k`/`n` but stay ignorant of each other.
+   - **Metadata transport = relay-mediated holder push** (works async / for remote re-links / scales; leaks nothing new since `secretId`/`label`/keys are already cleartext on relay rows). Out-of-band-at-re-link (device-to-device QR) stays as a purist alternative.
+   - **Optional catalog backup:** a self-managed export of the *non-secret* catalog — contact public keys, pseudonyms, verification levels, `ShareMetadata` — eases "who are my holders" without weakening anything (none of it is a share or a private key). Backing up *private keys* is the opposite extreme (trivial recovery, but reintroduces a secret to guard + a platform dependency) and is out of scope for the trust-minimizing default.
+   - **Post-recovery:** Alice re-splits under her new identity to restore a clean distribution (ties to secret lifecycle, #6).
+
+   Work items: new metadata-only recovery message type (relay + Android + iOS); holder-side "link to existing contact / key-change" UI; `k`/`n` in the pick_up payload + `PayloadCanonical` + `HeldShare`/`ShareMetadata`; `secretId`-keyed retrieve; optional catalog export/import (Android + iOS). **No migrations** (pre-launch, clean-slate reset).
+9. **Holder-key-change handling + share-redundancy monitoring.** Post-item-7 a holder's key change is no longer a "share lost" event — it splits in two, each needing a different mechanism.
+   - **Proactive rotation (holder keeps data):** only Alice's *routing pointer* to the holder goes stale (the plaintext share is safe). The holder still has the old key, so their app pushes a **signed `rotate(K_old → K_new)`** to contacts via the relay; Alice auto-verifies against the trusted old key and updates the contact record **in place, preserving `contactId`**. Fully automatic.
+   - **Device loss (holder loses data):** the held plaintext shares are **gone**, and the holder's new device *cannot notify Alice* (it has no record it ever held them). Genuine redundancy loss, detectable only by Alice actively checking.
+
+   **Health-check / redundancy monitoring — the authoritative mechanism.** Alice's app periodically pings each holder — *"still alive, still holding {secretIds}?"* — the holder acks (signed) the subset it still holds; Alice tracks **n_live vs k** per secret and surfaces per-secret health. Catches lost holders, missed/un-pushed rotations, and silent recipient-initiated deletions. Polling-based (fits #5).
+
+   **Relay-tombstone fast-path — cheap complement, never authoritative.** Recipient-initiated deletion additionally flips the holder's pick_up row to an explicit **"withdrawn by recipient"** state, which Alice picks up via her existing `syncDistributed()` poll — faster notice than the next health-check cycle, at near-zero cost. But the relay is a **mailbox, not a store — it may delete any row at any time** — so this is doubly best-effort (needs the holder's device alive *and* the relay to still hold the row when Alice polls) and must never be relied on:
+     - **Row *absence* is never a signal** (could be relay GC, not withdrawal) — `syncDistributed()` keeps its "upsert, never delete" rule.
+     - Only an **explicitly observed "withdrawn" tombstone** (if caught before GC) or a **health-check ack / no-ack** counts. The health-check is ground truth; the tombstone is a lossy hint; Alice's local `ShareMetadata` (corrected by health-checks) is her source of truth — never the relay. Tombstone writes are fire-and-forget (the blind relay can't confirm delivery).
+
+   **Repair requires reconstruction (the #6 hand-off).** Alice can't cheaply "top up" a lost holder — SSS shares come from a specific polynomial, and she doesn't retain the secret/polynomial (retaining it would defeat splitting). So restoring a lost share = **reconstruct (gather k) → re-split to a fresh holder set**. The whole value of health-monitoring is catching a loss **while still ≥ k**, so she can reconstruct-and-re-split *before* a second loss makes the secret permanently unrecoverable.
+
+   **Policy shift:** recipient-initiated deletion moves from "purely local, no message" to "unilateral, but best-effort notifies Alice" — the holder keeps full autonomy (no approval) but can't vanish *silently*.
+
+   Work items: signed rotation-push message type; health-check request/ack message type + n_live/k per-secret health UI; "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling; reconstruct-and-re-split repair flow (shared with #6). Relay + Android + iOS. **No migrations** (pre-launch).
 
 ## Build & Test Commands
 
