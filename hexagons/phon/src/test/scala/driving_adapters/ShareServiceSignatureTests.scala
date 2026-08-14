@@ -146,7 +146,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     pseudonym = "alice",
     edPublicKey = aliceKeys.publicKey,
     xPublicKey = Array.fill(32)(0x01.toByte),
-    verificationLevel = VerificationLevel.Verified,
+    verificationLevel = VerificationLevel.VeryHigh,
     verifiedAt = None,
     addedAt = Instant.now()
   )

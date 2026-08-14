@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 6–13 are design-complete but not yet built.** The current code still
-> implements the *pre-6–13* model those items supersede. `No migrations` throughout —
-> Deposplit is pre-launch; test relays and devices reset to a clean slate.
+> ⚠ **Items 7–13 are design-complete but not yet built** (item 6 shipped — see below). The
+> current code still implements the *pre-7–13* model those items supersede. `No migrations`
+> throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -28,13 +28,13 @@ is better served by one board than three. This file lives in the hub repo
 - **Item 7 (holder-decrypts-at-pickup crypto redesign)** is the foundation: it reshapes
   `HeldShare` and `ShareMetadata`, and items **8, 9, 12, 13** all assume its model. Nothing
   precedes it, and much depends on it — a natural first big piece.
-- **Item 6 (four-level verification)** is essentially independent (enum + UI + on-device
-  migration, no crypto dependency) — a good low-risk warm-up, though item 10 later leans on
-  its levels.
+- **Item 6 (four-level verification) is done** — it was independent of the crypto redesign
+  (enum + UI, no crypto dependency), so it shipped first as a low-risk warm-up. Item 10 will
+  later lean on its levels.
 - **Item 11 (secret lifecycle)** is partly independent: its `reconstruct()` bug-fixes
   (enforce real `k`, stop auto-teardown) can land early; its `Secret` aggregate feeds items
   9 and 13. Uses the `contactId` anchor introduced by item 7.
-- Rough dependency order: **7 → 11 → {8, 9} → {10, 12} → 13**, with **6** anywhere.
+- Rough dependency order for what's left: **7 → 11 → {8, 9} → {10, 12} → 13**.
 
 ---
 
@@ -66,15 +66,17 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — design-complete, not yet built
+## Planned items (6–13) — item 6 done, 7–13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
-`VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Migration: old `UNVERIFIED`→`VERY_LOW`, `VERIFIED`→`VERY_HIGH`.
-- [ ] `phon` expand `VerificationLevel` value object 2→4, ordinal/comparable (`relay` untouched — never stores contacts)
-- [ ] `A` expand enum + contact record + add-contact level picker + guidance text; on-device migration
-- [ ] `I` same
-- [ ] `doc` rewrite "Contact Verification" section (+ "Ready/Not added" & "Contacts Management" refs) 2→4
-- [ ] `doc` identity-recovery approver weighting references 4 levels (rule still TBD — walk separately)
+`VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
+`VERY_LOW`/`VERY_HIGH` conceptually, but **no on-device migration code was written or is needed** —
+Deposplit is pre-launch; the relay DB has been purged and all emulators/simulators reset clean.
+- [x] `phon` expand `VerificationLevel` value object 2→4, ordinal/comparable (`relay` untouched — never stores contacts)
+- [x] `A` expand enum + contact record + add-contact level picker + guidance text
+- [x] `I` same
+- [x] `doc` rewrite "Contact Verification" section (+ "Ready/Not added" & "Contacts Management" refs) 2→4
+- [x] `doc` identity-recovery approver weighting references 4 levels (rule itself still TBD — walk separately)
 
 ### Item 7 — Holder-decrypts-at-pickup crypto redesign · [CLAUDE.md#7](CLAUDE.md)
 Client-only; `relay` + DB schema untouched (still opaque bytes).
@@ -142,8 +144,9 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 ---
 
-## Recently decided (spec walk, Aug 2026) — no code yet
+## Recently decided (spec walk, Aug 2026)
 
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). All implementation above is pending.
+cleared (item 12 resolved #5; #3 relay-kinds parked). Item 6 has since shipped (see
+`CHANGELOG.md`); all other implementation above is pending.

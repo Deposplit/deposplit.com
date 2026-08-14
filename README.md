@@ -178,20 +178,22 @@ Each contact record stores: Ed25519 public key, X25519 public key, pseudonym, ve
 
 ## Contact verification
 
-Deposplit uses a two-level model inspired by Threema:
+Deposplit uses a **four-level ordinal model** (supersedes the original two-level, Threema-inspired one), derived from a trusted-channel × proof-of-life lattice — the order is simply the count of independent assurances present:
 
-| Level | How achieved | Meaning |
-|---|---|---|
-| **Unverified** | Contact added via an out-of-band link (Signal, Threema, email, etc.) | "I believe this account belongs to this person" |
-| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
+| Level | Assurances | How achieved | Meaning |
+|---|---|---|---|
+| **Very Low** | 0 | Contact added remotely with no live check (e-mail, LinkedIn, a business card) | "I believe this account belongs to this person, but I haven't confirmed it" |
+| **Low** | 1 | *Either* a trusted channel *or* live proof, not both | One independent assurance |
+| **High** | 2 | Both a trusted channel *and* live proof (e.g. a verified-safety-number video call, showing their QR) | Two independent assurances |
+| **Very High** | in-person | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
 
-Verification level is stored per contact and visible when reviewing share holders or approving requests.
+Levels are user-asserted context labels, not cryptographic facts — the app can't distinguish an e-mailed key from a video-shown one, so the UI lets the user pick a level. Manual key entry only offers `Very Low`/`Low`/`High`; `Very High` is reserved for the in-person QR scan flow (which defaults to it), since physical co-presence can't be asserted by typing a key in by hand. Verification level is stored per contact and visible when reviewing share holders or approving requests.
 
 ## Identity recovery
 
 If Alice loses her phone and cannot recover her private key, she generates a new keypair on a new device and sends a re-association request to her recipients: "please map my new public key to my old one."
 
-Recovery requires **k-of-n social approval** — the same threshold k as the original secret split. Verification level informs the trust decision: a single in-person-verified recipient approving the request carries stronger assurance than multiple unverified approvals. The exact quorum rule is TBD.
+Recovery requires **k-of-n social approval** — the same threshold k as the original secret split. Verification level informs the trust decision: a single recipient at a high verification level approving the request carries stronger assurance than multiple approvals at a lower level. The exact quorum rule is TBD.
 
 Once re-associated, recipients are encouraged to re-scan Alice's QR code in person to restore the verified relationship.
 

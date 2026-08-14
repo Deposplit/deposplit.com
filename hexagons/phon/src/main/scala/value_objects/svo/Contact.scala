@@ -27,8 +27,14 @@ package value_objects.svo
 import java.time.Instant
 import java.util.UUID
 
-enum VerificationLevel:
-  case Unverified, Verified
+/** Four-level ordinal verification model — see deposplit.com/CLAUDE.md "What is next" item 6.
+  * Derived from a trusted-channel x proof-of-life lattice; the two incomparable middle cells are
+  * merged into Low, so the order is simply the count of independent assurances present (0/1/2),
+  * or 3 for physical co-presence. `compare` is ordinal-based — do not reorder the cases.
+  */
+enum VerificationLevel extends Ordered[VerificationLevel]:
+  case VeryLow, Low, High, VeryHigh
+  def compare(that: VerificationLevel): Int = this.ordinal - that.ordinal
 
 case class Contact(
     id: UUID,

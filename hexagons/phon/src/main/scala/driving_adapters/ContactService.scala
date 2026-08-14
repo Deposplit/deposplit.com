@@ -49,8 +49,8 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         pseudonym = pseudonym.strip(),
         edPublicKey = edPublicKey,
         xPublicKey = xPublicKey,
-        verificationLevel = VerificationLevel.Unverified,
-        verifiedAt = None,
+        verificationLevel = VerificationLevel.VeryLow,
+        verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl
       )
@@ -67,7 +67,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         pseudonym = pseudonym.strip(),
         edPublicKey = edPublicKey,
         xPublicKey = xPublicKey,
-        verificationLevel = VerificationLevel.Verified,
+        verificationLevel = VerificationLevel.VeryHigh,
         verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl

@@ -283,16 +283,18 @@ Adding a contact is the natural moment to prompt for in-person QR verification.
 
 ### Contact Verification
 
-> ⚠ **Superseded by "What is next" item 6 (four-level verification model).** The two-level scheme below is being replaced by a four-level ordinal one (`VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`) derived from a trusted-channel × proof-of-life lattice; item 10 further adds a per-key *compromised/revoked* flag and the `min(level, LOW)` downgrade applied to an auto-accepted rotation. Migration: old `UNVERIFIED` → `VERY_LOW`, old `VERIFIED` → `VERY_HIGH`.
+> ⚠ **Item 10 will further extend this** with a per-key *compromised/revoked* flag and a `min(level, LOW)` downgrade applied to an auto-accepted rotation — not yet implemented.
 
-Deposplit uses a two-level verification model inspired by Threema:
+Deposplit uses a **four-level ordinal verification model** (superseded the original two-level, Threema-inspired scheme — see "What is next" item 6), derived from a trusted-channel × proof-of-life lattice. The two incomparable middle cells of that lattice (trusted-channel-but-no-proof-of-life vs. proof-of-life-but-untrusted-channel) are deliberately merged into one rung, so the order is simply the count of independent assurances present:
 
-| Level | How achieved | Meaning |
-|---|---|---|
-| **Unverified** | Contact added remotely (by pseudonym, invite link, etc.) | "I believe this Deposplit account belongs to this person, but I haven't confirmed it" |
-| **Verified** | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
+| Level | Assurances | How achieved | Meaning |
+|---|---|---|---|
+| **Very Low** | 0 | Contact added remotely with no live check (e-mail, LinkedIn, a business card) | "I believe this Deposplit account belongs to this person, but I haven't confirmed it" |
+| **Low** | 1 | *Either* a trusted channel *or* live proof, not both (a Signal message from a previously in-person-verified contact; or a generic video call where they show their QR) | One independent assurance |
+| **High** | 2 | Both a trusted channel *and* live proof (e.g. a Signal video call with a verified safety number, showing their QR) | Two independent assurances |
+| **Very High** | in-person | QR code scanned in person | "I was physically with this person and confirmed their public key is theirs" |
 
-The in-person QR scan encodes the contact's public key (and optionally the pseudonym). Verification level is stored per contact and is visible to the user when reviewing share holders or approving requests.
+Levels are **user-asserted context labels, not cryptographic facts** — the app cannot distinguish an e-mailed key from a Signal-relayed key from a video-shown key, so the UI lets the user pick a level rather than inferring one. Manual key entry only offers `Very Low`/`Low`/`High`: physical co-presence can't be asserted by typing a key in by hand, so `Very High` is reserved for the in-person QR scan flow, which defaults to it. The QR/link payload itself carries only public keys and pseudonym — verification level is never asserted by the sender on the wire, only assigned locally by the receiving device from the context in which it obtained the key. Verification level is stored per contact and is visible to the user when reviewing share holders or approving requests.
 
 ### Identity Recovery
 
@@ -300,9 +302,9 @@ The in-person QR scan encodes the contact's public key (and optionally the pseud
 
 If Alice loses her phone and cannot recover her private key, she generates a new keypair on a new device and initiates a **re-association request**: "please map my new public key to my old one."
 
-Recovery uses **social recovery (k-of-n)**: the same threshold k used when the secret was split must approve the re-association before it takes effect. Verification level influences the trust calculus:
-- Approval from a **verified** contact (in-person QR scan) carries stronger assurance than approval from an unverified one
-- A single verified approver may be considered sufficient; the exact rule is TBD
+Recovery uses **social recovery (k-of-n)**: the same threshold k used when the secret was split must approve the re-association before it takes effect. Verification level (now the four-level model — see "Contact Verification") influences the trust calculus:
+- Approval from a contact at a **higher** verification level carries stronger assurance than approval from one at a lower level
+- A single approver at a sufficiently high level may be considered sufficient; the exact rule is TBD
 
 Recipients who approve a re-association should be encouraged to verify Alice again in person (re-scan her new QR code) to restore the verified relationship.
 
@@ -344,20 +346,22 @@ The items below capture *design rationale* — why each decision was made, and w
    - **No "gift a friend's Premium" mechanism for now.** Verifiable gifting to a specific Ed25519 key would require a signing issuer that sees a payment → recipient-key link (a small, opt-in dent in server-blindness); the zero-mechanism alternative is purely social (reimburse your friend out-of-band). Parked unless a growth loop justifies it.
 
    **Work items:** tracked in `TODO.md` (item 5).
-6. **Four-level contact verification model**: Replace today's two-level (`UNVERIFIED` / `VERIFIED`) scheme with a four-level ordinal one derived from a 2×2 lattice over two independent assurance axes — **trusted channel** (untrusted/trusted) × **proof of life (POL)** (sine/cum). The two incomparable middle cells of the lattice (trusted-channel-but-no-POL vs. POL-but-untrusted-channel) are deliberately **merged** into one rung, so the linear order is simply the **number of independent assurances present**:
+6. ~~**Four-level contact verification model**~~ — **done.** Replaced the old two-level (`UNVERIFIED` / `VERIFIED`) scheme with a four-level ordinal one derived from a 2×2 lattice over two independent assurance axes — **trusted channel** (untrusted/trusted) × **proof of life (POL)** (sine/cum). The two incomparable middle cells of the lattice (trusted-channel-but-no-POL vs. POL-but-untrusted-channel) are deliberately **merged** into one rung, so the linear order is simply the **number of independent assurances present**:
 
    | Level | Assurances | Meaning | Examples |
    |---|---|---|---|
-   | `VERY_LOW` | 0 | untrusted channel, no POL (today's `UNVERIFIED`) | e-mail, LinkedIn, website, business card |
+   | `VERY_LOW` | 0 | untrusted channel, no POL (the old scheme's `UNVERIFIED`) | e-mail, LinkedIn, website, business card |
    | `LOW` | 1 | *either* a trusted channel *or* POL, not both | Signal message from a previously in-person-verified contact (trusted channel, no live POL); **or** a generic video call where she shows her QR (live POL, untrusted channel) |
    | `HIGH` | 2 | trusted channel *and* POL | Signal **video call** with a verified safety number, showing her QR |
-   | `VERY_HIGH` | in-person | physical co-presence (today's `VERIFIED`) | in-person QR scan |
+   | `VERY_HIGH` | in-person | physical co-presence (the old scheme's `VERIFIED`) | in-person QR scan |
 
    User-applicable rule: *"count your independent assurances — trusted channel? proof of life? — that's your level (0/1/2), or 3 if you were physically there."* Design notes settled during the spec walk:
    - **Levels are user-asserted context labels, not cryptographic facts.** The app cannot distinguish an e-mailed key from a Signal-relayed key from a video-shown key; even an in-person QR "scan" can't be cryptographically proven (a QR displayed on a video screen scans identically). The cryptographic fact is only *"this key was pinned"*; the level is honest metadata about *how*. UI must let the user pick levels `VERY_LOW`–`HIGH`; `VERY_HIGH` can be defaulted from the in-person scan flow.
    - **The "trusted channel" axis is kept binary** (trusted/untrusted) for usability; the user judges which side a given Threema-green/Signal-verified contact falls on. Grading it further re-explodes the lattice.
    - **The QR/link payload does not change** — verification level is assigned by the *receiving* device from the context in which it obtained the key, never asserted by the sender on the wire.
-   - **Migration is clean:** old `UNVERIFIED` → `VERY_LOW`, old `VERIFIED` → `VERY_HIGH`; `LOW`/`HIGH` are net-new middle rungs, so no stored contact is mis-ranked.
+   - **No migration code** — Deposplit is pre-launch; the relay DB and all on-device contact stores reset clean rather than being upgraded in place. (Old `UNVERIFIED`/`VERIFIED` would map conceptually onto `VERY_LOW`/`VERY_HIGH`, but no decode-time compatibility shim was written for it.)
+
+   **Implemented** across all three hexagons: `deposplit.com/hexagons/phon` (`VerificationLevel extends Ordered[VerificationLevel]`, ordinal `compare`), Android `:hexagon` (Kotlin enums are ordinal-`Comparable` for free), iOS `hexagon` (`Comparable` via a private `rank`). `ContactService.addManually`/`addFromQr` on Android and iOS take an explicit `verificationLevel` argument; the domain layer rejects a manually-entered `VERY_HIGH` (physical co-presence can't be asserted by typing a key in by hand). Android and iOS gained an add-contact verification-level picker (manual entry offers `VERY_LOW`/`LOW`/`HIGH` with guidance text; QR scan defaults to `VERY_HIGH`) and a color-coded level badge on the contacts/deposit-recipient lists. phon kept its existing default-by-flow assignment (no picker UI — its scope was intentionally narrower) and its `contactsTable` view now shows all four level names via new `conf/messages`/`conf/messages.de` keys.
 
    **Work items:** tracked in `TODO.md` (item 6).
 7. **Holder-decrypts-at-pickup share-crypto redesign** (supersedes the encrypt-to-recipient *blind-courier* model). Decided during the spec walk. Share encryption's *only* job is keeping the **relay** blind: the relay is the chokepoint that transiently sees all `n` shares of a secret (grouped by `secret_id`), and SSS gives **no** protection to an all-`n` observer — whereas a single holder's `< k` share is already information-theoretically empty. So the encryption is moved to where it earns its keep:

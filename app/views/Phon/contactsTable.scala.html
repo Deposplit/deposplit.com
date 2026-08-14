@@ -49,7 +49,7 @@
           <th scope="row" title="@contact.id.toString">@contact.pseudonym</th>
           <td>@QrPayload.encodeKey(contact.edPublicKey)</td>
           <td>@QrPayload.encodeKey(contact.xPublicKey)</td>
-          <td>@if(contact.verificationLevel==VerificationLevel.Verified){<span class="text-success"><i class="bi bi-person-add"></i></span>}else{<span class="text-warning"><i class="bi bi-person"></i></span>}</td>
+          <td>@if(contact.verificationLevel==VerificationLevel.VeryHigh){<span class="text-success">@messages("verificationVeryHigh")</span>}else if(contact.verificationLevel==VerificationLevel.High){<span class="text-primary">@messages("verificationHigh")</span>}else if(contact.verificationLevel==VerificationLevel.Low){<span class="text-warning">@messages("verificationLow")</span>}else{<span class="text-muted">@messages("verificationVeryLow")</span>}</td>
           <td><button class="btn btn-danger" hx-delete="@phon.routes.PhonyPhoneController.deleteContact(contact.id)" hx-include="[name='csrfToken']" hx-target="#ESC@contact.id.toString" hx-swap="delete">@messages("delete")</button></td>
         </tr>
       }
