@@ -330,7 +330,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
    - **Verdict:** not a v1 feature. If Deposplit ever pursues enterprise / work-personal separation, build **profiles/multi-identity**, not per-secret relay selection.
 5. **Freemium one-time unlock (optional, future)**: A single **one-time in-app purchase** ("Premium") that both removes the deposit cap and unlocks sender-side BYOR. Enforcement is **client-side only** (consistent with the server-blindness philosophy — the backend never learns payment status), and therefore honor-system by design (a patched/rogue client bypasses it) — keep the paywall light-touch, no heavy voucher/gifting infrastructure. The free/premium line:
 
-   > **FREE:** up to *n* deposited secrets, via **our** (deposplit.com) relay only, default relay config.
+   > **FREE:** up to *n* deposited secrets, via **our** (deposplit.com) relay only, default relay config. *(Cap counts **`ACTIVE`** secrets, not lifetime deposits — see item 11: `discardSecret` frees a slot immediately, so a re-split never double-counts.)*
    > **PREMIUM** (one one-time IAP): **unlimited** deposits **and** BYOR — may configure own / per-contact relays for outgoing shares.
 
    Business-model decisions settled during the spec walk:
@@ -408,7 +408,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
    - **Never share co-holder identities** — holders report `k`/`n` but stay ignorant of each other.
    - **Metadata transport = relay-mediated holder push** (works async / for remote re-links / scales; leaks nothing new since `secretId`/`label`/keys are already cleartext on relay rows). Out-of-band-at-re-link (device-to-device QR) stays as a purist alternative.
    - **Optional catalog backup:** a self-managed export of the *non-secret* catalog — contact public keys, pseudonyms, verification levels, `ShareMetadata` — eases "who are my holders" without weakening anything (none of it is a share or a private key). Backing up *private keys* is the opposite extreme (trivial recovery, but reintroduces a secret to guard + a platform dependency) and is out of scope for the trust-minimizing default.
-   - **Post-recovery:** Alice re-splits under her new identity to restore a clean distribution (ties to secret lifecycle, #6).
+   - **Post-recovery:** Alice re-splits under her new identity to restore a clean distribution (ties to secret lifecycle, item 11).
 
    Work items: new metadata-only recovery message type (relay + Android + iOS); holder-side "link to existing contact / key-change" UI; `k`/`n` in the pick_up payload + `PayloadCanonical` + `HeldShare`/`ShareMetadata`; `secretId`-keyed retrieve; optional catalog export/import (Android + iOS). **No migrations** (pre-launch, clean-slate reset).
 9. **Holder-key-change handling + share-redundancy monitoring.** Post-item-7 a holder's key change is no longer a "share lost" event — it splits in two, each needing a different mechanism.
@@ -421,11 +421,11 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
      - **Row *absence* is never a signal** (could be relay GC, not withdrawal) — `syncDistributed()` keeps its "upsert, never delete" rule.
      - Only an **explicitly observed "withdrawn" tombstone** (if caught before GC) or a **health-check ack / no-ack** counts. The health-check is ground truth; the tombstone is a lossy hint; Alice's local `ShareMetadata` (corrected by health-checks) is her source of truth — never the relay. Tombstone writes are fire-and-forget (the blind relay can't confirm delivery).
 
-   **Repair requires reconstruction (the #6 hand-off).** Alice can't cheaply "top up" a lost holder — SSS shares come from a specific polynomial, and she doesn't retain the secret/polynomial (retaining it would defeat splitting). So restoring a lost share = **reconstruct (gather k) → re-split to a fresh holder set**. The whole value of health-monitoring is catching a loss **while still ≥ k**, so she can reconstruct-and-re-split *before* a second loss makes the secret permanently unrecoverable.
+   **Repair requires reconstruction (the item-11 hand-off).** Alice can't cheaply "top up" a lost holder — SSS shares come from a specific polynomial, and she doesn't retain the secret/polynomial (retaining it would defeat splitting). So restoring a lost share = **reconstruct (gather k) → re-split to a fresh holder set**. The whole value of health-monitoring is catching a loss **while still ≥ k**, so she can reconstruct-and-re-split *before* a second loss makes the secret permanently unrecoverable.
 
    **Policy shift:** recipient-initiated deletion moves from "purely local, no message" to "unilateral, but best-effort notifies Alice" — the holder keeps full autonomy (no approval) but can't vanish *silently*.
 
-   Work items: signed rotation-push message type; health-check request/ack message type + n_live/k per-secret health UI; "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling; reconstruct-and-re-split repair flow (shared with #6). Relay + Android + iOS. **No migrations** (pre-launch).
+   Work items: signed rotation-push message type; health-check request/ack message type + n_live/k per-secret health UI; "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling; reconstruct-and-re-split repair flow (shared with item 11). Relay + Android + iOS. **No migrations** (pre-launch).
 10. **Malicious key substitution + stolen-key revocation.** Closes the key-change thread. Decided during the spec walk.
 
     **Load-bearing reframe: a stolen key is not a stolen secret.** Even holding Alice's Ed25519 + X25519 private keys, an attacker must still get **`k` holders to approve retrieval**, and the consent model requires each holder to verify *out-of-band* that Alice genuinely asked. So the k-of-n consent layer — not the keypair — is the real backstop; the attacker must defeat `k` humans. This is why retrieval consent exists (not just deletion consent).
@@ -446,6 +446,49 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full implementation log.
     **Honest scope limit.** Revocation limits *future* damage only. If the attacker already defeated `k` holders and reconstructed during the exposure window, that secret is **burned** — Deposplit can't un-leak it. Post-compromise, Alice must: run item-8 recovery/rotation + flag the old key compromised; reconstruct + re-split affected secrets (item-9 repair); and **change the underlying secret itself** (rotate the BitLocker key, etc.) for anything that may have leaked. Existing hygiene (biometric-gated reconstruction, Keystore/Secure Enclave private keys) keeps *device* theft from becoming *key* theft, buying time for the social layer.
 
     Work items: `K_old`-signed rotation with `min(level, LOW)` downgrade (Android + iOS; ties to item 9's rotation push); "compromised/revoked" key flag + conflict-resolution UI + auto-accept suppression; "key changed N days ago" indicator + fresh-OOB nudge on the approve-retrieve screen. **No migrations** (pre-launch).
+11. **Secret lifecycle — bounds, sender-side `Secret` record, discard, and the composed re-split.** Decided during the spec walk. This is the anchor items 8 and 9 lean on when they say "reconstruct + re-split," now pinned down. It replaces the sender side's *implicit* model (per-share `ShareMetadata` rows grouped by `secretId` at query time, no per-secret entity, a hardcoded reconstruct threshold) with an explicit one.
+
+    **Bounds — the hard invariant is `2 ≤ k ≤ n ≤ 255`.** `k ≥ 2` is a **hard floor** (`k = 1` isn't secret-*sharing* — any single holder reconstructs alone, defeating the "< k reveals nothing" premise); hence `n ≥ 2`. `n ≤ 255` is field-imposed (x-coordinates live in GF(2⁸), x=0 reserved for the secret). The domain (hexagon `split`/`deposit`) enforces this and throws on violation. **No hard UI ceiling on `n`** — a board-of-directors secret legitimately wants large `n` (with a correspondingly large `k`). Instead, **three soft, non-blocking warning axes** (dismissible "Are you sure?" confirmations; exact thresholds/wording are UI tuning, not load-bearing spec):
+    - **Operational burden** (magnitude, *not* a security warning) — large `n` (e.g. `n ≥ 10`, `n ≥ 20`): you must exchange keys with all `n`, approve all `n` pickups, and health-check all `n` (item 9). Copy should make clear this is *work*, not *danger*.
+    - **Confidentiality tail** — `k` low relative to `n` (e.g. `k < n/2`, `k < n/3`): a small clique reconstructs behind Alice's back.
+    - **Availability tail** — redundancy margin `n − k` small (e.g. `k = n` → *any single lost holder = secret gone forever*; `k = n − 1` → tolerates exactly one loss). This is the redundancy-erosion failure item 9 exists to catch, so warning at split time is the cheapest prevention. Without it the UI would let someone pick `10-of-10` silently, then item 9 alarms the moment a phone dies.
+
+    The two ratio tails are symmetric around a healthy middle: SSS forces a trade-off at fixed `n` — confidentiality rises with `k`, availability rises with `n − k`; you can't push both up without raising `n`.
+
+    **Sender-side `Secret` aggregate.** Today the sender has *nowhere* to store `k` — only per-share `ShareMetadata` rows — which is why `reconstruct()` uses a hardcoded `check(approved.size >= 2)` (literal `2`, not the real `k` — a genuine bug for any `k ≠ 2`). Introduce a per-secret record keyed by `secretId`: **`Secret(secretId, label, k, n, secretCreatedAt, state)`**. `ShareMetadata` is **normalized to reference it** — drops the duplicated `label`/`secretCreatedAt` (single source of truth; the UI has the `Secret` loaded when rendering its shares), keeps what's genuinely per-share: `secretId` (→ `Secret`), `contactId` (the holder), and item 9's per-share health status. `reconstruct(secretId)` then reads `k` from the `Secret` and enforces `approved.size >= k` — the literal `2` becomes correct by construction. Consistent with item 8's decision to also put `k`/`n` in the pick_up payload (sender persists locally, wire carries to holders, holders store in `HeldShare` — same two numbers everywhere).
+
+    **No named "re-split" or "rotate-value" flow — one new primitive, freely composed.** "Value rotation" is *not* a concept the app needs to model: when Alice has a new BitLocker key she just **`deposit(newValue)` + `discardSecret(oldSecretId)`** — Bob can't and needn't distinguish "same computer, rotated key" from "migrated to a new computer, retired the old." Both of the flows considered dissolve into the same primitives, differing only in *whether Alice already holds the value*:
+    - **Has the value** (rotation / genuinely new secret): `deposit(value)` + `discardSecret(old)`.
+    - **Lacks the value** (item 9 top-up — *same* value, restore redundancy): `reconstruct(old)` to get it back in hand → then `deposit(value)` + `discardSecret(old)`.
+
+    So the lifecycle adds exactly **one new primitive**: **`discardSecret(secretId)`** — a fan-out **sender-initiated `delete`** to every holder of that `secretId` (composed from the existing per-share `delete` request type; each holder must **approve** per the symmetric consent model, so it is *request*, not *compel*, and best-effort — a dark holder never approves, and the relay may GC the request row before they poll). Every `deposit()` already mints a fresh `secretId` (= a fresh polynomial), so the new distribution is automatically distinguishable from the old — **necessary**, because shares from two different polynomials for the same value are *not* interchangeable (`combine()` needs `k` shares from the *same* polynomial). The **`supersedes` link is dropped** (YAGNI): with no rotation concept, nothing knows the new secret "replaces" the old, and there's no natural moment to populate it.
+
+    **`reconstruct()` becomes a pure read (behavior change from current code).** Today `reconstruct()` tears down Alice's local `ShareMetadata` + relay rows after combining — the "Alice forgets, holders remember" asymmetry (holders' `HeldShare`s persist because they're only asked to delete via an approved `delete`). Since reconstruct is now a *step* toward re-split, that auto-teardown is premature. Cleanly separated they are **GET vs DELETE**: `reconstruct` reads the value and changes nothing; `discardSecret` is the *only* teardown path. This also fixes the orphaned-holder problem (Alice no longer silently forgets a distribution she hasn't discarded). **Code TODO: remove the auto-delete from `reconstruct()`.**
+
+    **Exposure honesty.** Re-splitting the *same* value restores **availability, not confidentiality** — old holders' shares still reconstruct the still-live value until they approve their discards. When Alice rotates the *value*, the old value is **dead**, so a lingering old share reconstructs a *retired* secret (real exposure reduction). The residual risk only bites for an unchangeable value (e.g. a seed phrase); there, best-effort `discardSecret` is the honest-but-imperfect mitigation. Same "burned secret" honesty as item 10.
+
+    **Two-state lifecycle, no tombstone.** `state ∈ {ACTIVE, DISCARDING}`. The one fact not derivable from item 9's per-share health is *Alice's intent to discard* — needed so a dropping `n_live` reads as *expected teardown*, not *alarm*:
+
+    | State | Meaning | Effect |
+    |---|---|---|
+    | `ACTIVE` | Distributed and live | Health-monitored (item 9) |
+    | `DISCARDING` | `discardSecret` issued; deletes outstanding | Health alarms **suppressed** (dropping `n_live` is the goal); UI shows per-holder teardown progress |
+
+    When all holders confirm deletion, or Alice **force-forgets locally** (a dark holder will never approve), the `Secret` record is **removed** — no persistent `DISCARDED` tombstone (pure UI nicety; the residual-share caveat is stated anyway). **No `DRAFT` state** — `deposit()` is atomic (split + distribute).
+
+    **Health-alarm thresholds (feeds item 9).** Reconstruction needs `k` shares, so the alarm fires at **`n_live <= k`** — firing only at `n_live < k` is *too late* (already unrecoverable). `n_live == k` is the **last actionable moment** (can still gather `k` → reconstruct → re-split → restore margin); `n_live < k` is a post-mortem (only remedy left is changing the underlying secret, item 10):
+
+    | Condition | Level | Call to action |
+    |---|---|---|
+    | `n_live >= k + 2` | healthy | — |
+    | `n_live == k + 1` | caution | margin of one — re-split soon |
+    | `n_live == k` | **critical** | reconstruct + re-split **now** — last recoverable moment |
+    | `n_live < k` | lost | unrecoverable — rotate the underlying secret (item 10) |
+    | *(while `state == DISCARDING`)* | suppressed | teardown is intentional |
+
+    **Freemium-cap interaction (resolves C4).** The free "up to `n` deposited secrets" cap counts **`ACTIVE` secrets only** — *not* lifetime deposits (which would punish good hygiene, i.e. retiring/rotating secrets, and is unenforceable in spirit anyway). `discardSecret` flips a secret to `DISCARDING` **immediately** (before holders finish confirming), so it leaves the `ACTIVE` count at once — which means a **re-split never double-counts**: the old secret has already left `ACTIVE` by the time the re-split's new `deposit` lands, so a free user restoring redundancy on their `n`-th secret is never blocked by their own in-flight teardown.
+
+    Work items: `Secret` aggregate (`k`/`n`/`state`) + `ShareMetadata` normalized to reference it; `reconstruct()` enforces `>= k` (remove hardcoded `2`) **and** becomes non-destructive; `discardSecret(secretId)` fan-out primitive + "discard secret" UI; `ACTIVE`/`DISCARDING` state + health-alarm suppression; split-time three-axis warnings; graduated `n_live` health alarm (feeds item 9); free-cap counts `ACTIVE` only. Hexagon (Android + iOS; relay untouched — it never stores `Secret`/`ShareMetadata`). **No migrations** (pre-launch, clean-slate reset).
 
 ## Build & Test Commands
 
