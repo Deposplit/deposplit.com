@@ -25,6 +25,7 @@
 package driving_adapters
 
 import driven_ports.ContactRepository
+import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
 import driven_ports.ShareRepository
@@ -79,6 +80,12 @@ private class FakeShareMetadataRepository extends ShareMetadataRepository:
   override def getAll(): List[ShareMetadata] = metas
   override def save(share: ShareMetadata): Unit = metas = share :: metas
   override def delete(shareId: UUID): Unit = metas = metas.filterNot(_.id == shareId)
+
+private class FakeSecretRepository extends SecretRepository:
+  private var secrets: List[Secret] = Nil
+  override def getAll(): List[Secret] = secrets
+  override def save(secret: Secret): Unit = secrets = secret :: secrets.filterNot(_.id == secret.id)
+  override def delete(secretId: UUID): Unit = secrets = secrets.filterNot(_.id == secretId)
 
 private object NoOpShareEncryption extends ShareEncryption:
   override def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] = plaintext
@@ -161,6 +168,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
       contactRepository = FakeContactRepository(List(aliceContact)),
       identity = bobIdentity
     )

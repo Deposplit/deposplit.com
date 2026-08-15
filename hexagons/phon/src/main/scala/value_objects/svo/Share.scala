@@ -63,13 +63,14 @@ case class ShareRequest(
     case _               => false
   override def hashCode(): Int = id.hashCode()
 
-/** Lightweight record Alice stores locally when she deposits a share (one per PickUp request). */
+/** Lightweight record Alice stores locally when she deposits a share (one per PickUp request).
+  * Normalized to reference its parent `Secret` (by `secretId`) rather than duplicating
+  * `label`/`secretCreatedAt` — see deposplit.com/CLAUDE.md "What is next" item 11.
+  */
 case class ShareMetadata(
     id: UUID,              // PickUp request ID — used as shareId in Retrieve/Delete requests
     secretId: UUID,
-    label: String,
     // The holder's stable local contact id — not their Ed25519 key — so this record survives a
     // holder key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
-    contactId: UUID,
-    secretCreatedAt: Instant
+    contactId: UUID
 ) extends Serializable

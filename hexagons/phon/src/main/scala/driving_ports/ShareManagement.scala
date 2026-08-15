@@ -26,6 +26,7 @@ package driving_ports
 
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
+import value_objects.svo.Secret
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestType
@@ -35,12 +36,24 @@ import java.util.UUID
 trait ShareManagement:
   // ─── Sender ────────────────────────────────────────────────────────────────
   def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit
+  def listSecrets(): List[Secret]
   def syncDistributed(): Unit
   def listDistributed(): List[ShareMetadata]
   def listSentRequests(): List[ShareRequest]
   def requestAll(secretId: UUID): Unit
   def openRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest
+  /** Pure read (item 11) — collects k approved retrieve shares and decrypts them. Never tears
+    * down local `ShareMetadata` or relay rows; use `discardSecret` for that.
+    */
   def reconstruct(secretId: UUID): Array[Byte]
+  /** Fans out a sender-initiated delete request to every known holder of secretId and flips the
+    * Secret to Discarding immediately (before any holder responds).
+    */
+  def discardSecret(secretId: UUID): Unit
+  /** Local-only teardown for a Discarding secret whose holders will never all respond (e.g. a
+    * permanently dark holder). Does not wait for or require relay confirmation.
+    */
+  def forceForgetSecret(secretId: UUID): Unit
 
   // ─── Recipient ──────────────────────────────────────────────────────────────
   def syncInbox(): Unit

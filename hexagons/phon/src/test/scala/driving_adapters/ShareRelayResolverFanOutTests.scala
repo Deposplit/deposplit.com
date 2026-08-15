@@ -99,6 +99,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
       contactRepository = FakeContactRepository(List(aliceContact, charlieContact)),
       identity = bobIdentity
     )
@@ -128,6 +129,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
       contactRepository = FakeContactRepository(List(aliceContact, charlieContact)),
       identity = bobIdentity
     )

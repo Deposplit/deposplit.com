@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 8–13 are design-complete but not yet built** (items 6 and 7 shipped — see below). The
-> current code still implements the *pre-8–13* model those items supersede. `No migrations`
-> throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
+> ⚠ **Items 8–10 and 12–13 are design-complete but not yet built** (items 6, 7, and 11 shipped —
+> see below). The current code still implements the *pre-8–10/12–13* model those items supersede.
+> `No migrations` throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -32,10 +32,11 @@ is better served by one board than three. This file lives in the hub repo
 - **Item 6 (four-level verification) is done** — it was independent of the crypto redesign
   (enum + UI, no crypto dependency), so it shipped first as a low-risk warm-up. Item 10 will
   later lean on its levels.
-- **Item 11 (secret lifecycle)** is partly independent: its `reconstruct()` bug-fixes
-  (enforce real `k`, stop auto-teardown) can land early; its `Secret` aggregate feeds items
-  9 and 13. Uses the `contactId` anchor item 7 already introduced.
-- Rough dependency order for what's left: **11 → {8, 9} → {10, 12} → 13**.
+- **Item 11 (secret lifecycle) is done** — its `reconstruct()` bug-fixes (enforce real `k`,
+  stop auto-teardown) and its `Secret` aggregate are shipped; items 9 and 13 build on it.
+  Used the `contactId` anchor item 7 already introduced. Shipped on Android, iOS, and
+  (for consistency, not full parity) phon.
+- Rough dependency order for what's left: **{8, 9} → {10, 12} → 13**.
 
 ---
 
@@ -67,7 +68,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — items 6–7 done, 8–13 design-complete but not yet built
+## Planned items (6–13) — items 6, 7, 11 done, 8–10 and 12–13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -108,16 +109,18 @@ NB: the health-check is a **push** — reshaped by item 12 (see below).
 - [ ] `A` `I` conflict-resolution UI for two competing "current keys" (never auto-resolved)
 - [ ] `A` `I` "requester's key changed N days ago" indicator + fresh-OOB nudge on approve-retrieve screen
 
-### Item 11 — Secret lifecycle · [CLAUDE.md#11](CLAUDE.md)
-Bounds `2 ≤ k ≤ n ≤ 255` (hard, no UI ceiling). Hexagon only; `relay` untouched.
-- [ ] `A` `I` `Secret(secretId, label, k, n, secretCreatedAt, state)` aggregate; `ShareMetadata` normalized to reference it
-- [ ] `A` `I` `reconstruct(secretId)` enforces `approved.size >= k` — **remove hardcoded `check(approved.size >= 2)`**
-- [ ] `A` `I` `reconstruct()` becomes a **pure read** — **remove the auto-teardown** of local `ShareMetadata` + relay rows
-- [ ] `A` `I` `discardSecret(secretId)` fan-out consent-gated `delete` primitive + "discard secret" UI
-- [ ] `A` `I` two-state `ACTIVE`/`DISCARDING` + health-alarm suppression while `DISCARDING`; record removed on teardown/force-forget
-- [ ] `A` `I` split-time three-axis soft warnings (operational burden / confidentiality tail `k` low vs `n` / availability tail `n−k` small)
-- [ ] `A` `I` graduated `n_live` health alarm (`>=k+2` healthy · `==k+1` caution · `==k` critical · `<k` lost) — feeds item 9
-- [ ] `A` `I` free-cap counts `ACTIVE` only; `discardSecret` frees the slot immediately (item 5 / C4)
+### Item 11 — Secret lifecycle · [CLAUDE.md#11](CLAUDE.md) · *done*
+Bounds `2 ≤ k ≤ n ≤ 255` (hard, no UI ceiling) — already enforced by `split()`/`combine()`
+on all three platforms before this item; no new code needed there. Hexagon only; `relay` untouched.
+- [x] `A` `I` `Secret(secretId, label, k, n, secretCreatedAt, state)` aggregate; `ShareMetadata` normalized to reference it
+- [x] `A` `I` `reconstruct(secretId)` enforces `approved.size >= k` — **remove hardcoded `check(approved.size >= 2)`**
+- [x] `A` `I` `reconstruct()` becomes a **pure read** — **remove the auto-teardown** of local `ShareMetadata` + relay rows
+- [x] `A` `I` `discardSecret(secretId)` fan-out consent-gated `delete` primitive + "discard secret" UI
+- [x] `A` `I` two-state `ACTIVE`/`DISCARDING` + health-alarm suppression while `DISCARDING`; record removed on teardown/force-forget (`forceForgetSecret`)
+- [x] `A` `I` split-time three-axis soft warnings (operational burden / confidentiality tail `k` low vs `n` / availability tail `n−k` small)
+- [x] `A` `I` graduated `n_live` health alarm (`>=k+2` healthy · `==k+1` caution · `==k` critical · `<k` lost) — feeds item 9; `n_live` is a pre-item-9/12 proxy (locally-tracked holder count) until item 12's freshness model lands
+- [x] `A` `I` free-cap counts `ACTIVE` only; `discardSecret` frees the slot immediately (item 5 / C4) — no enforcement exists yet since item 5 itself isn't built, but the `Secret.state` data model is ready for it
+- [x] `phon` `Secret` aggregate + `reconstruct`/`discardSecret`/`forceForgetSecret` primitives; simplified its existing manual delete-fan-out to call `discardSecret` directly. Skipped the health badge and split-time warning UI (consistency, not full parity — not originally tagged for this item)
 
 ### Item 12 — Polling, staleness & relay-TTL cadence (custodial-heartbeat) · [CLAUDE.md#12](CLAUDE.md)
 Flips item 9's health-check pull→push. `relay` untouched (blind mailbox).
@@ -150,5 +153,5 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6 and 7 have since shipped (see
-`CHANGELOG.md`); all other implementation above is pending.
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, and 11 have since shipped
+(see `CHANGELOG.md`); all other implementation above is pending.

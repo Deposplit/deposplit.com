@@ -41,8 +41,6 @@ import play.api.mvc.ControllerComponents
 import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
-import value_objects.svo.ShareRequestType
-
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
@@ -212,10 +210,7 @@ class PhonyPhoneController @Inject() (
   }
 
   def deleteMySecret(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
-    shareManagement
-      .listDistributed()
-      .filter(_.secretId == secretId)
-      .foreach(share => shareManagement.openRequest(share.id, ShareRequestType.Delete))
+    shareManagement.discardSecret(secretId)
     NoContent
   }
 
