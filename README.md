@@ -42,7 +42,7 @@ Rejected alternatives:
 | Language / framework | Scala + Play 3 | sbt build; `hexagon` subproject (pure Scala, no Play) + root Play app (adapters, controllers, Twirl views) |
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
-| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (three request types: `pick_up`, `retrieve`, `delete`) |
+| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (four request types: `pick_up`, `retrieve`, `delete`, `recovery_metadata`) |
 | Dev / test DB | H2 (file-backed, `./.devDBs/deposplit`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
@@ -89,13 +89,14 @@ The architectural sweet spot is native apps for the persistent/receiver role, wi
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata.
 
-All interactions are modelled as consent requests — Alice requests something of Bob; Bob can approve or deny. Three request types, one table:
+Three of the four request types are modelled as consent requests — Alice requests something of Bob; Bob can approve or deny. The fourth is a holder-initiated push with no consent phase. One table:
 
 | Type | Direction | Description |
 |---|---|---|
 | `pick_up` | Sender → recipient | Alice deposits a share (ciphertext included); Bob approves to receive it and the relay delivers ciphertext once, then clears it |
 | `retrieve` | Sender ↔ recipient | Alice requests a specific share back; Bob approves (sends ciphertext from local storage) or denies |
 | `delete` | Sender ↔ recipient | Alice requests deletion of a share; Bob approves or denies |
+| `recovery_metadata` | Holder → owner | Bob pushes a metadata-only report about a share of his back to Alice, so she can rebuild her records after losing her old identity's key; self-approves at creation, no consent phase |
 
 Recipient-initiated deletion is purely local — no message required. The recipient can delete individual shares or all shares from a given sender at any time without approval.
 

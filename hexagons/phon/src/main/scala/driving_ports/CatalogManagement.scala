@@ -22,29 +22,19 @@
  * THE SOFTWARE.
  */
 
-package value_objects.svo
+package driving_ports
 
-import java.time.Instant
-import java.util.UUID
+import value_objects.svo.Catalog
 
-case class HeldShare(
-    id: UUID,
-    secretId: UUID,
-    label: String,
-    // The sender's stable local contact id — not their Ed25519 key — so this record survives a
-    // sender key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
-    contactId: UUID,
-    createdAt: Instant,
-    pickedUpAt: Instant,
-    // The decrypted share, plaintext at rest — see item 7: a single holder's share is
-    // information-theoretically empty on its own, so this is safe to store unencrypted.
-    plaintextShare: Array[Byte],
-    // SSS threshold/share-count, carried on the pick_up that produced this share — reported back
-    // during identity recovery (item 8) so a recovering owner can rebuild her Secret record.
-    k: Int,
-    n: Int
-) extends Serializable:
-  override def equals(other: Any): Boolean = other match
-    case h: HeldShare => id == h.id
-    case _            => false
-  override def hashCode(): Int = id.hashCode()
+// Optional catalog export/import (item 8) — a convenience backup of the *non-secret* catalog,
+// never shares or private keys. phon has no UI for this (consistency, not parity) — the
+// primitive exists for cross-platform consistency and is exercised via tests only.
+trait CatalogManagement:
+  def exportCatalog(): Catalog
+
+  /** Merges contacts/secrets/shareMetadata from catalog into local storage — upsert-if-absent
+    * only, by id; an existing local record is never overwritten by an imported one, since a
+    * stale backup could otherwise clobber more-current local state. Returns the number of newly
+    * added contacts.
+    */
+  def importCatalog(catalog: Catalog): Int

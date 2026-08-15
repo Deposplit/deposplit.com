@@ -59,6 +59,8 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       requestType: ShareRequestType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
+      k: Option[Int] = None,
+      n: Option[Int] = None,
       senderSignature: Array[Byte]
   ): ShareRequest =
     val body = Json
@@ -72,6 +74,8 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       )
       .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
       .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
+      .deepMerge(k.fold(Json.obj())(v => Json.obj("k" -> v)))
+      .deepMerge(n.fold(Json.obj())(v => Json.obj("n" -> v)))
     parseShareRequest(send("POST", "/share-requests", Some(body)))
 
   override def listShareRequests(
@@ -155,9 +159,10 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
   // ── JSON ──────────────────────────────────────────────────────────────────
 
   private def requestTypeStr(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp   => "pick_up"
-    case ShareRequestType.Retrieve => "retrieve"
-    case ShareRequestType.Delete   => "delete"
+    case ShareRequestType.PickUp           => "pick_up"
+    case ShareRequestType.Retrieve         => "retrieve"
+    case ShareRequestType.Delete           => "delete"
+    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
 
   private def parseShareRequest(json: JsValue): ShareRequest =
     ShareRequest(
@@ -168,10 +173,11 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       label = (json \ "label").as[String],
       secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
       requestType = (json \ "requestType").as[String] match
-        case "pick_up"  => ShareRequestType.PickUp
-        case "retrieve" => ShareRequestType.Retrieve
-        case "delete"   => ShareRequestType.Delete
-        case other      => throw IllegalArgumentException(s"Unknown requestType: $other"),
+        case "pick_up"           => ShareRequestType.PickUp
+        case "retrieve"          => ShareRequestType.Retrieve
+        case "delete"            => ShareRequestType.Delete
+        case "recovery_metadata" => ShareRequestType.RecoveryMetadata
+        case other               => throw IllegalArgumentException(s"Unknown requestType: $other"),
       state = (json \ "state").as[String] match
         case "pending"  => ShareRequestState.Pending
         case "approved" => ShareRequestState.Approved
@@ -181,6 +187,8 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       requestedAt = Instant.parse((json \ "requestedAt").as[String]),
       respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
       ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64),
+      k = (json \ "k").asOpt[Int],
+      n = (json \ "n").asOpt[Int],
       senderSignature = decodeBase64Url((json \ "senderSignature").as[String]),
       recipientSignature = (json \ "recipientSignature").asOpt[String].map(decodeBase64Url)
     )

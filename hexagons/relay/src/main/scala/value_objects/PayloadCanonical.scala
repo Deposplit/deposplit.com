@@ -54,11 +54,17 @@ object PayloadCanonical:
   private val base64Std = Base64.getEncoder
 
   private def requestTypeWire(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp   => "pick_up"
-    case ShareRequestType.Retrieve => "retrieve"
-    case ShareRequestType.Delete   => "delete"
+    case ShareRequestType.PickUp           => "pick_up"
+    case ShareRequestType.Retrieve         => "retrieve"
+    case ShareRequestType.Delete           => "delete"
+    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
 
-  /** Signed by the sender when opening a share request (`senderSignature`). */
+  /** Signed by the sender when opening a share request (`senderSignature`).
+    *
+    * `k`/`n` were added by item 8 (identity recovery) — populated for PickUp and
+    * RecoveryMetadata, `None` for Retrieve/Delete; appended at the end of the sequence to
+    * keep the existing field order (and its cross-platform byte-vector test) undisturbed.
+    */
   def forOpen(
       secretId: SecretId,
       requestType: ShareRequestType,
@@ -66,7 +72,9 @@ object PayloadCanonical:
       label: Label,
       secretCreatedAt: Instant,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      k: Option[Int] = None,
+      n: Option[Int] = None
   ): Array[Byte] =
     Seq(
       secretId.value.toString,
@@ -75,7 +83,9 @@ object PayloadCanonical:
       label.value,
       secretCreatedAt.toEpochMilli.toString,
       shareId.fold("")(_.toString),
-      ciphertext.fold("")(base64Std.encodeToString)
+      ciphertext.fold("")(base64Std.encodeToString),
+      k.fold("")(_.toString),
+      n.fold("")(_.toString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
   /** Signed by the recipient when responding to a share request (`recipientSignature`).

@@ -31,4 +31,9 @@ trait ContactManagement:
   def listContacts(): List[Contact]
   def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
   def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
+  /** Updates an existing contact in place, preserving contactId — never delete-and-re-add, which
+    * would mint a fresh id and orphan any HeldShare/ShareMetadata rows anchored to it. See
+    * deposplit.com/CLAUDE.md "What is next" item 8.
+    */
+  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None): Unit
   def deleteContact(contactId: UUID): Unit

@@ -52,23 +52,27 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val privateKeySeed: Array[Byte] = (0 until 32).map(_.toByte).toArray
   private val expectedPublicKeyBase64Url = "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   private val expectedSignatureBase64Url =
-    "_EvKOl019mJekfMc34HdAkiEULJGph_zAz-yqwqgX25_JlBkTweeqOeSJJKf2tEb0peCZez_3YKY-DHdHF7NAw"
+    "0B6IPdj4W_Nusz0CWKznDI6o0LYUASyzRUNNsO_tPFHhy3RaQFz1FVR7c9LVEYnafuzMYia6t6ATS1UXsepEBQ"
 
   private val secretId = SecretId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
   private val recipientKey = PublicKey.fromBytes(Array.fill(32)(0x02.toByte)).getOrElse(fail("bad fixture key"))
   private val label = Label("cross-platform test vector")
   private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
   private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
+  // k/n (item 8) — appended at the end of the field sequence, so the pre-item-8 fields above are
+  // byte-identical to the original vector; only the two new trailing lines are new.
+  private val k = Some(2)
+  private val n = Some(3)
 
   test("forOpen produces the fixed canonical bytes") {
-    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext), k, n)
     val expected =
-      "11111111-1111-1111-1111-111111111111\npick_up\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU="
+      "11111111-1111-1111-1111-111111111111\npick_up\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU=\n2\n3"
     assertEquals(new String(canon, "UTF-8"), expected)
   }
 
   test("signing the canonical bytes with the fixed seed reproduces the fixed signature") {
-    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext), k, n)
     val privKey = Ed25519PrivateKeyParameters(privateKeySeed, 0)
     val pubKey = privKey.generatePublicKey()
     assertEquals(b64url.encodeToString(pubKey.getEncoded), expectedPublicKeyBase64Url)
@@ -81,7 +85,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   }
 
   test("the fixed signature verifies against the fixed public key via PublicKey.verify") {
-    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext))
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, secretCreatedAt, None, Some(ciphertext), k, n)
     val pk = PublicKey.fromBase64Url(expectedPublicKeyBase64Url).getOrElse(fail("bad fixture key"))
     val sig = Signature.fromBase64Url(expectedSignatureBase64Url).getOrElse(fail("bad fixture signature"))
     assert(pk.verify(canon, sig))

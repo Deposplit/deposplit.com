@@ -29,14 +29,28 @@ import java.util.UUID
 
 /** A share request row — self-describing with embedded routing metadata.
   *
-  * `shareId` is None for PickUp rows (they are the root share record).
-  * For Retrieve and Delete rows it holds the id of the originating PickUp request,
-  * supplied by the client and stored opaquely by the relay.
+  * `shareId` is None for PickUp and RecoveryMetadata rows (both are roots — the former the
+  * share record itself, the latter a report about one). For Retrieve and Delete rows it holds
+  * the id of the originating PickUp request, supplied by the client and stored opaquely by
+  * the relay.
   *
   * `ciphertext` semantics differ by type:
-  *   - PickUp:   provided by Alice at creation; delivered to Bob on approval and cleared.
-  *   - Retrieve: provided by Bob on approval; stored until Alice collects it.
-  *   - Delete:   always None.
+  *   - PickUp:           provided by Alice at creation; delivered to Bob on approval and cleared.
+  *   - Retrieve:         provided by Bob on approval; stored until Alice collects it.
+  *   - Delete:           always None.
+  *   - RecoveryMetadata: always None — this type never carries share bytes, only the metadata
+  *                       needed to rebuild a `ShareMetadata` row (see "state" below).
+  *
+  * `k`/`n` are populated for PickUp and RecoveryMetadata only (None for Retrieve/Delete) —
+  * see deposplit.com/CLAUDE.md "What is next" item 8. Signed as part of `senderSignature` so a
+  * holder can't misreport them without invalidating the row.
+  *
+  * `state` is `Pending` at creation for PickUp/Retrieve/Delete, awaiting the recipient's
+  * approve/deny. RecoveryMetadata is different: it's a holder-initiated *push*, not a
+  * consent-gated request — nothing for the recipient to approve — so it's created directly in
+  * `Approved` state (`respondedAt` set immediately, `recipientSignature` left None). The
+  * recipient simply polls for it and deletes the row once consumed, via the same
+  * `deleteShareRequestById` any party may already call.
   *
   * `senderSignature` and `recipientSignature` are Ed25519 signatures over `PayloadCanonical`'s
   * byte constructions — independent of the transport-auth signature, they let any reader
@@ -56,6 +70,8 @@ case class ShareRequest(
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
+    k: Option[Int],
+    n: Option[Int],
     senderSignature: Signature,
     recipientSignature: Option[Signature]
 )

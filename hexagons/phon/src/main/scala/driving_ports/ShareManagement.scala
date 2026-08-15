@@ -62,3 +62,11 @@ trait ShareManagement:
   def respond(requestId: UUID, approved: Boolean): Unit
   def deleteHeldShare(shareId: UUID): Unit
   def deleteAllHeldFromSender(contactId: UUID): Unit
+
+  // ─── Identity recovery (item 8) — holder side ────────────────────────────
+  /** Pushes a metadata-only report (no share bytes) for every HeldShare held from contactId back
+    * to that contact, so a recovering owner can rebuild her ShareMetadata/Secret records. Call
+    * after ContactManagement.updateContact has relinked the re-presented identity to the
+    * existing contact.
+    */
+  def pushRecoveryMetadata(contactId: UUID): Unit

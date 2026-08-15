@@ -25,4 +25,4 @@
 package value_objects
 
 enum ShareRequestType:
-  case PickUp, Retrieve, Delete
+  case PickUp, Retrieve, Delete, RecoveryMetadata

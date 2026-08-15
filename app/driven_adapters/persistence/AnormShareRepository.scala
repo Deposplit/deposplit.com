@@ -77,9 +77,11 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Instant]("requested_at") ~
       get[Option[Instant]]("responded_at") ~
       get[Option[Array[Byte]]]("ciphertext") ~
+      get[Option[Int]]("k") ~
+      get[Option[Int]]("n") ~
       get[Array[Byte]]("sender_signature") ~
       get[Option[Array[Byte]]]("recipient_signature") map {
-        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ rt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ sSig ~ rSig =>
+        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ rt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ k ~ n ~ sSig ~ rSig =>
           ShareRequest(
             id = id,
             secretId = SecretId(sid),
@@ -88,10 +90,11 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             label = Label(lbl),
             secretCreatedAt = sca,
             requestType = rt match
-              case "pick_up"  => ShareRequestType.PickUp
-              case "retrieve" => ShareRequestType.Retrieve
-              case "delete"   => ShareRequestType.Delete
-              case other      => sys.error(s"unknown request_type: $other"),
+              case "pick_up"           => ShareRequestType.PickUp
+              case "retrieve"          => ShareRequestType.Retrieve
+              case "delete"            => ShareRequestType.Delete
+              case "recovery_metadata" => ShareRequestType.RecoveryMetadata
+              case other               => sys.error(s"unknown request_type: $other"),
             state = st match
               case "pending"  => ShareRequestState.Pending
               case "approved" => ShareRequestState.Approved
@@ -101,6 +104,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             requestedAt = reqAt,
             respondedAt = resAt,
             ciphertext = ct,
+            k = k,
+            n = n,
             senderSignature = parseSignature(sSig),
             recipientSignature = rSig.map(parseSignature)
           )
@@ -111,9 +116,10 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   // ---------------------------------------------------------------------------
 
   private def requestTypeStr(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp   => "pick_up"
-    case ShareRequestType.Retrieve => "retrieve"
-    case ShareRequestType.Delete   => "delete"
+    case ShareRequestType.PickUp           => "pick_up"
+    case ShareRequestType.Retrieve         => "retrieve"
+    case ShareRequestType.Delete           => "delete"
+    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
 
   private def stateStr(st: ShareRequestState): String = st match
     case ShareRequestState.Pending  => "pending"
@@ -128,11 +134,13 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO share_requests
-          (id, secret_id, label, sender_key, recipient_key, request_type, share_id, ciphertext,
-           secret_created_at, sender_signature)
+          (id, secret_id, label, sender_key, recipient_key, request_type, state, share_id,
+           ciphertext, k, n, secret_created_at, requested_at, responded_at, sender_signature,
+           recipient_signature)
         VALUES
           ({id}::uuid, {secretId}::uuid, {label}, {senderKey}, {recipientKey},
-           {requestType}, {shareId}::uuid, {ciphertext}, {secretCreatedAt}, {senderSignature})
+           {requestType}, {state}, {shareId}::uuid, {ciphertext}, {k}, {n}, {secretCreatedAt},
+           {requestedAt}, {respondedAt}, {senderSignature}, {recipientSignature})
       """)
         .on(
           "id" -> request.id.toString,
@@ -141,10 +149,16 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           "senderKey" -> request.senderKey.toBytes,
           "recipientKey" -> request.recipientKey.toBytes,
           "requestType" -> requestTypeStr(request.requestType),
+          "state" -> stateStr(request.state),
           "shareId" -> request.shareId.map(_.toString).orNull,
           "ciphertext" -> request.ciphertext.orNull,
+          "k" -> request.k,
+          "n" -> request.n,
           "secretCreatedAt" -> request.secretCreatedAt,
-          "senderSignature" -> request.senderSignature.toBytes
+          "requestedAt" -> request.requestedAt,
+          "respondedAt" -> request.respondedAt,
+          "senderSignature" -> request.senderSignature.toBytes,
+          "recipientSignature" -> request.recipientSignature.map(_.toBytes).orNull
         )
         .executeUpdate()
     }

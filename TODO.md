@@ -17,8 +17,8 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 8–10 and 12–13 are design-complete but not yet built** (items 6, 7, and 11 shipped —
-> see below). The current code still implements the *pre-8–10/12–13* model those items supersede.
+> ⚠ **Items 9–10 and 12–13 are design-complete but not yet built** (items 6, 7, 8, and 11 shipped —
+> see below). The current code still implements the *pre-9–10/12–13* model those items supersede.
 > `No migrations` throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
@@ -36,7 +36,14 @@ is better served by one board than three. This file lives in the hub repo
   stop auto-teardown) and its `Secret` aggregate are shipped; items 9 and 13 build on it.
   Used the `contactId` anchor item 7 already introduced. Shipped on Android, iOS, and
   (for consistency, not full parity) phon.
-- Rough dependency order for what's left: **{8, 9} → {10, 12} → 13**.
+- **Item 8 (identity recovery) is done** — the relay gained a fourth, non-consent-gated
+  `recovery_metadata` request type and `k`/`n` columns on `share_requests`; `retrieve` is
+  now matched on `secretId` instead of the transient pickUp relay-row id; `ContactManagement
+  .updateContact` and `ShareManagement.pushRecoveryMetadata`/`processRecoveryMetadata` are new
+  primitives; catalog export/import shipped on Android/iOS with UI, and as a primitive-only
+  port on phon. Shipped on the relay, Android, iOS, and (for consistency, not full parity) phon.
+  Item 9's rotation push and item 10's revocation both build on this item's `updateContact`.
+- Rough dependency order for what's left: **9 → {10, 12} → 13**.
 
 ---
 
@@ -68,7 +75,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — items 6, 7, 11 done, 8–10 and 12–13 design-complete but not yet built
+## Planned items (6–13) — items 6, 7, 8, 11 done, 9–10 and 12–13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -89,13 +96,14 @@ Client-only; `relay` + DB schema untouched (still opaque bytes).
 - [x] `A` `I` precondition: rotation/recovery updates existing contact **in place**, preserving `contactId` (trivially satisfied — items 8/9's rotation/recovery mechanisms aren't built yet, and `Contact.id` was already stable)
 - [x] `phon` same field renames + pickup/retrieve crypto flow, for cross-platform *consistency* — not full parity (no denormalized pseudonym snapshot; not originally tagged for this item, added on request during the walk)
 
-### Item 8 — Identity recovery (holder-driven metadata reconstitution) · [CLAUDE.md#8](CLAUDE.md)
+### Item 8 — Identity recovery (holder-driven metadata reconstitution) · [CLAUDE.md#8](CLAUDE.md) · *done*
 Pure-social, `k`-of-`n` by construction; recovery returns **metadata only**, never shares.
-- [ ] `R` `A` `I` new metadata-only recovery message type (`{secretId, label, secretCreatedAt, holder-identity, k, n}` push)
-- [ ] `A` `I` `updateContact(contactId, newKeys?, newLevel?)` contact-update-in-place primitive + UI (preserve `contactId`; steer away from delete+add; key change **forces** re-choosing verification level — no silent inherit)
-- [ ] `R` `A` `I` add `k`/`n` to pick_up payload + `PayloadCanonical` + `HeldShare`/`ShareMetadata`
-- [ ] `A` `I` re-key `retrieve` on `secretId` (not the transient pickUp relay-row id)
-- [ ] `A` `I` optional catalog export/import (non-secret catalog: contact pubkeys, pseudonyms, levels, `ShareMetadata`)
+- [x] `R` `A` `I` new metadata-only recovery message type (`{secretId, label, secretCreatedAt, holder-identity, k, n}` push) — self-approved at creation (no consent phase), no conflict check
+- [x] `A` `I` `updateContact(contactId, newKeys?, newLevel?)` contact-update-in-place primitive + UI (preserve `contactId`; steer away from delete+add; key change **forces** re-choosing verification level — no silent inherit)
+- [x] `R` `A` `I` add `k`/`n` to pick_up payload + `PayloadCanonical` + `HeldShare`/`ShareMetadata`
+- [x] `A` `I` re-key `retrieve` on `secretId` (not the transient pickUp relay-row id) — also applied to `delete`'s holder-side matching for the same reason, though not originally called out
+- [x] `A` `I` optional catalog export/import (non-secret catalog: contact pubkeys, pseudonyms, levels, `ShareMetadata`) — native file pickers on both platforms (`.fileExporter`/`ShareLink`/`.fileImporter` on iOS; SAF `CreateDocument`/`OpenDocument` on Android)
+- [x] `phon` same field renames (k/n, RecoveryMetadata type), retrieve/delete re-key, `updateContact` (keys only, no level param — no picker UI per item 6's narrower phon scope), `pushRecoveryMetadata`/`processRecoveryMetadata`, and the `Catalog`/`CatalogManagement`/`CatalogService` primitive — for cross-platform *consistency*, not full parity (no relink/catalog-backup UI; not originally tagged for this item)
 
 ### Item 9 — Holder-key-change handling + redundancy monitoring · [CLAUDE.md#9](CLAUDE.md)
 NB: the health-check is a **push** — reshaped by item 12 (see below).
@@ -142,8 +150,8 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 ## Cross-cutting implementation chores (not tied to one item)
 
 - [ ] `R` rename `SharesService.scala` → `ShareRequestsService.scala` (+ tests) to match the class name
-- [ ] `R` sync `conf/openapi.yaml` with the Play routes as items 8/9/12 add message types (recovery-metadata-return, rotation push, custodial-heartbeat, opt-out, "withdrawn" row state)
-- [ ] `R` sync `conf/evolutions/default/1.sql` for any new row states/types; keep the production-PostgreSQL partial-index note (one-pending-request-per-type enforced in `ShareRequestsService`)
+- [~] `R` sync `conf/openapi.yaml` with the Play routes as items 8/9/12 add message types (recovery-metadata-return, rotation push, custodial-heartbeat, opt-out, "withdrawn" row state) — item 8's `recovery_metadata` type + `k`/`n` fields done; items 9/12's message types still pending
+- [~] `R` sync `conf/evolutions/default/1.sql` for any new row states/types; keep the production-PostgreSQL partial-index note (one-pending-request-per-type enforced in `ShareRequestsService`) — item 8's `recovery_metadata` enum value + `k`/`n` columns done; items 9/12's row states still pending
 - [ ] `doc` propagate items 6–13 into `Android/CLAUDE.md`, `iOS/CLAUDE.md`, and each repo's `README.md`/`CHANGELOG.md` as they land
 - [ ] `doc` refresh `MEMORY.md` stale notes when touched (e.g. iOS package layout under `driving_adapters/`, `ShareRequestsService` name mismatch)
 
@@ -153,5 +161,5 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, and 11 have since shipped
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, and 11 have since shipped
 (see `CHANGELOG.md`); all other implementation above is pending.

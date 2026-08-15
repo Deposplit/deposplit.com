@@ -44,6 +44,7 @@ info:
     ```
     secretId || "\n" || requestType || "\n" || recipientKey(base64url) || "\n" || label || "\n"
       || epochMillis(secretCreatedAt) || "\n" || (shareId or "") || "\n" || (base64-standard(ciphertext) or "")
+      || "\n" || (k or "") || "\n" || (n or "")
     ```
 
     `recipientSignature` (required on every `PATCH /share-requests/{requestId}`, including
@@ -74,7 +75,7 @@ info:
 
     ## Unified consent model
 
-    All three share operations are modelled as consent requests:
+    Three of the four share operations are modelled as consent requests:
 
     | Type | Direction | Initiator | Consent required from |
     |---|---|---|---|
@@ -82,7 +83,11 @@ info:
     | `retrieve` | Bob sends back → Alice receives | Alice (sender) | Bob (recipient) |
     | `delete` | Bob deletes locally | Alice (sender) | Bob (recipient) |
 
-    Every request starts in state `pending`; the recipient approves or denies via `PATCH`.
+    Every request of these three types starts in state `pending`; the recipient approves or
+    denies via `PATCH`.
+
+    The fourth type, `recovery_metadata`, is **not** consent-gated — see its description under
+    `ShareRequestType` below. It self-approves at creation; there is no `PATCH` phase for it.
 
     ## Binary encoding
 
@@ -126,11 +131,17 @@ components:
 
     ShareRequestType:
       type: string
-      enum: [pick_up, retrieve, delete]
+      enum: [pick_up, retrieve, delete, recovery_metadata]
       description: >
         `pick_up` — sender deposits an encrypted share for the recipient to approve and collect.
         `retrieve` — sender wants the share bytes back from the recipient (requires approval + ciphertext).
         `delete`   — sender wants the recipient to delete their local copy (requires approval).
+        `recovery_metadata` — a holder pushes a metadata-only report about a share of theirs back
+        to its owner, so a recovering owner (fresh device, empty local state) can rebuild their
+        records after losing their old identity's key. See deposplit.com/CLAUDE.md "What is next"
+        item 8. Unlike the other three, this is **not** consent-gated: it self-approves at
+        creation (no `pending` phase), never carries `ciphertext`, and requires `k`/`n`. The
+        recipient polls for it and deletes the row once consumed.
 
     ShareRequestState:
       type: string
@@ -138,9 +149,9 @@ components:
 
     ShareRequest:
       description: >
-        A self-describing share request row. All three request types (pick_up, retrieve, delete)
-        use the same flat structure. `ciphertext` and `shareId` semantics depend on `requestType`
-        — see field descriptions.
+        A self-describing share request row. All four request types (pick_up, retrieve, delete,
+        recovery_metadata) use the same flat structure. `ciphertext`, `shareId`, `k`, and `n`
+        semantics depend on `requestType` — see field descriptions.
       type: object
       required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, requestType, state, requestedAt, senderSignature]
       properties:
@@ -170,7 +181,8 @@ components:
           nullable: true
           description: >
             For `retrieve` and `delete` rows: the `id` of the originating `pick_up` request,
-            supplied by the client and stored opaquely by the relay. `null` for `pick_up` rows.
+            supplied by the client and stored opaquely by the relay. `null` for `pick_up` and
+            `recovery_metadata` rows (both are roots).
         requestedAt:
           type: string
           format: date-time
@@ -178,6 +190,9 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: >
+            Set when the recipient responds via PATCH. For `recovery_metadata` this is set
+            immediately at creation (self-approved, no PATCH phase).
         ciphertext:
           type: string
           format: byte
@@ -193,6 +208,20 @@ components:
             stored temporarily until the sender collects it via GET.
 
             `delete`: always null.
+
+            `recovery_metadata`: always null — this type never carries share bytes.
+        k:
+          type: integer
+          nullable: true
+          description: >
+            SSS threshold. Populated for `pick_up` and `recovery_metadata` (required, `2 <= k <= n
+            <= 255`); `null` for `retrieve`/`delete`. See "What is next" items 8 and 11.
+        n:
+          type: integer
+          nullable: true
+          description: >
+            SSS share count. Populated for `pick_up` and `recovery_metadata` (required, `2 <= k <=
+            n <= 255`); `null` for `retrieve`/`delete`. See "What is next" items 8 and 11.
         senderSignature:
           type: string
           description: >
@@ -226,13 +255,23 @@ components:
           format: uuid
           description: >
             Required for `retrieve` and `delete` requests: the `id` of the originating `pick_up` row.
-            Must be omitted or null for `pick_up` requests.
+            Must be omitted or null for `pick_up` and `recovery_metadata` requests.
         ciphertext:
           type: string
           format: byte
           description: >
             Required for `pick_up` requests: the encrypted share bytes.
-            Must be omitted for `retrieve` and `delete` requests.
+            Must be omitted for `retrieve`, `delete`, and `recovery_metadata` requests.
+        k:
+          type: integer
+          description: >
+            Required for `pick_up` and `recovery_metadata` requests (`2 <= k <= n <= 255`,
+            `400` otherwise). Must be omitted for `retrieve`/`delete`.
+        n:
+          type: integer
+          description: >
+            Required for `pick_up` and `recovery_metadata` requests (`2 <= k <= n <= 255`,
+            `400` otherwise). Must be omitted for `retrieve`/`delete`.
         senderSignature:
           type: string
           description: >
@@ -253,16 +292,21 @@ paths:
   /share-requests:
     post:
       operationId: openShareRequest
-      summary: Open a share request (pick_up, retrieve, or delete)
+      summary: Open a share request (pick_up, retrieve, delete, or recovery_metadata)
       description: >
         Opens any share request type. The authenticated caller becomes `senderKey`.
 
-        **pick_up**: Sender deposits an encrypted share for the recipient. `ciphertext` is required.
-        At most one non-denied pick_up may exist per (secretId, recipientKey) pair.
+        **pick_up**: Sender deposits an encrypted share for the recipient. `ciphertext` and
+        `k`/`n` are required. At most one non-denied pick_up may exist per (secretId, recipientKey) pair.
 
         **retrieve / delete**: Sender opens a consent request. `shareId` (the originating pick_up id)
         should be supplied so the recipient can look up the share in their local storage.
         At most one pending request of each type may exist per (secretId, senderKey, recipientKey) triple.
+
+        **recovery_metadata**: A holder pushes a metadata-only report about a share back to its
+        owner. `k`/`n` are required; `ciphertext` and `shareId` must be omitted. Not consent-gated
+        — the row is created directly in state `approved`, and there is no conflict check (a
+        holder may push repeatedly; the relay stays a dumb, idempotent mailbox).
       tags: [ShareRequests]
       requestBody:
         required: true

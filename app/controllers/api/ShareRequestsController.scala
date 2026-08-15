@@ -52,10 +52,16 @@ class ShareRequestsController @Inject() (
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "requestType is required")))
       requestType <- rtStr match
-        case "pick_up"  => Right(ShareRequestType.PickUp)
-        case "retrieve" => Right(ShareRequestType.Retrieve)
-        case "delete"   => Right(ShareRequestType.Delete)
-        case _ => Left(BadRequest(errorJson("invalid_field", "requestType must be 'pick_up', 'retrieve', or 'delete'")))
+        case "pick_up"           => Right(ShareRequestType.PickUp)
+        case "retrieve"          => Right(ShareRequestType.Retrieve)
+        case "delete"            => Right(ShareRequestType.Delete)
+        case "recovery_metadata" => Right(ShareRequestType.RecoveryMetadata)
+        case _ =>
+          Left(
+            BadRequest(
+              errorJson("invalid_field", "requestType must be 'pick_up', 'retrieve', 'delete', or 'recovery_metadata'")
+            )
+          )
       secretIdStr <- (json \ "secretId")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "secretId is required")))
@@ -77,6 +83,8 @@ class ShareRequestsController @Inject() (
         .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
       shareId = (json \ "shareId").asOpt[String].flatMap(parseUuid)
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
+      k = (json \ "k").asOpt[Int]
+      n = (json \ "n").asOpt[Int]
       sigStr <- (json \ "senderSignature")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "senderSignature is required")))
@@ -91,6 +99,8 @@ class ShareRequestsController @Inject() (
           requestType,
           shareId,
           ciphertext,
+          k,
+          n,
           senderSignature
         )
         .left
@@ -111,10 +121,11 @@ class ShareRequestsController @Inject() (
         case "recipient" => Right(false)
         case _           => Left(BadRequest(errorJson("invalid_param", "role must be 'sender' or 'recipient'")))
       requestType = request.getQueryString("type").flatMap {
-        case "pick_up"  => Some(ShareRequestType.PickUp)
-        case "retrieve" => Some(ShareRequestType.Retrieve)
-        case "delete"   => Some(ShareRequestType.Delete)
-        case _          => None
+        case "pick_up"           => Some(ShareRequestType.PickUp)
+        case "retrieve"          => Some(ShareRequestType.Retrieve)
+        case "delete"            => Some(ShareRequestType.Delete)
+        case "recovery_metadata" => Some(ShareRequestType.RecoveryMetadata)
+        case _                   => None
       }
       stateFilter = request.getQueryString("state").flatMap {
         case "pending"  => Some(ShareRequestState.Pending)

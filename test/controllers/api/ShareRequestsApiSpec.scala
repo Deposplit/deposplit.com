@@ -58,9 +58,11 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       sender: RequestSigner,
       recipient: RequestSigner,
       sid: String = secretId,
-      ct: String = "AQID"
+      ct: String = "AQID",
+      k: Int = 2,
+      n: Int = 3
   ): Array[Byte] =
-    val sig = sender.signOpen(sid, "pick_up", recipient.publicKeyHeader, "test secret", createdAt, None, Some(ct))
+    val sig = sender.signOpen(sid, "pick_up", recipient.publicKeyHeader, "test secret", createdAt, None, Some(ct), Some(k), Some(n))
     s"""{
        |  "requestType":     "pick_up",
        |  "secretId":        "$sid",
@@ -68,6 +70,8 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
        |  "recipientKey":    "${recipient.publicKeyHeader}",
        |  "secretCreatedAt": "$createdAt",
        |  "ciphertext":      "$ct",
+       |  "k":               $k,
+       |  "n":               $n,
        |  "senderSignature": "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
@@ -134,6 +138,28 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "recipientSignature").asOpt[String] mustBe None
       // ciphertext not returned on PickUp creation (only on approval)
       (json \ "ciphertext").asOpt[String] mustBe None
+      (json \ "k").as[Int] mustBe 2
+      (json \ "n").as[Int] mustBe 3
+    }
+
+    "reject a PickUp with missing k/n" in {
+      val sid = UUID.randomUUID().toString
+      val sig = alice.signOpen(sid, "pick_up", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"))
+      val body =
+        s"""{"requestType":"pick_up","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, alice.post("/share-requests", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    "reject a PickUp with k > n" in {
+      val sid = UUID.randomUUID().toString
+      val sig = alice.signOpen(sid, "pick_up", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(5), Some(3))
+      val body =
+        s"""{"requestType":"pick_up","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":5,"n":3,"senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, alice.post("/share-requests", body)).get
+      status(result) mustBe BAD_REQUEST
     }
 
     "reject a duplicate active PickUp for the same (secretId, recipientKey)" in {
@@ -317,9 +343,9 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       // Open a fresh PickUp in a fresh secretId so this doesn't interfere with prior state
       val freshSecretId = UUID.randomUUID().toString
       val freshPickUpSig =
-        alice.signOpen(freshSecretId, "pick_up", bob.publicKeyHeader, "cascade test", createdAt, None, Some("AQID"))
+        alice.signOpen(freshSecretId, "pick_up", bob.publicKeyHeader, "cascade test", createdAt, None, Some("AQID"), Some(2), Some(3))
       val freshPickUpBody =
-        s"""{"requestType":"pick_up","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","senderSignature":"$freshPickUpSig"}"""
+        s"""{"requestType":"pick_up","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$freshPickUpSig"}"""
           .getBytes("UTF-8")
       val pickUp2result = route(app, alice.post("/share-requests", freshPickUpBody)).get
       status(pickUp2result) mustBe CREATED
@@ -379,5 +405,62 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       val listResult = route(app, bob.get("/share-requests?role=recipient")).get
       status(listResult) mustBe OK
       contentAsJson(listResult).as[JsArray].value mustBe empty
+    }
+  }
+
+  // ── RecoveryMetadata push (item 8) ──────────────────────────────────────────
+
+  "POST /share-requests (RecoveryMetadata)" should {
+
+    "self-approve on open — no consent phase, visible to the recipient immediately" in {
+      val sid = UUID.randomUUID().toString
+      // Bob (the holder) pushes to Alice (the recovering owner) — sender/recipient roles are
+      // reversed from a PickUp: the holder is senderKey here.
+      val sig = bob.signOpen(sid, "recovery_metadata", alice.publicKeyHeader, "recovered secret", createdAt, None, None, Some(2), Some(3))
+      val body =
+        s"""{"requestType":"recovery_metadata","secretId":"$sid","label":"recovered secret","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, bob.post("/share-requests", body)).get
+      status(result) mustBe CREATED
+      val json = contentAsJson(result)
+      val id = (json \ "id").as[String]
+      (json \ "requestType").as[String] mustBe "recovery_metadata"
+      (json \ "state").as[String] mustBe "approved"
+      (json \ "respondedAt").asOpt[String] must not be empty
+      (json \ "recipientSignature").asOpt[String] mustBe None
+      (json \ "shareId").asOpt[String] mustBe None
+      (json \ "k").as[Int] mustBe 2
+      (json \ "n").as[Int] mustBe 3
+
+      // Alice can already see it as approved — no PATCH needed.
+      val listResult = route(app, alice.get("/share-requests?role=recipient&type=recovery_metadata&state=approved")).get
+      status(listResult) mustBe OK
+      contentAsJson(listResult).as[JsArray].value.exists(j => (j \ "id").as[String] == id) mustBe true
+
+      // Alice deletes it once consumed.
+      val deleteResult = route(app, alice.delete(s"/share-requests/$id")).get
+      status(deleteResult) mustBe NO_CONTENT
+    }
+
+    "reject a RecoveryMetadata push with ciphertext" in {
+      val sid = UUID.randomUUID().toString
+      val sig = bob.signOpen(sid, "recovery_metadata", alice.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(2), Some(3))
+      val body =
+        s"""{"requestType":"recovery_metadata","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, bob.post("/share-requests", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    "never conflicts, even pushed repeatedly for the same secretId" in {
+      val sid = UUID.randomUUID().toString
+      def push() =
+        val sig = bob.signOpen(sid, "recovery_metadata", alice.publicKeyHeader, "x", createdAt, None, None, Some(2), Some(3))
+        val body =
+          s"""{"requestType":"recovery_metadata","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"senderSignature":"$sig"}"""
+            .getBytes("UTF-8")
+        route(app, bob.post("/share-requests", body)).get
+      status(push()) mustBe CREATED
+      status(push()) mustBe CREATED
     }
   }

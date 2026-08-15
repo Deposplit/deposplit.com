@@ -178,6 +178,11 @@ class SharesServiceTests extends munit.FunSuite:
 
   /** Signs and opens a share request — the signing counterpart of `service.openShareRequest`
     * used throughout these tests, since a genuinely valid Ed25519 signature is now required.
+    *
+    * `k`/`n` default to a valid pair (`Some(2)`/`Some(2)`) and are only actually threaded through
+    * for PickUp/RecoveryMetadata — silently forced to `None` for Retrieve/Delete regardless of
+    * what's passed, since the domain requires them absent there. This keeps every pre-item-8
+    * call site (Retrieve/Delete included) compiling unchanged.
     */
   private def open(
       service: ShareRequestsService,
@@ -188,12 +193,16 @@ class SharesServiceTests extends munit.FunSuite:
       secretCreatedAt: Instant,
       requestType: ShareRequestType,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      k: Option[Int] = Some(2),
+      n: Option[Int] = Some(2)
   ): Either[Error, ShareRequest] =
+    val isRoot = requestType == ShareRequestType.PickUp || requestType == ShareRequestType.RecoveryMetadata
+    val (kk, nn) = if isRoot then (k, n) else (None, None)
     val sig = signerFor(sender).sign(
-      PayloadCanonical.forOpen(secretId, requestType, recipient, label, secretCreatedAt, shareId, ciphertext)
+      PayloadCanonical.forOpen(secretId, requestType, recipient, label, secretCreatedAt, shareId, ciphertext, kk, nn)
     )
-    service.openShareRequest(sender, recipient, secretId, label, secretCreatedAt, requestType, shareId, ciphertext, sig)
+    service.openShareRequest(sender, recipient, secretId, label, secretCreatedAt, requestType, shareId, ciphertext, kk, nn, sig)
 
   /** Signs and responds — the signing counterpart of `service.respondToShareRequest`. */
   private def respond(
@@ -244,8 +253,8 @@ class SharesServiceTests extends munit.FunSuite:
     val label = freshLabel()
     val createdAt = Instant.now()
     // Signed by bob's key instead of the caller's (alice) — will not verify against alice.
-    val wrongSig = bobKeys.sign(PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, bob, label, createdAt, None, Some(ciphertext)))
-    val result = service.openShareRequest(alice, bob, secretId, label, createdAt, ShareRequestType.PickUp, None, Some(ciphertext), wrongSig)
+    val wrongSig = bobKeys.sign(PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, bob, label, createdAt, None, Some(ciphertext), Some(2), Some(2)))
+    val result = service.openShareRequest(alice, bob, secretId, label, createdAt, ShareRequestType.PickUp, None, Some(ciphertext), Some(2), Some(2), wrongSig)
     assertEquals(result, Left(Error.BadRequest))
   }
 
@@ -255,8 +264,8 @@ class SharesServiceTests extends munit.FunSuite:
     val label = freshLabel()
     val createdAt = Instant.now()
     // Valid signature over a different label than what's actually submitted.
-    val sig = aliceKeys.sign(PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, bob, Label("other label"), createdAt, None, Some(ciphertext)))
-    val result = service.openShareRequest(alice, bob, secretId, label, createdAt, ShareRequestType.PickUp, None, Some(ciphertext), sig)
+    val sig = aliceKeys.sign(PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, bob, Label("other label"), createdAt, None, Some(ciphertext), Some(2), Some(2)))
+    val result = service.openShareRequest(alice, bob, secretId, label, createdAt, ShareRequestType.PickUp, None, Some(ciphertext), Some(2), Some(2), sig)
     assertEquals(result, Left(Error.BadRequest))
   }
 
@@ -526,4 +535,123 @@ class SharesServiceTests extends munit.FunSuite:
     service.deleteShareRequests(bob, Some(alice), None)
     assertEquals(repo.getShareRequestById(req1.id), None)
     assert(repo.getShareRequestById(req2.id).isDefined)
+  }
+
+  // --- k/n (item 8) ---
+
+  test("PickUp stores k and n") {
+    val (_, service) = newService()
+    val result = open(
+      service, alice, bob, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.PickUp, None, Some(ciphertext), k = Some(3), n = Some(5)
+    )
+    val req = result.getOrElse(fail("deposit failed"))
+    assertEquals(req.k, Some(3))
+    assertEquals(req.n, Some(5))
+  }
+
+  test("PickUp returns BadRequest when k or n is missing") {
+    val (_, service) = newService()
+    val result = open(
+      service, alice, bob, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.PickUp, None, Some(ciphertext), k = None, n = Some(5)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("PickUp returns BadRequest when k < 2") {
+    val (_, service) = newService()
+    val result = open(
+      service, alice, bob, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.PickUp, None, Some(ciphertext), k = Some(1), n = Some(5)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("PickUp returns BadRequest when k > n") {
+    val (_, service) = newService()
+    val result = open(
+      service, alice, bob, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.PickUp, None, Some(ciphertext), k = Some(6), n = Some(5)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("PickUp returns BadRequest when n > 255") {
+    val (_, service) = newService()
+    val result = open(
+      service, alice, bob, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.PickUp, None, Some(ciphertext), k = Some(2), n = Some(256)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("Retrieve returns BadRequest when k or n is present") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    val pickUp = open(service, alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.PickUp, None, Some(ciphertext))
+      .getOrElse(fail("deposit failed"))
+    // Bypass the open() helper's auto-suppression to exercise the domain check directly.
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.Retrieve, bob, freshLabel(), Instant.now(), Some(pickUp.id), None, Some(2), Some(2))
+    val sig = aliceKeys.sign(canon)
+    val result = service.openShareRequest(alice, bob, secretId, freshLabel(), Instant.now(), ShareRequestType.Retrieve, Some(pickUp.id), None, Some(2), Some(2), sig)
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  // --- RecoveryMetadata (item 8) ---
+
+  test("RecoveryMetadata self-approves on open — no consent phase") {
+    val (_, service) = newService()
+    val result = open(
+      service, bob, alice, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.RecoveryMetadata, None, None, k = Some(2), n = Some(3)
+    )
+    assert(result.isRight)
+    val req = result.getOrElse(fail("push failed"))
+    assertEquals(req.state, ShareRequestState.Approved)
+    assert(req.respondedAt.isDefined)
+    assertEquals(req.recipientSignature, None)
+    assertEquals(req.k, Some(2))
+    assertEquals(req.n, Some(3))
+  }
+
+  test("RecoveryMetadata is immediately visible to the recipient as approved") {
+    val (_, service) = newService()
+    open(service, bob, alice, freshSecretId(), freshLabel(), Instant.now(), ShareRequestType.RecoveryMetadata, None, None, k = Some(2), n = Some(3))
+    val result = service.listShareRequests(alice, asSender = false, Some(ShareRequestType.RecoveryMetadata), Some(ShareRequestState.Approved))
+    assertEquals(result.getOrElse(Seq.empty).size, 1)
+  }
+
+  test("RecoveryMetadata returns BadRequest when ciphertext is present") {
+    val (_, service) = newService()
+    val result = open(
+      service, bob, alice, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.RecoveryMetadata, None, Some(ciphertext), k = Some(2), n = Some(3)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("RecoveryMetadata returns BadRequest when k/n are invalid") {
+    val (_, service) = newService()
+    val result = open(
+      service, bob, alice, freshSecretId(), freshLabel(), Instant.now(),
+      ShareRequestType.RecoveryMetadata, None, None, k = Some(1), n = Some(1)
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("RecoveryMetadata never conflicts, even when pushed repeatedly for the same secretId") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    open(service, bob, alice, secretId, freshLabel(), Instant.now(), ShareRequestType.RecoveryMetadata, None, None, k = Some(2), n = Some(3))
+    val result = open(service, bob, alice, secretId, freshLabel(), Instant.now(), ShareRequestType.RecoveryMetadata, None, None, k = Some(2), n = Some(3))
+    assert(result.isRight)
+  }
+
+  test("RecoveryMetadata rows can be deleted by the recipient once consumed") {
+    val (repo, service) = newService()
+    val req = open(service, bob, alice, freshSecretId(), freshLabel(), Instant.now(), ShareRequestType.RecoveryMetadata, None, None, k = Some(2), n = Some(3))
+      .getOrElse(fail("push failed"))
+    assertEquals(service.deleteShareRequestById(alice, req.id), Right(()))
+    assertEquals(repo.getShareRequestById(req.id), None)
   }

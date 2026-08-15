@@ -45,6 +45,8 @@ trait ShareRelay:
       requestType: ShareRequestType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
+      k: Option[Int] = None,
+      n: Option[Int] = None,
       senderSignature: Array[Byte]
   ): ShareRequest
 

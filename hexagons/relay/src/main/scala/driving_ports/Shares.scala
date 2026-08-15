@@ -33,15 +33,27 @@ trait ShareRequests:
 
   /** Opens a share request of any type.
     *
-    * - PickUp:   Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if absent).
-    *             Returns `Conflict` if a non-denied PickUp for (secretId, recipientKey) already exists.
-    * - Retrieve: Alice asks Bob to return a share. `ciphertext` must be None.
-    *             Returns `Conflict` if a pending Retrieve for (secretId, senderKey, recipientKey) exists.
-    * - Delete:   Alice asks Bob to delete his local copy. `ciphertext` must be None.
-    *             Returns `Conflict` if a pending Delete for (secretId, senderKey, recipientKey) exists.
+    * - PickUp:           Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if
+    *                     absent). `k`/`n` are required and must satisfy `2 <= k <= n <= 255`
+    *                     (`BadRequest` otherwise) — see deposplit.com/CLAUDE.md item 8/11.
+    *                     Returns `Conflict` if a non-denied PickUp for (secretId, recipientKey)
+    *                     already exists.
+    * - Retrieve:         Alice asks Bob to return a share. `ciphertext`, `k`, and `n` must be None.
+    *                     Returns `Conflict` if a pending Retrieve for (secretId, senderKey,
+    *                     recipientKey) exists.
+    * - Delete:           Alice asks Bob to delete his local copy. `ciphertext`, `k`, and `n` must
+    *                     be None. Returns `Conflict` if a pending Delete for (secretId, senderKey,
+    *                     recipientKey) exists.
+    * - RecoveryMetadata: A holder (Bob) pushes a metadata-only report about a share of his back to
+    *                     its owner (Alice) — see "What is next" item 8. `ciphertext` must be None;
+    *                     `k`/`n` are required (same bounds as PickUp). Unlike the other three
+    *                     types this is **not consent-gated** — it's a fire-and-forget push, so the
+    *                     row is created directly in `Approved` state with no conflict check; the
+    *                     recipient (Alice) polls for it and deletes it once consumed.
     *
-    * `shareId` is ignored for PickUp. For Retrieve and Delete it should be the id of the
-    * originating PickUp request — the relay stores it opaquely for the client's benefit.
+    * `shareId` is ignored for PickUp and RecoveryMetadata. For Retrieve and Delete it should be
+    * the id of the originating PickUp request — the relay stores it opaquely for the client's
+    * benefit.
     *
     * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the
     * other arguments — defense-in-depth alongside the transport-auth signature already checked
@@ -56,6 +68,8 @@ trait ShareRequests:
       requestType: ShareRequestType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
+      k: Option[Int],
+      n: Option[Int],
       senderSignature: Signature
   ): Either[Error, ShareRequest]
 

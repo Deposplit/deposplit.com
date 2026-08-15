@@ -1,21 +1,33 @@
 # --- !Ups
 
-CREATE TYPE share_request_type  AS ENUM ('pick_up', 'retrieve', 'delete');
+CREATE TYPE share_request_type  AS ENUM ('pick_up', 'retrieve', 'delete', 'recovery_metadata');
 CREATE TYPE share_request_state AS ENUM ('pending', 'approved', 'denied');
 
 -- One row per share request of any type.
--- All three types use the same symmetric consent model: sender Alice requests something
+-- pick_up, retrieve, and delete share a symmetric consent model: sender Alice requests something
 -- of recipient Bob (pick up a share, send it back, or delete it), and Bob can approve or deny.
+-- recovery_metadata is different: a holder-initiated *push*, not consent-gated (see below).
 --
--- pick_up:  Alice deposits a share for Bob. ciphertext is populated by Alice at creation;
---           delivered to Bob on approval and cleared from the relay. Bob can also deny.
--- retrieve: Alice asks Bob to return a share. Bob provides ciphertext on approval;
---           stored temporarily until Alice collects it. ciphertext is NULL at creation.
--- delete:   Alice asks Bob to delete his local copy. No ciphertext involved.
+-- pick_up:           Alice deposits a share for Bob. ciphertext is populated by Alice at
+--                     creation, delivered to Bob on approval and cleared from the relay. Bob can
+--                     also deny. k/n (see below) are required.
+-- retrieve:           Alice asks Bob to return a share. Bob provides ciphertext on approval;
+--                     stored temporarily until Alice collects it. ciphertext is NULL at creation.
+-- delete:             Alice asks Bob to delete his local copy. No ciphertext involved.
+-- recovery_metadata:  Bob (a holder) pushes a metadata-only report about a share of his back to
+--                     its owner, so a recovering Alice (fresh device, empty local state) can
+--                     rebuild her records — see deposplit.com/CLAUDE.md "What is next" item 8.
+--                     No ciphertext (never carries share bytes) but k/n are required. Not
+--                     consent-gated: created directly in 'approved' state (no pending phase);
+--                     the recipient polls for it and deletes the row once consumed.
 --
--- share_id is NULL for pick_up rows (they are the root). For retrieve and delete rows it
--- carries the id of the originating pick_up request, supplied by the client. The relay
--- stores it opaquely without enforcing a foreign key (stateless relay design).
+-- share_id is NULL for pick_up and recovery_metadata rows (both are roots). For retrieve and
+-- delete rows it carries the id of the originating pick_up request, supplied by the client. The
+-- relay stores it opaquely without enforcing a foreign key (stateless relay design).
+--
+-- k and n are the SSS threshold/share-count populated for pick_up and recovery_metadata only
+-- (NULL for retrieve/delete) — added by item 8, reported by holders during recovery as a
+-- cross-holder consistency check. Signed as part of sender_signature.
 --
 -- sender_key and recipient_key are Ed25519 public keys (32 bytes).
 -- secret_created_at is the client-supplied secret creation timestamp.
@@ -24,8 +36,9 @@ CREATE TYPE share_request_state AS ENUM ('pending', 'approved', 'denied');
 -- sender_signature and recipient_signature are Ed25519 signatures (64 bytes) that ride with the
 -- row so any reader (not just this relay) can independently re-verify authorship — required for
 -- BYOR, since a third-party relay performs no verification of its own. sender_signature is set
--- at INSERT and never cleared. recipient_signature is NULL while pending, set on response. See
--- hexagons/relay's PayloadCanonical for the exact bytes signed.
+-- at INSERT and never cleared. recipient_signature is NULL while pending, set on response (it
+-- stays NULL for recovery_metadata rows — there is no response phase). See hexagons/relay's
+-- PayloadCanonical for the exact bytes signed.
 --
 -- Note: partial unique indexes would add defence-in-depth but H2 does not support them.
 -- The application layer (ShareRequestsService) enforces uniqueness constraints instead.
@@ -46,6 +59,8 @@ CREATE TABLE share_requests (
     state             share_request_state      NOT NULL DEFAULT 'pending',
     share_id          UUID,
     ciphertext        BYTEA,
+    k                 INTEGER,
+    n                 INTEGER,
     secret_created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     requested_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     responded_at      TIMESTAMP WITH TIME ZONE,

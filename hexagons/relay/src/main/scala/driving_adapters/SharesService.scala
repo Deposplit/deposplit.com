@@ -37,6 +37,13 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   private def sameKey(a: PublicKey, b: PublicKey): Boolean =
     a.toBase64Url == b.toBase64Url
 
+  /** `2 <= k <= n <= 255` — the same hard bound `split()`/`combine()` enforce client-side
+    * (item 11); re-checked here since PickUp/RecoveryMetadata rows now carry k/n on the wire.
+    */
+  private def validKN(k: Option[Int], n: Option[Int]): Boolean = (k, n) match
+    case (Some(kk), Some(nn)) => kk >= 2 && kk <= nn && nn <= 255
+    case _                    => false
+
   override def openShareRequest(
       senderKey: PublicKey,
       recipientKey: PublicKey,
@@ -46,16 +53,27 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       requestType: ShareRequestType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
+      k: Option[Int],
+      n: Option[Int],
       senderSignature: Signature
   ): Either[Error, ShareRequest] =
-    val canon = PayloadCanonical.forOpen(secretId, requestType, recipientKey, label, secretCreatedAt, shareId, ciphertext)
+    val canon = PayloadCanonical.forOpen(secretId, requestType, recipientKey, label, secretCreatedAt, shareId, ciphertext, k, n)
     if !senderKey.verify(canon, senderSignature) then return Left(Error.BadRequest)
+    val isRoot = requestType == ShareRequestType.PickUp || requestType == ShareRequestType.RecoveryMetadata
     requestType match
       case ShareRequestType.PickUp =>
         if ciphertext.isEmpty then return Left(Error.BadRequest)
+        if !validKN(k, n) then return Left(Error.BadRequest)
         if repository.hasActivePickUp(secretId, recipientKey) then return Left(Error.Conflict)
+      case ShareRequestType.RecoveryMetadata =>
+        if ciphertext.isDefined then return Left(Error.BadRequest)
+        if !validKN(k, n) then return Left(Error.BadRequest)
+      // Fire-and-forget push (see ShareRequest's doc) — no conflict check, self-approved below.
       case _ =>
+        if ciphertext.isDefined || k.isDefined || n.isDefined then return Left(Error.BadRequest)
         if repository.hasPendingRequest(secretId, senderKey, recipientKey, requestType) then return Left(Error.Conflict)
+    val now = Instant.now()
+    val selfApproved = requestType == ShareRequestType.RecoveryMetadata
     val request = ShareRequest(
       id = UUID.randomUUID(),
       secretId = secretId,
@@ -64,11 +82,13 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       label = label,
       secretCreatedAt = secretCreatedAt,
       requestType = requestType,
-      state = ShareRequestState.Pending,
-      shareId = if requestType == ShareRequestType.PickUp then None else shareId,
-      requestedAt = Instant.now(),
-      respondedAt = None,
+      state = if selfApproved then ShareRequestState.Approved else ShareRequestState.Pending,
+      shareId = if isRoot then None else shareId,
+      requestedAt = now,
+      respondedAt = if selfApproved then Some(now) else None,
       ciphertext = if requestType == ShareRequestType.PickUp then ciphertext else None,
+      k = if isRoot then k else None,
+      n = if isRoot then n else None,
       senderSignature = senderSignature,
       recipientSignature = None
     )

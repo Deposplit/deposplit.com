@@ -70,7 +70,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val label = "fan-out test"
     val createdAt = Instant.now()
     val ciphertext = Array[Byte](9, 9, 9)
-    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, createdAt, None, Some(ciphertext))
+    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, createdAt, None, Some(ciphertext), Some(2), Some(3))
     ShareRequest(
       id = id,
       secretId = secretId,
@@ -84,6 +84,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       requestedAt = Instant.now(),
       respondedAt = None,
       ciphertext = Some(ciphertext),
+      k = Some(2),
+      n = Some(3),
       senderSignature = senderKeys.sign(canon),
       recipientSignature = None
     )

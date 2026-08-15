@@ -31,7 +31,7 @@ enum Role:
   case Sender, Recipient
 
 enum ShareRequestType:
-  case PickUp, Retrieve, Delete
+  case PickUp, Retrieve, Delete, RecoveryMetadata
 
 enum ShareRequestState:
   case Pending, Approved, Denied
@@ -55,6 +55,10 @@ case class ShareRequest(
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
+    // SSS threshold/share-count — populated for PickUp/RecoveryMetadata, None for
+    // Retrieve/Delete. See deposplit.com/CLAUDE.md "What is next" items 8 and 11.
+    k: Option[Int] = None,
+    n: Option[Int] = None,
     senderSignature: Array[Byte],
     recipientSignature: Option[Array[Byte]]
 ):

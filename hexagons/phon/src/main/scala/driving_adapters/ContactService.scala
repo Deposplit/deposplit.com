@@ -74,5 +74,24 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       )
     )
 
+  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None): Unit =
+    val existing = contactRepository
+      .getById(contactId)
+      .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
+    edPublicKey.foreach(k => require(k.length == 32, "Ed25519 public key must be 32 bytes"))
+    xPublicKey.foreach(k => require(k.length == 32, "X25519 public key must be 32 bytes"))
+    val changingKeys = edPublicKey.isDefined || xPublicKey.isDefined
+    contactRepository.save(
+      existing.copy(
+        edPublicKey = edPublicKey.getOrElse(existing.edPublicKey),
+        xPublicKey = xPublicKey.getOrElse(existing.xPublicKey),
+        // A key change forces re-choosing the level fresh (item 8/10) — phon has no picker UI
+        // (item 6), so it defaults to the same VeryHigh addFromQr uses for its analogous
+        // re-scan-in-person flow, rather than silently carrying the old level forward.
+        verificationLevel = if changingKeys then VerificationLevel.VeryHigh else existing.verificationLevel,
+        verifiedAt = if changingKeys then Some(Instant.now()) else existing.verifiedAt
+      )
+    )
+
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)

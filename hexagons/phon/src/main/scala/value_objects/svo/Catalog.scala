@@ -24,27 +24,13 @@
 
 package value_objects.svo
 
-import java.time.Instant
-import java.util.UUID
-
-case class HeldShare(
-    id: UUID,
-    secretId: UUID,
-    label: String,
-    // The sender's stable local contact id — not their Ed25519 key — so this record survives a
-    // sender key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
-    contactId: UUID,
-    createdAt: Instant,
-    pickedUpAt: Instant,
-    // The decrypted share, plaintext at rest — see item 7: a single holder's share is
-    // information-theoretically empty on its own, so this is safe to store unencrypted.
-    plaintextShare: Array[Byte],
-    // SSS threshold/share-count, carried on the pick_up that produced this share — reported back
-    // during identity recovery (item 8) so a recovering owner can rebuild her Secret record.
-    k: Int,
-    n: Int
-) extends Serializable:
-  override def equals(other: Any): Boolean = other match
-    case h: HeldShare => id == h.id
-    case _            => false
-  override def hashCode(): Int = id.hashCode()
+/** A self-managed export of the *non-secret* catalog — contact public keys, pseudonyms,
+  * verification levels, and sender-side ShareMetadata/Secret records. Eases "who are my holders"
+  * during identity recovery (item 8) without weakening anything: none of this is a share or a
+  * private key. See deposplit.com/CLAUDE.md "What is next" item 8, "Optional catalog backup".
+  */
+case class Catalog(
+    contacts: List[Contact],
+    secrets: List[Secret],
+    shareMetadata: List[ShareMetadata]
+) extends Serializable

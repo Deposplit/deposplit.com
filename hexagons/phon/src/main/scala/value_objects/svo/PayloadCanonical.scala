@@ -41,11 +41,16 @@ object PayloadCanonical:
   private val base64Url = Base64.getUrlEncoder.withoutPadding
 
   private def requestTypeWire(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp   => "pick_up"
-    case ShareRequestType.Retrieve => "retrieve"
-    case ShareRequestType.Delete   => "delete"
+    case ShareRequestType.PickUp           => "pick_up"
+    case ShareRequestType.Retrieve         => "retrieve"
+    case ShareRequestType.Delete           => "delete"
+    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
 
-  /** Signed by the sender when opening a share request (`senderSignature`). */
+  /** Signed by the sender when opening a share request (`senderSignature`).
+    *
+    * `k`/`n` (item 8) are appended at the end of the sequence, keeping the existing field order
+    * — and this construction's cross-platform byte-vector test — undisturbed.
+    */
   def forOpen(
       secretId: UUID,
       requestType: ShareRequestType,
@@ -53,7 +58,9 @@ object PayloadCanonical:
       label: String,
       secretCreatedAt: Instant,
       shareId: Option[UUID],
-      ciphertext: Option[Array[Byte]]
+      ciphertext: Option[Array[Byte]],
+      k: Option[Int] = None,
+      n: Option[Int] = None
   ): Array[Byte] =
     Seq(
       secretId.toString,
@@ -62,7 +69,9 @@ object PayloadCanonical:
       label,
       secretCreatedAt.toEpochMilli.toString,
       shareId.fold("")(_.toString),
-      ciphertext.fold("")(base64Std.encodeToString)
+      ciphertext.fold("")(base64Std.encodeToString),
+      k.fold("")(_.toString),
+      n.fold("")(_.toString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
   /** Signed by the recipient when responding to a share request (`recipientSignature`). */

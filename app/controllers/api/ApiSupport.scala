@@ -58,9 +58,10 @@ trait ApiSupport { self: BaseController =>
       "label"            -> req.label.value,
       "secretCreatedAt"  -> req.secretCreatedAt.toString,
       "requestType"      -> (req.requestType match
-        case ShareRequestType.PickUp   => "pick_up"
-        case ShareRequestType.Retrieve => "retrieve"
-        case ShareRequestType.Delete   => "delete"),
+        case ShareRequestType.PickUp           => "pick_up"
+        case ShareRequestType.Retrieve         => "retrieve"
+        case ShareRequestType.Delete           => "delete"
+        case ShareRequestType.RecoveryMetadata => "recovery_metadata"),
       "state"            -> (req.state match
         case ShareRequestState.Pending  => "pending"
         case ShareRequestState.Approved => "approved"
@@ -72,5 +73,8 @@ trait ApiSupport { self: BaseController =>
     )
     val withRecipientSig =
       req.recipientSignature.fold(base)(sig => base + ("recipientSignature" -> JsString(sig.toBase64Url)))
-    req.ciphertext.fold(withRecipientSig)(ct => withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
+    val withCiphertext =
+      req.ciphertext.fold(withRecipientSig)(ct => withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
+    val withK = req.k.fold(withCiphertext)(k => withCiphertext + ("k" -> JsNumber(k)))
+    req.n.fold(withK)(n => withK + ("n" -> JsNumber(n)))
 }
