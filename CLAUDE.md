@@ -30,7 +30,7 @@ The transport layer is a **custom deposplit.com REST API** with end-to-end encry
 
 Key design decisions:
 - **User identity is two keypairs.** At first launch the device generates an X25519 keypair (share encryption) and an Ed25519 keypair (API authentication). The user picks a pseudonym (display name only, stored locally on the device — never sent to the Web app/service). No server registration is required: the keypair IS the identity. Contacts exchange both public keys out-of-band — ideally in person via QR code, or via a trusted third-party channel (Signal, Threema, email).
-- **Server is an opaque relay.** The Web app/service stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Reconstructing the original secret requires obtaining at least *k* of the recipients' shares, which live only on their devices — so a full relay breach yields nothing. *(Under the holder-decrypts-at-pickup redesign — "What is next" item 7 — the holder stores the plaintext share, so this means compromising *k* holders' devices or defeating *k* holders' retrieve-consent, not their X25519 private keys.)*
+- **Server is an opaque relay.** The Web app/service stores and forwards ciphertext only. It never participates in key agreement and cannot decrypt share content regardless of a breach. Holders decrypt each share to plaintext at pickup and store it locally (see "Transport Encryption" below — item 7 of "What is next"), so reconstructing the original secret requires compromising *k* holders' devices or defeating *k* holders' retrieve-consent — not the relay, and not any private key the relay ever sees.
 - **Library-agnostic authentication protocol.** API requests are authenticated via Ed25519 signatures (RFC 8032) over a canonical request representation. Mobile clients sign with BouncyCastle (Android) or Swift Crypto (iOS); the Web app/service verifies with BouncyCastle (`Ed25519Signer`). Ed25519 is deterministic and fully specified — cross-library interoperability proves the protocol is correctly defined, not a coincidence of using the same library. The canonical signing string is:
   ```
   nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA-256(body))
@@ -128,16 +128,20 @@ Both the Kotlin (Android) and Swift (iOS) implementations are **hand-ports of th
 
 #### Transport Encryption: X25519 + HKDF-SHA-256 + ChaCha20-Poly1305
 
-> ⚠ **Pending redesign — see "What is next" item 7 (holder-decrypts-at-pickup).** The description below is the current *encrypt-to-recipient blind-courier* model, which is being replaced: the holder will decrypt at pickup, store the plaintext share, and re-encrypt to the *current* sender at retrieve. The DH box construction and wire format below are unchanged; what changes is *who decrypts when* (and that the relay stays blind at both deposit and retrieve).
+Holder-decrypts-at-pickup (implemented — see "What is next" item 7): each leg of a share's journey is encrypted using whichever pair of *current* keys is live at that moment, never a key pinned back at deposit time. This is what makes k-of-n social recovery cryptographically possible — no participant's ability to decrypt is bound to a keypair from the past.
 
-Each share is encrypted by the sender to the recipient's X25519 public key before leaving the device. The construction is a standard static-static DH box:
+1. **Deposit** (Alice → relay): Alice encrypts the share to the holder's *current* X25519 public key. The relay stores and forwards this ciphertext opaquely.
+2. **Pickup** (holder approves): the holder decrypts with their own X25519 private key + Alice's X25519 public key (from their local contact record for Alice), and stores the resulting **plaintext** share locally — the ciphertext itself is discarded. This is safe: a single holder's `< k` share is information-theoretically empty on its own, and the plaintext still sits behind the OS's file-based encryption. The relay row is cleared as soon as the holder has it.
+3. **Retrieve** (Alice requests, holder responds): the holder re-encrypts the stored plaintext to the *current* sender's X25519 public key (looked up live, not the key Alice had at deposit time) and returns that ciphertext; Alice decrypts with her own private key + the holder's current public key.
 
-1. **Key agreement**: X25519(sender_private_key, recipient_public_key) → 32-byte shared secret
+Both the deposit and retrieve legs use the same standard static-static DH box construction:
+
+1. **Key agreement**: X25519(my_private_key, their_public_key) → 32-byte shared secret
 2. **Key derivation**: HKDF-SHA-256(ikm=shared_secret, salt=nonce, info=`"deposplit-share"`) → 32-byte symmetric key
 3. **Encryption**: ChaCha20-Poly1305(key, nonce, plaintext) → ciphertext + 16-byte tag
 4. **Wire format**: `nonce(12 bytes) || ciphertext+tag`
 
-The Web app/service stores ciphertext only. A full Web app/service breach yields nothing without also compromising at least *k* recipients' X25519 private keys.
+The Web app/service stores and forwards ciphertext only, at both deposit and retrieve — it is never in a position to decrypt. A full Web app/service breach yields nothing without also compromising *k* holders' devices (where the plaintext shares live) or defeating *k* holders' retrieve-consent.
 
 **Why no native crypto library (libsodium was the original choice, rejected Apr 2026):**
 
@@ -178,25 +182,23 @@ There are three request types exchanged via the deposplit.com Web app/service AP
 | `retrieve` | Sender → recipient → sender | Request: references PickUp ID. Response: share bytes from Bob's local storage | **Retrieve** a specific share |
 | `delete` | Sender → recipient | Request: references PickUp ID. Response: ack | **Delete** a share (sender-initiated, requires Bob's approval) |
 
-> ⚠ **Being extended — see "What is next" items 7–12.** These are the *three current* request types. The redesign adds a **metadata-only recovery return** (item 8), a **signed rotation push** (items 9–10), and a **holder-initiated custodial-heartbeat push** (item 9 reshaped by item 12 — replaces the originally-sketched pull "health-check request/ack"), plus a **"withdrawn by recipient"** row state (item 9). It also re-keys `retrieve` on **`secretId`** rather than the pickUp relay-row id (item 8), and adds **`k` and `n`** to the pick_up payload (item 8).
+> ⚠ **Being extended — see "What is next" items 8–12.** These are the *three current* request types; their crypto shape was updated by item 7 (holder-decrypts-at-pickup — implemented, see "Transport Encryption" above). The remaining redesign adds a **metadata-only recovery return** (item 8), a **signed rotation push** (items 9–10), and a **holder-initiated custodial-heartbeat push** (item 9 reshaped by item 12 — replaces the originally-sketched pull "health-check request/ack"), plus a **"withdrawn by recipient"** row state (item 9). It also re-keys `retrieve` on **`secretId`** rather than the pickUp relay-row id (item 8), and adds **`k` and `n`** to the pick_up payload (item 8).
 
 **Recipient-initiated deletion** is unilateral (no approval needed). The recipient can delete individual shares or all shares from a given sender at any time. *(Revised — see "What is next" item 9: it stays unilateral but is no longer purely silent; the holder's app additionally writes a best-effort "withdrawn by recipient" tombstone so the sender isn't blindsided by silent redundancy erosion.)*
 
-**The Web app/service is a pure relay — ciphertext is ephemeral:**
-
-> ⚠ **Pending redesign — see "What is next" item 7.** Under the holder-decrypts-at-pickup model the *bytes* differ from what's written below (the holder stores the decrypted plaintext share, not the deposit ciphertext, and re-encrypts to the current sender at retrieve), but the relay's role — store/forward opaque ciphertext, blind at every phase — is unchanged.
+**The Web app/service is a pure relay — ciphertext is ephemeral:** the relay's role — store/forward opaque ciphertext, blind at every phase — is unchanged by item 7's holder-decrypts-at-pickup redesign; only *who decrypts when* changed (see "Transport Encryption" above).
 
 PickUp flow (deposit):
-- **Request sub-phase** (sender → relay): Alice opens a PickUp request with the encrypted share bytes; the relay stores them.
-- **Response sub-phase** (relay → recipient): Bob approves the PickUp; the relay delivers the ciphertext once and clears it from the relay row. The ciphertext now lives only on Bob's device.
+- **Request sub-phase** (sender → relay): Alice opens a PickUp request with the share encrypted to the holder's current X25519 public key; the relay stores it.
+- **Response sub-phase** (relay → recipient): Bob approves the PickUp; the relay delivers the ciphertext once and clears it from the relay row. Bob decrypts it immediately with his X25519 private key + Alice's X25519 public key and stores the resulting **plaintext** share on his device — the ciphertext itself is not retained.
 
 Retrieve flow:
 - **Request sub-phase** (sender → relay): Alice opens a Retrieve request referencing the PickUp ID; the relay stores it as pending.
-- **Response sub-phase** (recipient → relay → sender): Bob approves and sends the ciphertext from his local storage; the relay stores it temporarily. Alice polls, fetches the ciphertext, then deletes the PickUp row (which cascade-deletes the Retrieve/Delete rows).
+- **Response sub-phase** (recipient → relay → sender): Bob approves by re-encrypting his stored plaintext share to Alice's *current* X25519 public key and sending that; the relay stores it temporarily. Alice polls, fetches the ciphertext, decrypts it with her own X25519 private key + Bob's current X25519 public key, then deletes the PickUp row (which cascade-deletes the Retrieve/Delete rows).
 
 Every row is self-describing — it embeds both `sender_key` and `recipient_key`. The relay never needs to look up any other row to authorize a request.
 
-Consequence: a relay database wipe after all recipients have picked up their shares does not destroy the secret — the shares live on the recipients' devices. The relay is a mailbox, not a store.
+Consequence: a relay database wipe after all recipients have picked up their shares does not destroy the secret — the shares (now held as plaintext) live on the recipients' devices. The relay is a mailbox, not a store.
 
 **Consent model:**
 - *Retrieval* — the recipient must approve. This allows out-of-band verification (e.g. a phone call) that the sender genuinely requested reconstruction and is not an attacker who stole their device.
@@ -364,7 +366,7 @@ The items below capture *design rationale* — why each decision was made, and w
    **Implemented** across all three hexagons: `deposplit.com/hexagons/phon` (`VerificationLevel extends Ordered[VerificationLevel]`, ordinal `compare`), Android `:hexagon` (Kotlin enums are ordinal-`Comparable` for free), iOS `hexagon` (`Comparable` via a private `rank`). `ContactService.addManually`/`addFromQr` on Android and iOS take an explicit `verificationLevel` argument; the domain layer rejects a manually-entered `VERY_HIGH` (physical co-presence can't be asserted by typing a key in by hand). Android and iOS gained an add-contact verification-level picker (manual entry offers `VERY_LOW`/`LOW`/`HIGH` with guidance text; QR scan defaults to `VERY_HIGH`) and a color-coded level badge on the contacts/deposit-recipient lists. phon kept its existing default-by-flow assignment (no picker UI — its scope was intentionally narrower) and its `contactsTable` view now shows all four level names via new `conf/messages`/`conf/messages.de` keys.
 
    **Work items:** tracked in `TODO.md` (item 6).
-7. **Holder-decrypts-at-pickup share-crypto redesign** (supersedes the encrypt-to-recipient *blind-courier* model). Decided during the spec walk. Share encryption's *only* job is keeping the **relay** blind: the relay is the chokepoint that transiently sees all `n` shares of a secret (grouped by `secret_id`), and SSS gives **no** protection to an all-`n` observer — whereas a single holder's `< k` share is already information-theoretically empty. So the encryption is moved to where it earns its keep:
+7. ~~**Holder-decrypts-at-pickup share-crypto redesign**~~ — **done** (supersedes the encrypt-to-recipient *blind-courier* model). Decided during the spec walk. Share encryption's *only* job is keeping the **relay** blind: the relay is the chokepoint that transiently sees all `n` shares of a secret (grouped by `secret_id`), and SSS gives **no** protection to an all-`n` observer — whereas a single holder's `< k` share is already information-theoretically empty. So the encryption is moved to where it earns its keep:
    - **Deposit** (Alice→relay): encrypt each share to the holder's *current* X25519 pubkey (as today).
    - **Pickup** (Bob approves): Bob **decrypts** with his X25519 private key + Alice's X25519 public key (from his contact record for Alice) and stores the **plaintext share** locally. Plaintext at rest is information-theoretically harmless (one share reveals nothing about the secret); it still sits in app-private storage under OS file-based encryption. Relay row cleared as before.
    - **Retrieve** (Alice requests, Bob responds): Bob **re-encrypts** the stored plaintext to the *current* sender's X25519 pubkey (looked up live from his contact record for Alice) and returns that; Alice decrypts with her X25519 private key + Bob's X25519 public key. `reconstruct()` collects `k` approved responses, decrypts each, `combine`s.
@@ -380,6 +382,8 @@ The items below capture *design rationale* — why each decision was made, and w
    - **Precondition** (shared with the key-change/recovery design): rotation/recovery must **update the existing contact record in place, preserving its `contactId`** — never create a *new* contact for the rotated identity, or the `contactId` anchor orphans held/distributed shares.
 
    This redesign removes the *cryptographic* blocker to recovery; the *metadata reconstitution* half is now designed in **item 8**.
+
+   **Implemented** on iOS `hexagon` and Android `:hexagon`: `HeldShare.senderKey`/`ciphertext` → `contactId`/`senderPseudonym`/`plaintextShare`, `ShareMetadata.recipientKey` → `contactId`, and a new `ContactRepository.getById` on both platforms (and on `phon`'s, see below). `ShareService.syncInbox()` now decrypts at pickup and `respond()` re-encrypts fresh to the requester's current key at retrieve; `reconstruct()` needed no change at all — it already decrypted with the sender's own identity + the holder's current `xPublicKey`, which is exactly item 7's retrieve-side contract. The `phon` hexagon picked up the same field renames and pickup/retrieve crypto flow for cross-platform *consistency*, deliberately short of full *parity* — it skipped the denormalized `senderPseudonym` snapshot, since its held-shares view doesn't render a sender name at all yet.
 
    **No migrations** — Deposplit is pre-launch; test relays and test devices will be reset to a clean slate.
 8. **Identity recovery — holder-driven metadata reconstitution (pure-social).** Resolves the "Identity Recovery" section's `k`-of-`n`-vs-single-approver TBD *and* the metadata half left open by item 7. Decided during the spec walk.

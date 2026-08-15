@@ -70,9 +70,6 @@ class ShareService @Inject() (
 
   private def relayForContact(contact: Contact): ShareRelay = relayResolver.resolve(contact.relayBaseUrl)
 
-  private def relayForKey(edPublicKey: Array[Byte]): ShareRelay =
-    relayResolver.resolve(contactRepository.getByEdKey(edPublicKey).flatMap(_.relayBaseUrl))
-
   /** Finds a row by id across every known relay — the caller (UI) has no relay context for a
     * bare requestId, only the fan-out list already used to discover it. Returns the relay it was
     * found on too, so the caller can act on it through the *same* relay rather than re-resolving
@@ -132,7 +129,7 @@ class ShareService @Inject() (
         Some(ct),
         senderSignature
       )
-      shareMetadataRepository.save(ShareMetadata(req.id, secretId, label, contact.edPublicKey, createdAt))
+      shareMetadataRepository.save(ShareMetadata(req.id, secretId, label, contact.id, createdAt))
     }
 
   override def syncDistributed(): Unit =
@@ -140,9 +137,13 @@ class ShareService @Inject() (
       Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.PickUp)))
         .getOrElse(Nil)
         .foreach(req =>
-          shareMetadataRepository.save(
-            ShareMetadata(req.id, req.secretId, req.label, req.recipientKey, req.secretCreatedAt)
-          )
+          // A row for a holder we no longer have a contact record for can't be re-anchored to a
+          // contactId — skip rather than drop the holder's identity on the floor.
+          contactRepository.getByEdKey(req.recipientKey).foreach { contact =>
+            shareMetadataRepository.save(
+              ShareMetadata(req.id, req.secretId, req.label, contact.id, req.secretCreatedAt)
+            )
+          }
         )
     }
 
@@ -159,33 +160,35 @@ class ShareService @Inject() (
       Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))).getOrElse(Nil)
     )
     deposited.foreach { meta =>
-      val hasActive = existing.exists(r =>
-        r.shareId.contains(meta.id) &&
-          (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
-      )
-      if !hasActive then
-        Try {
-          val canon = PayloadCanonical.forOpen(
-            meta.secretId,
-            ShareRequestType.Retrieve,
-            meta.recipientKey,
-            meta.label,
-            meta.secretCreatedAt,
-            Some(meta.id),
-            None
-          )
-          val senderSignature = identity.sign(canon)
-          relayForKey(meta.recipientKey).openShareRequest(
-            meta.secretId,
-            meta.recipientKey,
-            meta.label,
-            meta.secretCreatedAt,
-            ShareRequestType.Retrieve,
-            Some(meta.id),
-            None,
-            senderSignature
-          )
-        }
+      contactRepository.getById(meta.contactId).foreach { contact =>
+        val hasActive = existing.exists(r =>
+          r.shareId.contains(meta.id) &&
+            (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
+        )
+        if !hasActive then
+          Try {
+            val canon = PayloadCanonical.forOpen(
+              meta.secretId,
+              ShareRequestType.Retrieve,
+              contact.edPublicKey,
+              meta.label,
+              meta.secretCreatedAt,
+              Some(meta.id),
+              None
+            )
+            val senderSignature = identity.sign(canon)
+            relayForContact(contact).openShareRequest(
+              meta.secretId,
+              contact.edPublicKey,
+              meta.label,
+              meta.secretCreatedAt,
+              ShareRequestType.Retrieve,
+              Some(meta.id),
+              None,
+              senderSignature
+            )
+          }
+      }
     }
 
   override def openRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest =
@@ -193,19 +196,22 @@ class ShareService @Inject() (
       .getAll()
       .find(_.id == shareId)
       .getOrElse(throw IllegalArgumentException(s"No local share record for id $shareId"))
+    val contact = contactRepository
+      .getById(meta.contactId)
+      .getOrElse(throw IllegalStateException(s"Contact not found for id ${meta.contactId}"))
     val canon = PayloadCanonical.forOpen(
       meta.secretId,
       requestType,
-      meta.recipientKey,
+      contact.edPublicKey,
       meta.label,
       meta.secretCreatedAt,
       Some(shareId),
       None
     )
     val senderSignature = identity.sign(canon)
-    relayForKey(meta.recipientKey).openShareRequest(
+    relayForContact(contact).openShareRequest(
       meta.secretId,
-      meta.recipientKey,
+      contact.edPublicKey,
       meta.label,
       meta.secretCreatedAt,
       requestType,
@@ -254,25 +260,28 @@ class ShareService @Inject() (
           .getOrElse(Nil)
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
-        if shareRepository.getCiphertext(req.id).isEmpty then
-          Try {
-            val canon = PayloadCanonical.forRespond(req.id, approved = true, ciphertext = None)
-            val recipientSignature = identity.sign(canon)
-            val responded = relay.respondToShareRequest(req.id, approved = true, recipientSignature = recipientSignature)
-            responded.ciphertext.foreach { ct =>
-              shareRepository.save(
-                HeldShare(
-                  id = req.id,
-                  secretId = req.secretId,
-                  label = req.label,
-                  senderKey = req.senderKey,
-                  createdAt = req.secretCreatedAt,
-                  pickedUpAt = Instant.now(),
-                  ciphertext = ct
+        contactRepository.getByEdKey(req.senderKey).foreach { senderContact =>
+          if shareRepository.getPlaintextShare(req.id).isEmpty then
+            Try {
+              val canon = PayloadCanonical.forRespond(req.id, approved = true, ciphertext = None)
+              val recipientSignature = identity.sign(canon)
+              val responded = relay.respondToShareRequest(req.id, approved = true, recipientSignature = recipientSignature)
+              responded.ciphertext.foreach { ct =>
+                val plaintext = encryption.decrypt(ct, senderContact.xPublicKey)
+                shareRepository.save(
+                  HeldShare(
+                    id = req.id,
+                    secretId = req.secretId,
+                    label = req.label,
+                    contactId = senderContact.id,
+                    createdAt = req.secretCreatedAt,
+                    pickedUpAt = Instant.now(),
+                    plaintextShare = plaintext
+                  )
                 )
-              )
+              }
             }
-          }
+        }
       }
     }
 
@@ -294,11 +303,16 @@ class ShareService @Inject() (
         val pickUpId = request.shareId.getOrElse(
           throw IllegalStateException(s"Retrieve request $requestId has no shareId")
         )
-        Some(
-          shareRepository
-            .getCiphertext(pickUpId)
-            .getOrElse(throw IllegalStateException(s"Share $pickUpId not in local storage"))
-        )
+        val plaintext = shareRepository
+          .getPlaintextShare(pickUpId)
+          .getOrElse(throw IllegalStateException(s"Share $pickUpId not in local storage"))
+        // Re-encrypt to the requester's *current* X25519 key — looked up live, not pinned at
+        // deposit time. This is what lets reconstruction survive a sender key rotation/recovery
+        // (item 7's core reason for existing).
+        val requesterContact = contactRepository
+          .getByEdKey(request.senderKey)
+          .getOrElse(throw IllegalStateException(s"Contact not found for requester"))
+        Some(encryption.encrypt(plaintext, requesterContact.xPublicKey))
       else None
     val canon = PayloadCanonical.forRespond(requestId, approved, ciphertext)
     val recipientSignature = identity.sign(canon)
@@ -307,8 +321,8 @@ class ShareService @Inject() (
 
   override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)
 
-  override def deleteAllHeldFromSender(senderKey: Array[Byte]): Unit =
+  override def deleteAllHeldFromSender(contactId: UUID): Unit =
     shareRepository
       .getAll()
-      .filter(_.senderKey.sameElements(senderKey))
+      .filter(_.contactId == contactId)
       .foreach(share => shareRepository.delete(share.id))

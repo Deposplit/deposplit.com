@@ -31,10 +31,14 @@ case class HeldShare(
     id: UUID,
     secretId: UUID,
     label: String,
-    senderKey: Array[Byte],
+    // The sender's stable local contact id — not their Ed25519 key — so this record survives a
+    // sender key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
+    contactId: UUID,
     createdAt: Instant,
     pickedUpAt: Instant,
-    ciphertext: Array[Byte]
+    // The decrypted share, plaintext at rest — see item 7: a single holder's share is
+    // information-theoretically empty on its own, so this is safe to store unencrypted.
+    plaintextShare: Array[Byte]
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case h: HeldShare => id == h.id

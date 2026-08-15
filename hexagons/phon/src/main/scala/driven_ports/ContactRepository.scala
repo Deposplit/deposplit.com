@@ -30,5 +30,6 @@ import value_objects.svo.Contact
 trait ContactRepository:
   def getAll(): List[Contact]
   def getByEdKey(edPublicKey: Array[Byte]): Option[Contact]
+  def getById(id: UUID): Option[Contact]
   def save(contact: Contact): Unit
   def delete(contactId: UUID): Unit

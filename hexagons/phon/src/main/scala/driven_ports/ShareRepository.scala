@@ -29,6 +29,6 @@ import value_objects.svo.HeldShare
 
 trait ShareRepository:
   def getAll(): List[HeldShare]
-  def getCiphertext(shareId: UUID): Option[Array[Byte]]
+  def getPlaintextShare(shareId: UUID): Option[Array[Byte]]
   def save(share: HeldShare): Unit
   def delete(shareId: UUID): Unit

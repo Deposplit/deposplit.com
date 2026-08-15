@@ -17,24 +17,25 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 7–13 are design-complete but not yet built** (item 6 shipped — see below). The
-> current code still implements the *pre-7–13* model those items supersede. `No migrations`
+> ⚠ **Items 8–13 are design-complete but not yet built** (items 6 and 7 shipped — see below). The
+> current code still implements the *pre-8–13* model those items supersede. `No migrations`
 > throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
 ## Where to start / dependencies
 
-- **Item 7 (holder-decrypts-at-pickup crypto redesign)** is the foundation: it reshapes
-  `HeldShare` and `ShareMetadata`, and items **8, 9, 12, 13** all assume its model. Nothing
-  precedes it, and much depends on it — a natural first big piece.
+- **Item 7 (holder-decrypts-at-pickup crypto redesign) is done** — it was the foundation:
+  it reshaped `HeldShare` and `ShareMetadata` onto a `contactId` anchor, and items
+  **8, 9, 12, 13** all assume its model. Shipped on Android, iOS, and (for consistency,
+  not full parity) phon.
 - **Item 6 (four-level verification) is done** — it was independent of the crypto redesign
   (enum + UI, no crypto dependency), so it shipped first as a low-risk warm-up. Item 10 will
   later lean on its levels.
 - **Item 11 (secret lifecycle)** is partly independent: its `reconstruct()` bug-fixes
   (enforce real `k`, stop auto-teardown) can land early; its `Secret` aggregate feeds items
-  9 and 13. Uses the `contactId` anchor introduced by item 7.
-- Rough dependency order for what's left: **7 → 11 → {8, 9} → {10, 12} → 13**.
+  9 and 13. Uses the `contactId` anchor item 7 already introduced.
+- Rough dependency order for what's left: **11 → {8, 9} → {10, 12} → 13**.
 
 ---
 
@@ -66,7 +67,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — item 6 done, 7–13 design-complete but not yet built
+## Planned items (6–13) — items 6–7 done, 8–13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -78,13 +79,14 @@ Deposplit is pre-launch; the relay DB has been purged and all emulators/simulato
 - [x] `doc` rewrite "Contact Verification" section (+ "Ready/Not added" & "Contacts Management" refs) 2→4
 - [x] `doc` identity-recovery approver weighting references 4 levels (rule itself still TBD — walk separately)
 
-### Item 7 — Holder-decrypts-at-pickup crypto redesign · [CLAUDE.md#7](CLAUDE.md)
+### Item 7 — Holder-decrypts-at-pickup crypto redesign · [CLAUDE.md#7](CLAUDE.md) · *done*
 Client-only; `relay` + DB schema untouched (still opaque bytes).
-- [ ] `A` `I` pickup: decrypt with holder X25519 priv + sender X25519 pub → store **plaintext** share
-- [ ] `A` `I` retrieve: re-encrypt plaintext to *current* sender's X25519 pub; sender decrypts + `combine`
-- [ ] `A` `I` `HeldShare`: `ciphertext`→`plaintextShare`; `senderKey`→`contactId`; optional denormalized `pseudonym` snapshot
-- [ ] `A` `I` `ShareMetadata`: `recipientKey`→`contactId`
-- [ ] `A` `I` precondition: rotation/recovery updates existing contact **in place**, preserving `contactId`
+- [x] `A` `I` pickup: decrypt with holder X25519 priv + sender X25519 pub → store **plaintext** share
+- [x] `A` `I` retrieve: re-encrypt plaintext to *current* sender's X25519 pub; sender decrypts + `combine` (`reconstruct()` needed no code change — it already used the sender's own identity + the holder's current `xPublicKey`)
+- [x] `A` `I` `HeldShare`: `ciphertext`→`plaintextShare`; `senderKey`→`contactId`; denormalized `senderPseudonym` snapshot
+- [x] `A` `I` `ShareMetadata`: `recipientKey`→`contactId`
+- [x] `A` `I` precondition: rotation/recovery updates existing contact **in place**, preserving `contactId` (trivially satisfied — items 8/9's rotation/recovery mechanisms aren't built yet, and `Contact.id` was already stable)
+- [x] `phon` same field renames + pickup/retrieve crypto flow, for cross-platform *consistency* — not full parity (no denormalized pseudonym snapshot; not originally tagged for this item, added on request during the walk)
 
 ### Item 8 — Identity recovery (holder-driven metadata reconstitution) · [CLAUDE.md#8](CLAUDE.md)
 Pure-social, `k`-of-`n` by construction; recovery returns **metadata only**, never shares.
@@ -148,5 +150,5 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Item 6 has since shipped (see
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6 and 7 have since shipped (see
 `CHANGELOG.md`); all other implementation above is pending.

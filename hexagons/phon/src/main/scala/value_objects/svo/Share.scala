@@ -68,6 +68,8 @@ case class ShareMetadata(
     id: UUID,              // PickUp request ID — used as shareId in Retrieve/Delete requests
     secretId: UUID,
     label: String,
-    recipientKey: Array[Byte],  // Ed25519 key; used to look up the X25519 key for decryption
+    // The holder's stable local contact id — not their Ed25519 key — so this record survives a
+    // holder key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
+    contactId: UUID,
     secretCreatedAt: Instant
 ) extends Serializable

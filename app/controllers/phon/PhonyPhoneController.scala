@@ -204,7 +204,7 @@ class PhonyPhoneController @Inject() (
         views.html.Phon
           .mySecrets(
             shareManagement,
-            contactManagement.listContacts().map(contact => (contact.edPublicKey.toSeq, contact.pseudonym)).toMap
+            contactManagement.listContacts().map(contact => (contact.id, contact.pseudonym)).toMap
           )
       )
     else Ok(views.html.Phon.pseudonymForm(pseudonymForm))

@@ -20,7 +20,7 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST API with end-to-end encryption (BouncyCastle on Android/JVM, Swift Crypto on iOS) is the right fit:
 
-- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only — a full server breach yields nothing without also compromising at least *k* recipients' private keys.
+- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only. The recipient decrypts to plaintext locally at pickup and re-encrypts fresh at retrieve, so a full server breach yields nothing — it would need to compromise *k* holders' devices or defeat *k* holders' retrieve-consent instead.
 - **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
 - **Lean.** The protocol needs four message types; heavier transports (Matrix, XMPP) bring megabytes of SDK for features Deposplit does not use.
 - **Share encryption uses X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — one-shot encrypted payloads between known parties. Implemented with BouncyCastle on Android/JVM and Swift Crypto on iOS; no native libsodium.

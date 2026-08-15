@@ -48,4 +48,4 @@ trait ShareManagement:
   def listPendingRequests(): List[ShareRequest]
   def respond(requestId: UUID, approved: Boolean): Unit
   def deleteHeldShare(shareId: UUID): Unit
-  def deleteAllHeldFromSender(senderKey: Array[Byte]): Unit
+  def deleteAllHeldFromSender(contactId: UUID): Unit

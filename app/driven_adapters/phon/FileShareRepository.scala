@@ -69,7 +69,7 @@ class FileShareRepository @Inject() (config: Configuration) extends ShareReposit
 
   override def getAll(): List[HeldShare] = shares.toList
 
-  override def getCiphertext(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.ciphertext)
+  override def getPlaintextShare(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.plaintextShare)
 
   override def save(share: HeldShare): Unit =
     shares += share

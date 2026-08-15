@@ -63,13 +63,14 @@ private class FakeContactRepository(contacts: List[Contact]) extends ContactRepo
   override def getAll(): List[Contact] = contacts
   override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] =
     contacts.find(_.edPublicKey.sameElements(edPublicKey))
+  override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = ()
   override def delete(contactId: UUID): Unit = ()
 
 private class FakeShareRepository extends ShareRepository:
   private var shares: List[HeldShare] = Nil
   override def getAll(): List[HeldShare] = shares
-  override def getCiphertext(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.ciphertext)
+  override def getPlaintextShare(shareId: UUID): Option[Array[Byte]] = shares.find(_.id == shareId).map(_.plaintextShare)
   override def save(share: HeldShare): Unit = shares = share :: shares
   override def delete(shareId: UUID): Unit = shares = shares.filterNot(_.id == shareId)
 

@@ -72,6 +72,9 @@ class FileContactRepository @Inject() (config: Configuration) extends ContactRep
   override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] =
     contacts.find(_.edPublicKey == edPublicKey)
 
+  override def getById(id: UUID): Option[Contact] =
+    contacts.find(_.id == id)
+
   override def save(contact: Contact): Unit =
     contacts += contact
     serializeContacts()
