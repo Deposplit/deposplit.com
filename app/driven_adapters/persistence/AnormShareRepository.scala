@@ -71,7 +71,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Array[Byte]]("recipient_key") ~
       get[String]("label") ~
       get[Instant]("secret_created_at") ~
-      get[String]("request_type") ~
+      get[String]("transaction_type") ~
       get[String]("state") ~
       get[Option[UUID]]("share_id") ~
       get[Instant]("requested_at") ~
@@ -81,7 +81,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Option[Int]]("n") ~
       get[Array[Byte]]("sender_signature") ~
       get[Option[Array[Byte]]]("recipient_signature") map {
-        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ rt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ k ~ n ~ sSig ~ rSig =>
+        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ tt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ k ~ n ~ sSig ~ rSig =>
           ShareRequest(
             id = id,
             secretId = SecretId(sid),
@@ -89,12 +89,8 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             recipientKey = parseKey(rk),
             label = Label(lbl),
             secretCreatedAt = sca,
-            requestType = rt match
-              case "pick_up"           => ShareRequestType.PickUp
-              case "retrieve"          => ShareRequestType.Retrieve
-              case "delete"            => ShareRequestType.Delete
-              case "recovery_metadata" => ShareRequestType.RecoveryMetadata
-              case other               => sys.error(s"unknown request_type: $other"),
+            transactionType =
+              ShareTransactionType.fromWire(tt).getOrElse(sys.error(s"unknown transaction_type: $tt")),
             state = st match
               case "pending"  => ShareRequestState.Pending
               case "approved" => ShareRequestState.Approved
@@ -115,12 +111,6 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private def requestTypeStr(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp           => "pick_up"
-    case ShareRequestType.Retrieve         => "retrieve"
-    case ShareRequestType.Delete           => "delete"
-    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
-
   private def stateStr(st: ShareRequestState): String = st match
     case ShareRequestState.Pending  => "pending"
     case ShareRequestState.Approved => "approved"
@@ -134,12 +124,12 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO share_requests
-          (id, secret_id, label, sender_key, recipient_key, request_type, state, share_id,
+          (id, secret_id, label, sender_key, recipient_key, transaction_type, state, share_id,
            ciphertext, k, n, secret_created_at, requested_at, responded_at, sender_signature,
            recipient_signature)
         VALUES
           ({id}::uuid, {secretId}::uuid, {label}, {senderKey}, {recipientKey},
-           {requestType}, {state}, {shareId}::uuid, {ciphertext}, {k}, {n}, {secretCreatedAt},
+           {transactionType}, {state}, {shareId}::uuid, {ciphertext}, {k}, {n}, {secretCreatedAt},
            {requestedAt}, {respondedAt}, {senderSignature}, {recipientSignature})
       """)
         .on(
@@ -148,7 +138,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           "label" -> request.label.value,
           "senderKey" -> request.senderKey.toBytes,
           "recipientKey" -> request.recipientKey.toBytes,
-          "requestType" -> requestTypeStr(request.requestType),
+          "transactionType" -> request.transactionType.wireValue,
           "state" -> stateStr(request.state),
           "shareId" -> request.shareId.map(_.toString).orNull,
           "ciphertext" -> request.ciphertext.orNull,
@@ -172,60 +162,60 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
 
   override def getShareRequestsAsSender(
       senderKey: PublicKey,
-      requestType: Option[ShareRequestType],
+      transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): Seq[ShareRequest] =
     db.withConnection { implicit conn =>
-      (requestType, state) match
+      (transactionType, state) match
         case (None, None) =>
           SQL("SELECT * FROM share_requests WHERE sender_key = {sk}")
             .on("sk" -> senderKey.toBytes)
             .as(shareRequestParser.*)
-        case (Some(rt), None) =>
-          SQL("SELECT * FROM share_requests WHERE sender_key = {sk} AND request_type = {rt}")
-            .on("sk" -> senderKey.toBytes, "rt" -> requestTypeStr(rt))
+        case (Some(tt), None) =>
+          SQL("SELECT * FROM share_requests WHERE sender_key = {sk} AND transaction_type = {tt}")
+            .on("sk" -> senderKey.toBytes, "tt" -> tt.wireValue)
             .as(shareRequestParser.*)
         case (None, Some(st)) =>
           SQL("SELECT * FROM share_requests WHERE sender_key = {sk} AND state = {state}")
             .on("sk" -> senderKey.toBytes, "state" -> stateStr(st))
             .as(shareRequestParser.*)
-        case (Some(rt), Some(st)) =>
-          SQL("SELECT * FROM share_requests WHERE sender_key = {sk} AND request_type = {rt} AND state = {state}")
-            .on("sk" -> senderKey.toBytes, "rt" -> requestTypeStr(rt), "state" -> stateStr(st))
+        case (Some(tt), Some(st)) =>
+          SQL("SELECT * FROM share_requests WHERE sender_key = {sk} AND transaction_type = {tt} AND state = {state}")
+            .on("sk" -> senderKey.toBytes, "tt" -> tt.wireValue, "state" -> stateStr(st))
             .as(shareRequestParser.*)
     }
 
   override def getShareRequestsAsRecipient(
       recipientKey: PublicKey,
-      requestType: Option[ShareRequestType],
+      transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): Seq[ShareRequest] =
     db.withConnection { implicit conn =>
-      (requestType, state) match
+      (transactionType, state) match
         case (None, None) =>
           SQL("SELECT * FROM share_requests WHERE recipient_key = {rk}")
             .on("rk" -> recipientKey.toBytes)
             .as(shareRequestParser.*)
-        case (Some(rt), None) =>
-          SQL("SELECT * FROM share_requests WHERE recipient_key = {rk} AND request_type = {rt}")
-            .on("rk" -> recipientKey.toBytes, "rt" -> requestTypeStr(rt))
+        case (Some(tt), None) =>
+          SQL("SELECT * FROM share_requests WHERE recipient_key = {rk} AND transaction_type = {tt}")
+            .on("rk" -> recipientKey.toBytes, "tt" -> tt.wireValue)
             .as(shareRequestParser.*)
         case (None, Some(st)) =>
           SQL("SELECT * FROM share_requests WHERE recipient_key = {rk} AND state = {state}")
             .on("rk" -> recipientKey.toBytes, "state" -> stateStr(st))
             .as(shareRequestParser.*)
-        case (Some(rt), Some(st)) =>
-          SQL("SELECT * FROM share_requests WHERE recipient_key = {rk} AND request_type = {rt} AND state = {state}")
-            .on("rk" -> recipientKey.toBytes, "rt" -> requestTypeStr(rt), "state" -> stateStr(st))
+        case (Some(tt), Some(st)) =>
+          SQL("SELECT * FROM share_requests WHERE recipient_key = {rk} AND transaction_type = {tt} AND state = {state}")
+            .on("rk" -> recipientKey.toBytes, "tt" -> tt.wireValue, "state" -> stateStr(st))
             .as(shareRequestParser.*)
     }
 
-  override def hasActivePickUp(secretId: SecretId, recipientKey: PublicKey): Boolean =
+  override def hasActiveDeposit(secretId: SecretId, recipientKey: PublicKey): Boolean =
     db.withConnection { implicit conn =>
       val count = SQL("""
         SELECT COUNT(*) FROM share_requests
         WHERE secret_id = {sid}::uuid AND recipient_key = {rk}
-          AND request_type = 'pick_up' AND state != 'denied'
+          AND transaction_type = 'deposit' AND state != 'denied'
       """)
         .on("sid" -> secretId.value.toString, "rk" -> recipientKey.toBytes)
         .as(scalar[Long].single)
@@ -236,19 +226,19 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       secretId: SecretId,
       senderKey: PublicKey,
       recipientKey: PublicKey,
-      requestType: ShareRequestType
+      transactionType: ShareTransactionType
   ): Boolean =
     db.withConnection { implicit conn =>
       val count = SQL("""
         SELECT COUNT(*) FROM share_requests
         WHERE secret_id = {sid}::uuid AND sender_key = {sk} AND recipient_key = {rk}
-          AND request_type = {rt} AND state = 'pending'
+          AND transaction_type = {tt} AND state = 'pending'
       """)
         .on(
           "sid" -> secretId.value.toString,
           "sk" -> senderKey.toBytes,
           "rk" -> recipientKey.toBytes,
-          "rt" -> requestTypeStr(requestType)
+          "tt" -> transactionType.wireValue
         )
         .as(scalar[Long].single)
       count > 0

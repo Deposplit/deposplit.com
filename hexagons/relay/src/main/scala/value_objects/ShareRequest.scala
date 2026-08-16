@@ -29,24 +29,24 @@ import java.util.UUID
 
 /** A share request row — self-describing with embedded routing metadata.
   *
-  * `shareId` is None for PickUp and RecoveryMetadata rows (both are roots — the former the
-  * share record itself, the latter a report about one). For Retrieve and Delete rows it holds
-  * the id of the originating PickUp request, supplied by the client and stored opaquely by
+  * `shareId` is None for Deposit and Inventory rows (both are roots — the former the share
+  * record itself, the latter a report about one). For Retrieval and Removal rows it holds
+  * the id of the originating Deposit request, supplied by the client and stored opaquely by
   * the relay.
   *
   * `ciphertext` semantics differ by type:
-  *   - PickUp:           provided by Alice at creation; delivered to Bob on approval and cleared.
-  *   - Retrieve:         provided by Bob on approval; stored until Alice collects it.
-  *   - Delete:           always None.
-  *   - RecoveryMetadata: always None — this type never carries share bytes, only the metadata
-  *                       needed to rebuild a `ShareMetadata` row (see "state" below).
+  *   - Deposit:   provided by Alice at creation; delivered to Bob on approval and cleared.
+  *   - Retrieval: provided by Bob on approval; stored until Alice collects it.
+  *   - Removal:   always None.
+  *   - Inventory: always None — this type never carries share bytes, only the metadata
+  *                needed to rebuild a `ShareMetadata` row (see "state" below).
   *
-  * `k`/`n` are populated for PickUp and RecoveryMetadata only (None for Retrieve/Delete) —
+  * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal) —
   * see deposplit.com/CLAUDE.md "What is next" item 8. Signed as part of `senderSignature` so a
   * holder can't misreport them without invalidating the row.
   *
-  * `state` is `Pending` at creation for PickUp/Retrieve/Delete, awaiting the recipient's
-  * approve/deny. RecoveryMetadata is different: it's a holder-initiated *push*, not a
+  * `state` is `Pending` at creation for Deposit/Retrieval/Removal, awaiting the recipient's
+  * approve/deny. Inventory is different: it's a holder-initiated *push*, not a
   * consent-gated request — nothing for the recipient to approve — so it's created directly in
   * `Approved` state (`respondedAt` set immediately, `recipientSignature` left None). The
   * recipient simply polls for it and deletes the row once consumed, via the same
@@ -64,7 +64,7 @@ case class ShareRequest(
     recipientKey: PublicKey,
     label: Label,
     secretCreatedAt: Instant,
-    requestType: ShareRequestType,
+    transactionType: ShareTransactionType,
     state: ShareRequestState,
     shareId: Option[UUID],
     requestedAt: Instant,

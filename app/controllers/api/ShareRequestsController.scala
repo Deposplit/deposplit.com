@@ -42,26 +42,22 @@ class ShareRequestsController @Inject() (
 
   private val b64Dec = Base64.getDecoder
 
-  /** POST /share-requests — open any share request (PickUp / Retrieve / Delete). */
+  /** POST /share-requests — open any share request (Deposit / Retrieval / Removal / Inventory). */
   def openShareRequest() = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
     val result = for
       callerKey <- AuthHelper.verify(request, bodyBytes)
       json <- parseJson(bodyBytes)
-      rtStr <- (json \ "requestType")
+      ttStr <- (json \ "transactionType")
         .asOpt[String]
-        .toRight(BadRequest(errorJson("missing_field", "requestType is required")))
-      requestType <- rtStr match
-        case "pick_up"           => Right(ShareRequestType.PickUp)
-        case "retrieve"          => Right(ShareRequestType.Retrieve)
-        case "delete"            => Right(ShareRequestType.Delete)
-        case "recovery_metadata" => Right(ShareRequestType.RecoveryMetadata)
-        case _ =>
-          Left(
-            BadRequest(
-              errorJson("invalid_field", "requestType must be 'pick_up', 'retrieve', 'delete', or 'recovery_metadata'")
-            )
+        .toRight(BadRequest(errorJson("missing_field", "transactionType is required")))
+      transactionType <- ShareTransactionType
+        .fromWire(ttStr)
+        .toRight(
+          BadRequest(
+            errorJson("invalid_field", "transactionType must be 'deposit', 'retrieval', 'removal', or 'inventory'")
           )
+        )
       secretIdStr <- (json \ "secretId")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "secretId is required")))
@@ -96,7 +92,7 @@ class ShareRequestsController @Inject() (
           secretId,
           Label(labelStr),
           secretCreatedAt,
-          requestType,
+          transactionType,
           shareId,
           ciphertext,
           k,
@@ -109,7 +105,7 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** GET /share-requests?role=sender|recipient[&type=pick_up|retrieve|delete][&state=pending|approved|denied] */
+  /** GET /share-requests?role=sender|recipient[&type=deposit|retrieval|removal|inventory][&state=pending|approved|denied] */
   def listShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
@@ -120,20 +116,14 @@ class ShareRequestsController @Inject() (
         case "sender"    => Right(true)
         case "recipient" => Right(false)
         case _           => Left(BadRequest(errorJson("invalid_param", "role must be 'sender' or 'recipient'")))
-      requestType = request.getQueryString("type").flatMap {
-        case "pick_up"           => Some(ShareRequestType.PickUp)
-        case "retrieve"          => Some(ShareRequestType.Retrieve)
-        case "delete"            => Some(ShareRequestType.Delete)
-        case "recovery_metadata" => Some(ShareRequestType.RecoveryMetadata)
-        case _                   => None
-      }
+      transactionType = request.getQueryString("type").flatMap(ShareTransactionType.fromWire)
       stateFilter = request.getQueryString("state").flatMap {
         case "pending"  => Some(ShareRequestState.Pending)
         case "approved" => Some(ShareRequestState.Approved)
         case "denied"   => Some(ShareRequestState.Denied)
         case _          => None
       }
-      reqs <- shares.listShareRequests(callerKey, asSender, requestType, stateFilter).left.map(domainErrorToResult)
+      reqs <- shares.listShareRequests(callerKey, asSender, transactionType, stateFilter).left.map(domainErrorToResult)
     yield Ok(JsArray(reqs.map(shareRequestJson).toSeq))
     result.merge
   }
@@ -148,8 +138,8 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** PATCH /share-requests/:requestId — approve or deny (recipient). Approving a PickUp returns the ciphertext in the
-    * response body (one-time delivery). Approving a Retrieve requires `ciphertext` in the request body.
+  /** PATCH /share-requests/:requestId — approve or deny (recipient). Approving a Deposit returns the ciphertext in the
+    * response body (one-time delivery). Approving a Retrieval requires `ciphertext` in the request body.
     */
   def respondToShareRequest(requestId: String) = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])

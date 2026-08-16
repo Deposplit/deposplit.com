@@ -65,12 +65,12 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     relayBaseUrl = Some(byorUrl)
   )
 
-  private def pickUpRow(id: UUID, senderKeys: TestKeyPair, recipientKey: Array[Byte]): ShareRequest =
+  private def depositRow(id: UUID, senderKeys: TestKeyPair, recipientKey: Array[Byte]): ShareRequest =
     val secretId = UUID.randomUUID()
     val label = "fan-out test"
     val createdAt = Instant.now()
     val ciphertext = Array[Byte](9, 9, 9)
-    val canon = PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, recipientKey, label, createdAt, None, Some(ciphertext), Some(2), Some(3))
+    val canon = PayloadCanonical.forOpen(secretId, ShareTransactionType.Deposit, recipientKey, label, createdAt, None, Some(ciphertext), Some(2), Some(3))
     ShareRequest(
       id = id,
       secretId = secretId,
@@ -78,7 +78,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       recipientKey = recipientKey,
       label = label,
       secretCreatedAt = createdAt,
-      requestType = ShareRequestType.PickUp,
+      transactionType = ShareTransactionType.Deposit,
       state = ShareRequestState.Pending,
       shareId = None,
       requestedAt = Instant.now(),
@@ -106,8 +106,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       identity = bobIdentity
     )
 
-    val fromAliceOnDefault = pickUpRow(UUID.randomUUID(), aliceKeys, bobIdentity.edPublicKey())
-    val fromCharlieOnByor = pickUpRow(UUID.randomUUID(), charlieKeys, bobIdentity.edPublicKey())
+    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.edPublicKey())
+    val fromCharlieOnByor = depositRow(UUID.randomUUID(), charlieKeys, bobIdentity.edPublicKey())
     defaultRelay.pending = List(fromAliceOnDefault)
     defaultRelay.byId = Map(fromAliceOnDefault.id -> fromAliceOnDefault)
     byorRelay.pending = List(fromCharlieOnByor)
@@ -136,7 +136,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       identity = bobIdentity
     )
 
-    val fromAliceOnDefault = pickUpRow(UUID.randomUUID(), aliceKeys, bobIdentity.edPublicKey())
+    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.edPublicKey())
     defaultRelay.pending = List(fromAliceOnDefault)
     defaultRelay.byId = Map(fromAliceOnDefault.id -> fromAliceOnDefault)
 

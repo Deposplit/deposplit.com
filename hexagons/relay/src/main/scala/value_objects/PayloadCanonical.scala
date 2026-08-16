@@ -53,21 +53,15 @@ object PayloadCanonical:
 
   private val base64Std = Base64.getEncoder
 
-  private def requestTypeWire(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp           => "pick_up"
-    case ShareRequestType.Retrieve         => "retrieve"
-    case ShareRequestType.Delete           => "delete"
-    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
-
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
-    * `k`/`n` were added by item 8 (identity recovery) — populated for PickUp and
-    * RecoveryMetadata, `None` for Retrieve/Delete; appended at the end of the sequence to
+    * `k`/`n` were added by item 8 (identity recovery) — populated for Deposit and
+    * Inventory, `None` for Retrieval/Removal; appended at the end of the sequence to
     * keep the existing field order (and its cross-platform byte-vector test) undisturbed.
     */
   def forOpen(
       secretId: SecretId,
-      requestType: ShareRequestType,
+      transactionType: ShareTransactionType,
       recipientKey: PublicKey,
       label: Label,
       secretCreatedAt: Instant,
@@ -78,7 +72,7 @@ object PayloadCanonical:
   ): Array[Byte] =
     Seq(
       secretId.value.toString,
-      requestTypeWire(requestType),
+      transactionType.wireValue,
       recipientKey.toBase64Url,
       label.value,
       secretCreatedAt.toEpochMilli.toString,

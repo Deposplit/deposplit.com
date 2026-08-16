@@ -31,7 +31,7 @@ import play.api.libs.json.*
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
-import value_objects.svo.ShareRequestType
+import value_objects.svo.ShareTransactionType
 
 import java.net.URI
 import java.net.http.HttpClient
@@ -56,7 +56,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       recipientKey: Array[Byte],
       label: String,
       secretCreatedAt: Instant,
-      requestType: ShareRequestType,
+      transactionType: ShareTransactionType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
@@ -69,7 +69,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
         "recipientKey" -> encodeBase64Url(recipientKey),
         "label" -> label,
         "secretCreatedAt" -> secretCreatedAt.toString,
-        "requestType" -> requestTypeStr(requestType),
+        "transactionType" -> transactionType.wireValue,
         "senderSignature" -> encodeBase64Url(senderSignature)
       )
       .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
@@ -80,11 +80,11 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
 
   override def listShareRequests(
       role: Role,
-      requestType: Option[ShareRequestType] = None,
+      transactionType: Option[ShareTransactionType] = None,
       state: Option[ShareRequestState] = None
   ): List[ShareRequest] =
     val q = s"?role=${role.toString.toLowerCase}" +
-      requestType.fold("")(rt => s"&type=${requestTypeStr(rt)}") +
+      transactionType.fold("")(tt => s"&type=${tt.wireValue}") +
       state.fold("")(st => s"&state=${st.toString.toLowerCase}")
     send("GET", s"/share-requests$q").as[JsArray].value.map(parseShareRequest).toList
 
@@ -158,12 +158,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
 
   // ── JSON ──────────────────────────────────────────────────────────────────
 
-  private def requestTypeStr(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp           => "pick_up"
-    case ShareRequestType.Retrieve         => "retrieve"
-    case ShareRequestType.Delete           => "delete"
-    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
-
   private def parseShareRequest(json: JsValue): ShareRequest =
     ShareRequest(
       id = UUID.fromString((json \ "id").as[String]),
@@ -172,12 +166,9 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
       label = (json \ "label").as[String],
       secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
-      requestType = (json \ "requestType").as[String] match
-        case "pick_up"           => ShareRequestType.PickUp
-        case "retrieve"          => ShareRequestType.Retrieve
-        case "delete"            => ShareRequestType.Delete
-        case "recovery_metadata" => ShareRequestType.RecoveryMetadata
-        case other               => throw IllegalArgumentException(s"Unknown requestType: $other"),
+      transactionType = ShareTransactionType
+        .fromWire((json \ "transactionType").as[String])
+        .getOrElse(throw IllegalArgumentException(s"Unknown transactionType: ${(json \ "transactionType").as[String]}")),
       state = (json \ "state").as[String] match
         case "pending"  => ShareRequestState.Pending
         case "approved" => ShareRequestState.Approved

@@ -30,8 +30,24 @@ import java.util.UUID
 enum Role:
   case Sender, Recipient
 
-enum ShareRequestType:
-  case PickUp, Retrieve, Delete, RecoveryMetadata
+/** The kind of thing that happened (or is being asked to happen) to a share, phrased as a
+  * neutral transaction noun rather than either party's verb — see deposplit.com/CLAUDE.md
+  * "Cross-cutting implementation chores" for why: naming from a single named actor's point of
+  * view (Alice's, or Bob's) breaks down because the actor genuinely alternates — Alice always
+  * opens Deposit/Retrieval/Removal, but the *holder* opens Inventory (holder → owner).
+  *
+  * `wireValue` is the single source of truth for this type's wire representation, mirroring the
+  * relay's `ShareTransactionType` (this module can't depend on `relay` — separate sbt
+  * subprojects with no dependency between them).
+  */
+enum ShareTransactionType(val wireValue: String):
+  case Deposit   extends ShareTransactionType("deposit")
+  case Retrieval extends ShareTransactionType("retrieval")
+  case Removal   extends ShareTransactionType("removal")
+  case Inventory extends ShareTransactionType("inventory")
+
+object ShareTransactionType:
+  def fromWire(s: String): Option[ShareTransactionType] = values.find(_.wireValue == s)
 
 enum ShareRequestState:
   case Pending, Approved, Denied
@@ -48,15 +64,15 @@ case class ShareRequest(
     recipientKey: Array[Byte],
     label: String,
     secretCreatedAt: Instant,
-    requestType: ShareRequestType,
+    transactionType: ShareTransactionType,
     state: ShareRequestState,
-    /** For Retrieve/Delete rows: the originating PickUp request's id. */
+    /** For Retrieval/Removal rows: the originating Deposit request's id. */
     shareId: Option[UUID],
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
-    // SSS threshold/share-count — populated for PickUp/RecoveryMetadata, None for
-    // Retrieve/Delete. See deposplit.com/CLAUDE.md "What is next" items 8 and 11.
+    // SSS threshold/share-count — populated for Deposit/Inventory, None for
+    // Retrieval/Removal. See deposplit.com/CLAUDE.md "What is next" items 8 and 11.
     k: Option[Int] = None,
     n: Option[Int] = None,
     senderSignature: Array[Byte],
@@ -67,12 +83,12 @@ case class ShareRequest(
     case _               => false
   override def hashCode(): Int = id.hashCode()
 
-/** Lightweight record Alice stores locally when she deposits a share (one per PickUp request).
+/** Lightweight record Alice stores locally when she deposits a share (one per Deposit request).
   * Normalized to reference its parent `Secret` (by `secretId`) rather than duplicating
   * `label`/`secretCreatedAt` — see deposplit.com/CLAUDE.md "What is next" item 11.
   */
 case class ShareMetadata(
-    id: UUID,              // PickUp request ID — used as shareId in Retrieve/Delete requests
+    id: UUID,              // Deposit request ID — used as shareId in Retrieval/Removal requests
     secretId: UUID,
     // The holder's stable local contact id — not their Ed25519 key — so this record survives a
     // holder key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).

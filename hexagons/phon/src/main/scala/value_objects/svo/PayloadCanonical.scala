@@ -40,12 +40,6 @@ object PayloadCanonical:
   private val base64Std = Base64.getEncoder
   private val base64Url = Base64.getUrlEncoder.withoutPadding
 
-  private def requestTypeWire(rt: ShareRequestType): String = rt match
-    case ShareRequestType.PickUp           => "pick_up"
-    case ShareRequestType.Retrieve         => "retrieve"
-    case ShareRequestType.Delete           => "delete"
-    case ShareRequestType.RecoveryMetadata => "recovery_metadata"
-
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
     * `k`/`n` (item 8) are appended at the end of the sequence, keeping the existing field order
@@ -53,7 +47,7 @@ object PayloadCanonical:
     */
   def forOpen(
       secretId: UUID,
-      requestType: ShareRequestType,
+      transactionType: ShareTransactionType,
       recipientKey: Array[Byte],
       label: String,
       secretCreatedAt: Instant,
@@ -64,7 +58,7 @@ object PayloadCanonical:
   ): Array[Byte] =
     Seq(
       secretId.toString,
-      requestTypeWire(requestType),
+      transactionType.wireValue,
       base64Url.encodeToString(recipientKey),
       label,
       secretCreatedAt.toEpochMilli.toString,

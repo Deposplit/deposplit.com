@@ -44,7 +44,7 @@ import value_objects.svo.SecretState
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
-import value_objects.svo.ShareRequestType
+import value_objects.svo.ShareTransactionType
 import value_objects.svo.SignatureVerificationException
 
 import java.time.Instant
@@ -91,7 +91,7 @@ class ShareService @Inject() (
     contactRepository.getByEdKey(req.senderKey).exists { contact =>
       val canon = PayloadCanonical.forOpen(
         req.secretId,
-        req.requestType,
+        req.transactionType,
         req.recipientKey,
         req.label,
         req.secretCreatedAt,
@@ -108,7 +108,7 @@ class ShareService @Inject() (
       contactRepository.getByEdKey(req.recipientKey).exists { contact =>
         val approved = req.state == ShareRequestState.Approved
         val signedCiphertext =
-          if approved && req.requestType == ShareRequestType.Retrieve then req.ciphertext else None
+          if approved && req.transactionType == ShareTransactionType.Retrieval then req.ciphertext else None
         val canon = PayloadCanonical.forRespond(req.id, approved, signedCiphertext)
         identity.verify(canon, sig, contact.edPublicKey)
       }
@@ -123,14 +123,14 @@ class ShareService @Inject() (
     shares.zip(contacts).foreach { (share, contact) =>
       val ct = encryption.encrypt(share, contact.xPublicKey)
       val canon =
-        PayloadCanonical.forOpen(secretId, ShareRequestType.PickUp, contact.edPublicKey, label, createdAt, None, Some(ct), Some(threshold), Some(contacts.size))
+        PayloadCanonical.forOpen(secretId, ShareTransactionType.Deposit, contact.edPublicKey, label, createdAt, None, Some(ct), Some(threshold), Some(contacts.size))
       val senderSignature = identity.sign(canon)
       val req = relayForContact(contact).openShareRequest(
         secretId,
         contact.edPublicKey,
         label,
         createdAt,
-        ShareRequestType.PickUp,
+        ShareTransactionType.Deposit,
         None,
         Some(ct),
         k = Some(threshold),
@@ -145,7 +145,7 @@ class ShareService @Inject() (
 
   override def syncDistributed(): Unit =
     allRelays().foreach { relay =>
-      Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.PickUp)))
+      Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Deposit)))
         .getOrElse(Nil)
         .foreach(req =>
           // A row for a holder we no longer have a contact record for can't be re-anchored to a
@@ -159,7 +159,7 @@ class ShareService @Inject() (
     }
     reconcileDiscarding()
 
-  /** For every Discarding `Secret`, checks whether each remaining holder's fanned-out delete
+  /** For every Discarding `Secret`, checks whether each remaining holder's fanned-out removal
     * request has been approved; approved ones are cleaned up (relay row deleted, local
     * `ShareMetadata` removed). Once a Discarding secret has no `ShareMetadata` rows left, its
     * `Secret` record itself is removed. See item 11's two-state lifecycle.
@@ -168,8 +168,8 @@ class ShareService @Inject() (
     val discarding = secretRepository.getAll().filter(_.state == SecretState.Discarding)
     if discarding.nonEmpty then
       val discardingIds = discarding.map(_.id).toSet
-      val deleteRequests: List[(ShareRelay, ShareRequest)] = allRelays().flatMap { relay =>
-        Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.Delete)))
+      val removalRequests: List[(ShareRelay, ShareRequest)] = allRelays().flatMap { relay =>
+        Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Removal)))
           .getOrElse(Nil)
           .filter(r => discardingIds.contains(r.secretId))
           .map(relay -> _)
@@ -177,7 +177,7 @@ class ShareService @Inject() (
       discarding.foreach { secret =>
         val metasForSecret = shareMetadataRepository.getAll().filter(_.secretId == secret.id)
         metasForSecret.foreach { meta =>
-          deleteRequests
+          removalRequests
             .find { case (_, r) => r.shareId.contains(meta.id) && r.state == ShareRequestState.Approved }
             .foreach { case (relay, _) =>
               Try(relay.deleteShareRequest(meta.id))
@@ -193,13 +193,13 @@ class ShareService @Inject() (
   override def listSentRequests(): List[ShareRequest] =
     allRelays()
       .flatMap(relay => Try(relay.listShareRequests(Role.Sender)).getOrElse(Nil))
-      .filterNot(_.requestType == ShareRequestType.PickUp)
+      .filterNot(_.transactionType == ShareTransactionType.Deposit)
 
   override def requestAll(secretId: UUID): Unit =
     secretRepository.getAll().find(_.id == secretId).foreach { secret =>
       val deposited = shareMetadataRepository.getAll().filter(_.secretId == secretId)
       val existing = allRelays().flatMap(relay =>
-        Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))).getOrElse(Nil)
+        Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval))).getOrElse(Nil)
       )
       deposited.foreach { meta =>
         contactRepository.getById(meta.contactId).foreach { contact =>
@@ -213,7 +213,7 @@ class ShareService @Inject() (
             Try {
               val canon = PayloadCanonical.forOpen(
                 meta.secretId,
-                ShareRequestType.Retrieve,
+                ShareTransactionType.Retrieval,
                 contact.edPublicKey,
                 secret.label,
                 secret.secretCreatedAt,
@@ -226,7 +226,7 @@ class ShareService @Inject() (
                 contact.edPublicKey,
                 secret.label,
                 secret.secretCreatedAt,
-                ShareRequestType.Retrieve,
+                ShareTransactionType.Retrieval,
                 Some(meta.id),
                 None,
                 senderSignature = senderSignature
@@ -236,7 +236,7 @@ class ShareService @Inject() (
       }
     }
 
-  override def openRequest(shareId: UUID, requestType: ShareRequestType): ShareRequest =
+  override def openRequest(shareId: UUID, transactionType: ShareTransactionType): ShareRequest =
     val meta = shareMetadataRepository
       .getAll()
       .find(_.id == shareId)
@@ -250,7 +250,7 @@ class ShareService @Inject() (
       .getOrElse(throw IllegalStateException(s"Contact not found for id ${meta.contactId}"))
     val canon = PayloadCanonical.forOpen(
       meta.secretId,
-      requestType,
+      transactionType,
       contact.edPublicKey,
       secret.label,
       secret.secretCreatedAt,
@@ -263,13 +263,13 @@ class ShareService @Inject() (
       contact.edPublicKey,
       secret.label,
       secret.secretCreatedAt,
-      requestType,
+      transactionType,
       Some(shareId),
       None,
       senderSignature = senderSignature
     )
 
-  /** Pure read (item 11): collects and decrypts k approved retrieve shares, but never tears down
+  /** Pure read (item 11): collects and decrypts k approved retrieval shares, but never tears down
     * local `ShareMetadata` or relay rows. Use `discardSecret` for teardown — reconstruct is now a
     * *step* toward a possible re-split, not an implicit "I'm done with this" signal.
     */
@@ -280,7 +280,7 @@ class ShareService @Inject() (
       .getOrElse(throw IllegalStateException(s"No local record for secret $secretId"))
     val allRequests: List[(ShareRelay, ShareRequest)] =
       allRelays().flatMap(relay =>
-        Try(relay.listShareRequests(Role.Sender, Some(ShareRequestType.Retrieve))).getOrElse(Nil).map(relay -> _)
+        Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval))).getOrElse(Nil).map(relay -> _)
       )
     // An unverified recipientSignature is treated as "not yet approved" rather than a hard
     // error — a forged approval simply doesn't count toward the threshold.
@@ -300,7 +300,7 @@ class ShareService @Inject() (
     }
     SecretSharing.combine(decrypted)
 
-  /** Fans out a sender-initiated delete to every known holder of secretId and flips the Secret to
+  /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to
     * Discarding immediately, before any holder has responded — see item 11.
     */
   override def discardSecret(secretId: UUID): Unit =
@@ -312,7 +312,7 @@ class ShareService @Inject() (
     shareMetadataRepository
       .getAll()
       .filter(_.secretId == secretId)
-      .foreach(share => Try(openRequest(share.id, ShareRequestType.Delete)))
+      .foreach(share => Try(openRequest(share.id, ShareTransactionType.Removal)))
 
   /** Local-only teardown for a Discarding secret whose holders won't all respond (e.g. a
     * permanently dark holder) — removes the Secret and its remaining `ShareMetadata` rows without
@@ -330,12 +330,12 @@ class ShareService @Inject() (
   override def syncInbox(): Unit =
     allRelays().foreach { relay =>
       val pending =
-        Try(relay.listShareRequests(Role.Recipient, Some(ShareRequestType.PickUp), Some(ShareRequestState.Pending)))
+        Try(relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Deposit), Some(ShareRequestState.Pending)))
           .getOrElse(Nil)
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
         contactRepository.getByEdKey(req.senderKey).foreach { senderContact =>
-          // A pick_up without valid k/n can't happen against a conforming relay (required by
+          // A deposit without valid k/n can't happen against a conforming relay (required by
           // ShareRequestsService) — skip defensively rather than store a share we can't later
           // report thresholds for during recovery.
           (req.k, req.n) match
@@ -376,7 +376,7 @@ class ShareService @Inject() (
   private def processRecoveryMetadata(): Unit =
     allRelays().foreach { relay =>
       val pushes =
-        Try(relay.listShareRequests(Role.Recipient, Some(ShareRequestType.RecoveryMetadata), Some(ShareRequestState.Approved)))
+        Try(relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Inventory), Some(ShareRequestState.Approved)))
           .getOrElse(Nil)
       pushes.filter(verifyOpen).foreach { req =>
         contactRepository.getByEdKey(req.senderKey).foreach { holderContact =>
@@ -400,7 +400,7 @@ class ShareService @Inject() (
       Try {
         val canon = PayloadCanonical.forOpen(
           share.secretId,
-          ShareRequestType.RecoveryMetadata,
+          ShareTransactionType.Inventory,
           contact.edPublicKey,
           share.label,
           share.createdAt,
@@ -415,7 +415,7 @@ class ShareService @Inject() (
           contact.edPublicKey,
           share.label,
           share.createdAt,
-          ShareRequestType.RecoveryMetadata,
+          ShareTransactionType.Inventory,
           None,
           None,
           k = Some(share.k),
@@ -430,8 +430,8 @@ class ShareService @Inject() (
   override def listPendingRequests(): List[ShareRequest] =
     allRelays()
       .flatMap(relay => Try(relay.listShareRequests(Role.Recipient, state = Some(ShareRequestState.Pending))).getOrElse(Nil))
-      .filterNot(_.requestType == ShareRequestType.PickUp)
-      // A forged delete/retrieve request has no AEAD backstop — must never reach the UI.
+      .filterNot(_.transactionType == ShareTransactionType.Deposit)
+      // A forged removal/retrieval request has no AEAD backstop — must never reach the UI.
       .filter(verifyOpen)
 
   override def respond(requestId: UUID, approved: Boolean): Unit =
@@ -439,7 +439,7 @@ class ShareService @Inject() (
     if !verifyOpen(request) then
       throw SignatureVerificationException(s"senderSignature does not verify for request $requestId")
     val ciphertext =
-      if approved && request.requestType == ShareRequestType.Retrieve then
+      if approved && request.transactionType == ShareTransactionType.Retrieval then
         // Matched on secretId, not the sender's local shareId — that id is meaningless to this
         // device once identities can be rebuilt independently after recovery (item 8).
         val plaintext = shareRepository
@@ -456,7 +456,7 @@ class ShareService @Inject() (
     val canon = PayloadCanonical.forRespond(requestId, approved, ciphertext)
     val recipientSignature = identity.sign(canon)
     relay.respondToShareRequest(requestId, approved, ciphertext, recipientSignature)
-    if approved && request.requestType == ShareRequestType.Delete then
+    if approved && request.transactionType == ShareTransactionType.Removal then
       shareRepository.getAll().find(_.secretId == request.secretId).foreach(h => shareRepository.delete(h.id))
 
   override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)

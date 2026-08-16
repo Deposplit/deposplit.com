@@ -27,22 +27,22 @@ package driven_ports
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
-import value_objects.svo.ShareRequestType
+import value_objects.svo.ShareTransactionType
 
 import java.time.Instant
 import java.util.UUID
 
 trait ShareRelay:
-  /** Open a PickUp, Retrieve, or Delete request on the relay.
-    * For PickUp: ciphertext must be supplied (the encrypted share).
-    * For Retrieve/Delete: shareId should carry the originating PickUp's id; ciphertext is absent.
+  /** Open a Deposit, Retrieval, or Removal request on the relay.
+    * For Deposit: ciphertext must be supplied (the encrypted share).
+    * For Retrieval/Removal: shareId should carry the originating Deposit's id; ciphertext is absent.
     */
   def openShareRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
       label: String,
       secretCreatedAt: Instant,
-      requestType: ShareRequestType,
+      transactionType: ShareTransactionType,
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
@@ -52,7 +52,7 @@ trait ShareRelay:
 
   def listShareRequests(
       role: Role,
-      requestType: Option[ShareRequestType] = None,
+      transactionType: Option[ShareTransactionType] = None,
       state: Option[ShareRequestState] = None
   ): List[ShareRequest]
 
@@ -66,7 +66,7 @@ trait ShareRelay:
   ): ShareRequest
 
   /** Delete a single request by id.
-    * When the caller deletes a PickUp, the relay cascades to Retrieve/Delete rows for the same share.
+    * When the caller deletes a Deposit, the relay cascades to Retrieval/Removal rows for the same share.
     */
   def deleteShareRequest(requestId: UUID): Unit
 

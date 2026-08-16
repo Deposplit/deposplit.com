@@ -38,30 +38,30 @@ trait ShareRepository:
   /** Requests opened by `senderKey`, optionally filtered by type and/or state. */
   def getShareRequestsAsSender(
       senderKey: PublicKey,
-      requestType: Option[ShareRequestType],
+      transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): Seq[ShareRequest]
 
   /** Requests directed at `recipientKey`, optionally filtered by type and/or state. */
   def getShareRequestsAsRecipient(
       recipientKey: PublicKey,
-      requestType: Option[ShareRequestType],
+      transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): Seq[ShareRequest]
 
-  /** True if a non-denied PickUp already exists for this (secretId, recipientKey) pair.
-    * Used to prevent duplicate deposits (a denied PickUp allows re-deposit).
+  /** True if a non-denied Deposit already exists for this (secretId, recipientKey) pair.
+    * Used to prevent duplicate deposits (a denied Deposit allows re-deposit).
     */
-  def hasActivePickUp(secretId: SecretId, recipientKey: PublicKey): Boolean
+  def hasActiveDeposit(secretId: SecretId, recipientKey: PublicKey): Boolean
 
   /** True if a Pending request of the given type already exists for this
-    * (secretId, senderKey, recipientKey) triple. Used for Retrieve and Delete.
+    * (secretId, senderKey, recipientKey) triple. Used for Retrieval and Removal.
     */
   def hasPendingRequest(
       secretId: SecretId,
       senderKey: PublicKey,
       recipientKey: PublicKey,
-      requestType: ShareRequestType
+      transactionType: ShareTransactionType
   ): Boolean
 
   /** Updates the state, response timestamp, ciphertext, and recipient signature of a request. */
@@ -78,7 +78,7 @@ trait ShareRepository:
 
   /** Bulk delete — all rows where `recipientKey` matches, optionally filtered
     * by `senderKey` and/or `secretId`. Used for recipient-initiated cleanup and
-    * cascaded deletion when a PickUp row is removed.
+    * cascaded deletion when a Deposit row is removed.
     */
   def deleteShareRequests(
       recipientKey: PublicKey,

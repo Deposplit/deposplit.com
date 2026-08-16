@@ -18,9 +18,9 @@ Claude Code discovers `CLAUDE.md` files by walking up the directory tree from th
 
 ## Why a custom Web app/service?
 
-Deposplit's protocol consists of exactly four message types (deposit / list / retrieve / delete). A dedicated deposplit.com REST API with end-to-end encryption (BouncyCastle on Android/JVM, Swift Crypto on iOS) is the right fit:
+Deposplit's protocol consists of exactly four message types (deposit / list / retrieval / removal). A dedicated deposplit.com REST API with end-to-end encryption (BouncyCastle on Android/JVM, Swift Crypto on iOS) is the right fit:
 
-- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only. The recipient decrypts to plaintext locally at pickup and re-encrypts fresh at retrieve, so a full server breach yields nothing — it would need to compromise *k* holders' devices or defeat *k* holders' retrieve-consent instead.
+- **Server is cryptographically blind.** Share content is encrypted on the sender's device to the recipient's X25519 public key before it ever leaves the device. The Web app/service stores and forwards ciphertext only. The recipient decrypts to plaintext locally at pickup and re-encrypts fresh at retrieval, so a full server breach yields nothing — it would need to compromise *k* holders' devices or defeat *k* holders' retrieval-consent instead.
 - **No federation needed.** Recipients must install Deposplit anyway, so cross-server communication adds no user value.
 - **Lean.** The protocol needs four message types; heavier transports (Matrix, XMPP) bring megabytes of SDK for features Deposplit does not use.
 - **Share encryption uses X25519 + HKDF-SHA-256 + ChaCha20-Poly1305** — one-shot encrypted payloads between known parties. Implemented with BouncyCastle on Android/JVM and Swift Crypto on iOS; no native libsodium.
@@ -42,7 +42,7 @@ Rejected alternatives:
 | Language / framework | Scala + Play 3 | sbt build; `hexagon` subproject (pure Scala, no Play) + root Play app (adapters, controllers, Twirl views) |
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
-| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (four request types: `pick_up`, `retrieve`, `delete`, `recovery_metadata`) |
+| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (four transaction types: `deposit`, `retrieval`, `removal`, `inventory`) |
 | Dev / test DB | H2 (file-backed, `./.devDBs/deposplit`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
@@ -93,15 +93,15 @@ Three of the four request types are modelled as consent requests — Alice reque
 
 | Type | Direction | Description |
 |---|---|---|
-| `pick_up` | Sender → recipient | Alice deposits a share (ciphertext included); Bob approves to receive it and the relay delivers ciphertext once, then clears it |
-| `retrieve` | Sender ↔ recipient | Alice requests a specific share back; Bob approves (sends ciphertext from local storage) or denies |
-| `delete` | Sender ↔ recipient | Alice requests deletion of a share; Bob approves or denies |
-| `recovery_metadata` | Holder → owner | Bob pushes a metadata-only report about a share of his back to Alice, so she can rebuild her records after losing her old identity's key; self-approves at creation, no consent phase |
+| `deposit` | Sender → recipient | Alice deposits a share (ciphertext included); Bob approves to receive it and the relay delivers ciphertext once, then clears it |
+| `retrieval` | Sender ↔ recipient | Alice requests a specific share back; Bob approves (sends ciphertext from local storage) or denies |
+| `removal` | Sender ↔ recipient | Alice requests removal of a share; Bob approves or denies |
+| `inventory` | Holder → owner | Bob pushes a metadata-only report about a share of his back to Alice, so she can rebuild her records after losing her old identity's key; self-approves at creation, no consent phase |
 
 Recipient-initiated deletion is purely local — no message required. The recipient can delete individual shares or all shares from a given sender at any time without approval.
 
 **Consent model:**
-- *PickUp* — recipient must approve to receive the share. The relay holds the ciphertext until Bob approves; it is delivered once and then cleared from the relay.
+- *Deposit* — recipient must approve to receive the share. The relay holds the ciphertext until Bob approves; it is delivered once and then cleared from the relay.
 - *Retrieval* — recipient must approve. Allows out-of-band verification (e.g. a phone call) before returning a share, protecting against an attacker who has stolen the sender's device.
 - *Sender-initiated deletion* — recipient must approve. The sender cannot force deletion.
 - *Recipient-initiated deletion* — unilateral.

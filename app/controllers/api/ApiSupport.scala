@@ -30,7 +30,7 @@ import play.api.mvc.Result
 import value_objects.Error
 import value_objects.ShareRequest
 import value_objects.ShareRequestState
-import value_objects.ShareRequestType
+import value_objects.ShareTransactionType
 import value_objects.Signature
 
 import java.util.Base64
@@ -57,11 +57,7 @@ trait ApiSupport { self: BaseController =>
       "recipientKey"     -> req.recipientKey.toBase64Url,
       "label"            -> req.label.value,
       "secretCreatedAt"  -> req.secretCreatedAt.toString,
-      "requestType"      -> (req.requestType match
-        case ShareRequestType.PickUp           => "pick_up"
-        case ShareRequestType.Retrieve         => "retrieve"
-        case ShareRequestType.Delete           => "delete"
-        case ShareRequestType.RecoveryMetadata => "recovery_metadata"),
+      "transactionType"  -> req.transactionType.wireValue,
       "state"            -> (req.state match
         case ShareRequestState.Pending  => "pending"
         case ShareRequestState.Approved => "approved"

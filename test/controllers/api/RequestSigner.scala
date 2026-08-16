@@ -79,7 +79,7 @@ class RequestSigner:
     */
   def signOpen(
       secretId: String,
-      requestType: String,
+      transactionType: String,
       recipientKey: String,
       label: String,
       secretCreatedAt: String,
@@ -91,7 +91,7 @@ class RequestSigner:
     val epochMs = java.time.Instant.parse(secretCreatedAt).toEpochMilli
     val canon = Seq(
       secretId,
-      requestType,
+      transactionType,
       recipientKey,
       label,
       epochMs.toString,
