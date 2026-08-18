@@ -26,6 +26,7 @@ package driving_ports
 
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
+import value_objects.svo.KeyConflict
 import value_objects.svo.Secret
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
@@ -79,3 +80,7 @@ trait ShareManagement:
     * not yet by any UI action.
     */
   def pushRotation(contactId: UUID, newEd25519Key: Array[Byte], newX25519Key: Array[Byte]): Unit
+
+  // ─── Item 10 — key conflicts (never auto-resolved), local-only, no relay involvement ────────
+  def listKeyConflicts(): List[KeyConflict]
+  def dismissKeyConflict(id: UUID): Unit

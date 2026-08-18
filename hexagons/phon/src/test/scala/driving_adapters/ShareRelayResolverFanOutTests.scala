@@ -105,6 +105,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
       contactManagement = ContactService(contactRepo),
+      keyConflictRepository = FakeKeyConflictRepository(),
       identity = bobIdentity
     )
 
@@ -137,6 +138,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
       contactManagement = ContactService(contactRepo),
+      keyConflictRepository = FakeKeyConflictRepository(),
       identity = bobIdentity
     )
 

@@ -96,9 +96,20 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         edPublicKey = edPublicKey.getOrElse(existing.edPublicKey),
         xPublicKey = xPublicKey.getOrElse(existing.xPublicKey),
         verificationLevel = newLevel.getOrElse(existing.verificationLevel),
-        verifiedAt = if changingKeys || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt
+        verifiedAt = if changingKeys || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
+        revokedEdKeys = existing.revokedEdKeys,
+        keyChangedAt = if changingKeys then Some(Instant.now()) else existing.keyChangedAt
       )
     )
 
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)
+
+  // Item 10 — idempotent: a no-op if the key is already in revokedEdKeys.
+  def markKeyCompromised(contactId: UUID, edPublicKey: Option[Array[Byte]] = None): Unit =
+    val existing = contactRepository
+      .getById(contactId)
+      .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
+    val keyToFlag = edPublicKey.getOrElse(existing.edPublicKey)
+    if !existing.revokedEdKeys.exists(_.sameElements(keyToFlag)) then
+      contactRepository.save(existing.copy(revokedEdKeys = keyToFlag :: existing.revokedEdKeys))

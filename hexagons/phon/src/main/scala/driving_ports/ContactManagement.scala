@@ -44,3 +44,10 @@ trait ContactManagement:
     */
   def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None, verificationLevel: Option[VerificationLevel] = None): Unit
   def deleteContact(contactId: UUID): Unit
+  /** Item 10 — flags an Ed25519 key into the contact's revokedEdKeys history, out-of-band-
+    * triggered (the user has some independent reason to believe it was stolen). Defaults to the
+    * contact's *current* edPublicKey when edPublicKey is None. From this point, any signed
+    * rotation notice claiming continuity from that key is refused auto-accept; only a fresh
+    * human-verified relink can move the contact forward. Idempotent — a no-op if already flagged.
+    */
+  def markKeyCompromised(contactId: UUID, edPublicKey: Option[Array[Byte]] = None): Unit

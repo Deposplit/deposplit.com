@@ -26,6 +26,7 @@ import com.google.inject.AbstractModule
 import driven_ports.ContactRepository
 import driven_ports.ForgettableIdentityStore
 import driven_ports.IdentityStore
+import driven_ports.KeyConflictRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelayResolver
@@ -37,6 +38,7 @@ import driving_ports.Identity
 import driving_ports.ShareManagement
 import driven_adapters.phon.FileContactRepository
 import driven_adapters.phon.FileIdentityStore
+import driven_adapters.phon.FileKeyConflictRepository
 import driven_adapters.phon.FileSecretRepository
 import driven_adapters.phon.FileShareMetadataRepository
 import driven_adapters.phon.FileShareRepository
@@ -59,6 +61,7 @@ class PhonModule extends AbstractModule:
     bind(classOf[ShareManagement]).to(classOf[ShareService])
     bind(classOf[SecretRepository]).to(classOf[FileSecretRepository])
     bind(classOf[ShareMetadataRepository]).to(classOf[FileShareMetadataRepository])
+    bind(classOf[KeyConflictRepository]).to(classOf[FileKeyConflictRepository])
     bind(classOf[ShareRelayResolver]).to(classOf[HttpClientRelayResolver])
     bind(classOf[ShareRepository]).to(classOf[FileShareRepository])
     bind(classOf[CatalogManagement]).to(classOf[CatalogService])

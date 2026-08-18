@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Item 9 is mostly shipped; 10 and 12–13 are design-complete but not yet built** (items 6, 7,
-> 8, and 11 shipped too — see below). `No migrations` throughout — Deposplit is pre-launch; test
-> relays and devices reset to a clean slate.
+> ⚠ **Item 9 is mostly shipped; item 10 is fully shipped; 12–13 are design-complete but not yet
+> built** (items 6, 7, 8, and 11 shipped too — see below). `No migrations` throughout — Deposplit
+> is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -30,8 +30,8 @@ is better served by one board than three. This file lives in the hub repo
   **8, 9, 12, 13** all assume its model. Shipped on Android, iOS, and (for consistency,
   not full parity) phon.
 - **Item 6 (four-level verification) is done** — it was independent of the crypto redesign
-  (enum + UI, no crypto dependency), so it shipped first as a low-risk warm-up. Item 10 will
-  later lean on its levels.
+  (enum + UI, no crypto dependency), so it shipped first as a low-risk warm-up. Item 10 leans
+  on its levels (the `min(level, LOW)` downgrade).
 - **Item 11 (secret lifecycle) is done** — its `reconstruct()` bug-fixes (enforce real `k`,
   stop auto-teardown) and its `Secret` aggregate are shipped; items 9 and 13 build on it.
   Used the `contactId` anchor item 7 already introduced. Shipped on Android, iOS, and
@@ -53,7 +53,14 @@ is better served by one board than three. This file lives in the hub repo
   `CLAUDE.md` item 9's "Proactive rotation" bullet). The "reconstruct-and-re-split repair flow"
   checklist line needs no new code (already composes from item 11's primitives) but has no
   dedicated UI trigger yet.
-- Rough dependency order for what's left: **{10, 12} → 13** (item 9 no longer blocks either).
+- **Item 10 (stolen-key revocation) is done** — 100% client-local, no relay work. The
+  `min(level, LOW)` downgrade was already shipped under item 9; item 10 added the local
+  "compromised/revoked" key flag (`Contact.revokedEdKeys`), the `KeyConflict` record captured
+  *before* a gated rotation notice is deleted (never leaning on relay retention), never-auto-
+  resolved conflict UI, and the retrieve-approval "key changed N days ago" indicator. Shipped on
+  Android and iOS with full UI; phon picked up the data-model + gating logic for consistency,
+  no HTMX UI.
+- Rough dependency order for what's left: **9 (repair-flow UI trigger) and 12 → 13**.
 
 ---
 
@@ -85,7 +92,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — items 6, 7, 8, 11 done, 9–10 and 12–13 design-complete but not yet built
+## Planned items (6–13) — items 6, 7, 8, 10, 11 done, 9 mostly shipped, 12–13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -355,11 +362,100 @@ health-check is deliberately **not** being built here; skip straight to item 12 
     Full project `sbt test` (relay 83 + phon 50 + root 51 = 184) also run clean, confirming
     end-to-end wire-compatibility, not just independent compilation.
 
-### Item 10 — Malicious key substitution + stolen-key revocation · [CLAUDE.md#10](CLAUDE.md)
-- [ ] `A` `I` `K_old`-signed rotation auto-accept with `min(level, LOW)` downgrade (ties to item 9)
-- [ ] `A` `I` local "compromised/revoked" key flag → disables auto-accept of that key's rotations
-- [ ] `A` `I` conflict-resolution UI for two competing "current keys" (never auto-resolved)
-- [ ] `A` `I` "requester's key changed N days ago" indicator + fresh-OOB nudge on approve-retrieve screen
+### Item 10 — Malicious key substitution + stolen-key revocation · [CLAUDE.md#10](CLAUDE.md) · *done*
+- [x] `A` `I` `K_old`-signed rotation auto-accept with `min(level, LOW)` downgrade — **already shipped under item 9** (see item 9's note above); no new work needed here.
+- [x] `A` `I` `phon` local "compromised/revoked" key flag → disables auto-accept of that key's rotations
+- [x] `A` `I` conflict-resolution UI for two competing "current keys" (never auto-resolved) — `phon` gets the gating/data-model only, no HTMX UI, per its established "consistency not parity" scope
+- [x] `A` `I` "requester's key changed N days ago" indicator + fresh-OOB nudge on approve-retrieve screen
+
+  **No `R` work — 100% client-local.** Every piece (the revoked-key flag, the conflict record, the
+  gating check, the retrieve-approval indicator) lives entirely in each client's local state; no
+  new relay endpoint, no schema change.
+
+  **`I` implementation notes (2026-08-18):** `hexagon/Sources/value_objects/Contact.swift` gained
+  `revokedEdKeys: [Data]` (a growing historical set, not a single boolean, so a later legitimate
+  relink to a genuinely new key is never blocked by an old flag) and `keyChangedAt: Date?`. New
+  `KeyConflict.swift` value object + `driven_ports/KeyConflictRepository.swift` port. The core
+  design decision (corrected mid-session after an initial "lean on the relay" proposal was
+  rejected — the relay may lose its state at any time and must never be relied on to keep a
+  security alert alive): `ShareService.processRotations()` now checks the incoming notice's
+  `oldEd25519Key` against `contact.revokedEdKeys` **before** the existing downgrade/auto-accept
+  branch — on a match it saves a `KeyConflict` to the new local `KeyConflictRepository`, deletes
+  the relay notice (the durable local copy now exists, so nothing depends on relay retention
+  either), and skips `updateContact` entirely; no match falls through to item 9's existing
+  auto-accept path unchanged. `ContactManagement.markKeyCompromised(contactId:edPublicKey:)`
+  (idempotent, defaults to the contact's current key) and `ShareManagement.listKeyConflicts`/
+  `dismissKeyConflict` are new driving-port primitives. UI: Contacts screen gained a red
+  warning-shield badge + "Mark Key Compromised" context-menu action + confirmation dialog;
+  Requests screen gained a "Key Conflicts" section above pending requests (`KeyConflictCard` —
+  "Possible impersonation attempt," **Dismiss only**, no "Accept" action — deliberately steers to
+  the existing item-8 Relink flow as the sole path back, never auto-resolved) and an orange
+  "key changed N days ago" label on retrieval requests specifically (gated to `.retrieval`, per the
+  "key change → quick retrieval" attack signature), sourced from `RequestsViewModel
+  .keyChangedDaysAgo(for:)`. Tests: `ShareServiceTests` gained 6 cases (revoked-key gating +
+  captured conflict; non-revoked rotation still auto-accepts; list/dismiss round-trip;
+  `markKeyCompromised` default-key + idempotent; `updateContact` stamps `keyChangedAt` only on an
+  actual key change) — required widening `makeService()`'s fixture tuple from 5 to 6 across 19
+  call sites (16 destructured + 3 direct `ShareService(...)` constructions). Hexagon: 52 → 58
+  tests, `swift test` all passing. Full app-target verification also run clean: `xcodebuild build`
+  (device SDK, BUILD SUCCEEDED) and `xcodebuild test` against an iPhone SE (3rd gen) simulator
+  (`** TEST SUCCEEDED **`, iPhone 16 unavailable on this machine so a different simulator id was
+  substituted).
+
+  **`A` implementation notes (2026-08-18):** Mirrors iOS's design one-for-one. `Contact.kt` gained
+  `revokedEdKeys: List<ByteArray> = emptyList()` and `keyChangedAt: Instant? = null`. New
+  `KeyConflict.kt` data class + `driven_ports/KeyConflictRepository.kt`.
+  `ContactManagement.markKeyCompromised` and `ShareManagement.listKeyConflicts`/
+  `dismissKeyConflict` added to the respective port interfaces. `ShareService.processRotations()`
+  gained the identical pre-downgrade revoked-key check (save `KeyConflict` + delete relay notice +
+  skip `updateContact` on a match), needing a new `keyConflictRepository: KeyConflictRepository`
+  constructor parameter. `ContactService.updateContact` now carries `revokedEdKeys` forward
+  unconditionally and stamps `keyChangedAt` only when a key actually changes;
+  `markKeyCompromised` is idempotent (no-op if the key is already flagged). App layer:
+  `LocalContactRepository`'s `ContactWire` gained non-optional `revokedEdKeys`/`keyChangedAt`
+  fields (no optional/fallback decode shim — pre-launch, local stores are wiped not migrated); new
+  `LocalKeyConflictRepository` (JSON file, structurally identical to
+  `LocalShareMetadataRepository`). UI: `ContactsScreen` gained a red warning badge + a destructive
+  "Mark Key Compromised" `IconButton` + `AlertDialog` confirmation; `RecipientRequestsTab` gained a
+  `KeyConflictItem` list section above pending requests (Dismiss-only, steers to the existing
+  Relink flow) and an orange "key changed N days ago" `Label` on `RETRIEVAL` requests specifically,
+  using a `<plurals>` string resource (`requests_key_changed_warning`) in both `values/strings.xml`
+  and `values-de/strings.xml`. Tests: `ContactServiceTest` gained 4 cases (was already split from
+  `ShareServiceTest` by file, unlike iOS's single-file layout — `markKeyCompromised`
+  default/idempotent/explicit-key, `updateContact`'s `keyChangedAt` stamping);
+  `ShareServiceTest` gained 3 cases (revoked-key gating + captured conflict, non-revoked rotation
+  still auto-accepts, list/dismiss round-trip) via a `FakeKeyConflictRepository` test double and
+  widening `ShareServiceFixture`'s tuple from 5 to 6 across 16 destructured call sites plus 4 direct
+  `ShareService(...)` constructions. `:hexagon:test`: 55 → 62 tests, 0 failures.
+  `:app:compileDebugKotlin` BUILD SUCCESSFUL (same two pre-existing unrelated warnings as before,
+  no new ones); full `./gradlew test` (hexagon + app) green.
+
+  **`phon` implementation notes (2026-08-18):** Consistency, not parity — data model + gating logic
+  only, no HTMX UI (no compromise-flag button, no conflict-list view, no key-changed indicator —
+  phon's minimal views have no plumbing for any of that already, matching every prior item's
+  precedent). `Contact.scala` gained `revokedEdKeys: List[Array[Byte]] = Nil` and
+  `keyChangedAt: Option[Instant] = None`. New `value_objects/svo/KeyConflict.scala` (own
+  `Serializable` case class, since phon's `Contact` and friends are Java-serialized to disk via
+  `.devDBs/*.ser` files rather than JSON) + `driven_ports/KeyConflictRepository.scala`. New
+  `driven_adapters/phon/FileKeyConflictRepository.scala`, structurally identical to
+  `FileShareMetadataRepository.scala` (same `ObjectInputStream`/`ObjectOutputStream` pattern,
+  its own `.devDBs/keyconflicts{port}.ser` file), bound in `PhonModule.scala`.
+  `ContactManagement.markKeyCompromised` and `ShareManagement.listKeyConflicts`/
+  `dismissKeyConflict` added to the port traits. `ShareService.processRotations()` gained the same
+  pre-downgrade revoked-key check as Android/iOS, needing a new
+  `keyConflictRepository: KeyConflictRepository` constructor parameter (now the 8th constructor
+  param, alongside `contactManagement` added under item 9). `ContactService.updateContact` carries
+  `revokedEdKeys` forward and stamps `keyChangedAt` on any key change; `markKeyCompromised` mirrors
+  Android/iOS's idempotent-default-to-current-key shape. Tests: `ContactServiceTests` gained 4
+  cases (same coverage as Android's `ContactServiceTest`); `ShareServiceSignatureTests` gained 3
+  cases (revoked-key gating + captured conflict, non-revoked rotation still auto-accepts,
+  list/dismiss round-trip) via a `FakeKeyConflictRepository` test double — needed widening
+  `newService`'s return tuple from 5 to 6 across 16 destructured call sites in
+  `ShareServiceSignatureTests.scala` plus 2 direct `ShareService(...)` constructions in the
+  separate `ShareRelayResolverFanOutTests.scala` file (same package, so `FakeKeyConflictRepository`
+  is visible there via Scala's package-private top-level scoping — no duplicate fake needed).
+  `phon/test`: 50 → 57 tests, 0 failures. Full project `sbt test` (relay 83 + phon 57 + root 51 =
+  191) also run clean.
 
 ### Item 11 — Secret lifecycle · [CLAUDE.md#11](CLAUDE.md) · *done*
 Bounds `2 ≤ k ≤ n ≤ 255` (hard, no UI ceiling) — already enforced by `split()`/`combine()`

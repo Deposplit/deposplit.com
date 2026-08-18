@@ -25,6 +25,7 @@
 package driving_adapters
 
 import driven_ports.ContactRepository
+import driven_ports.KeyConflictRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
@@ -38,6 +39,7 @@ import jakarta.inject.Inject
 import shamir.SecretSharing
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
+import value_objects.svo.KeyConflict
 import value_objects.svo.PayloadCanonical
 import value_objects.svo.Role
 import value_objects.svo.Secret
@@ -61,6 +63,7 @@ class ShareService @Inject() (
     secretRepository: SecretRepository,
     contactRepository: ContactRepository,
     contactManagement: ContactManagement,
+    keyConflictRepository: KeyConflictRepository,
     identity: Identity
 ) extends ShareManagement:
 
@@ -394,9 +397,30 @@ class ShareService @Inject() (
         contactRepository.getByEdKey(notice.oldEd25519Key).foreach { contact =>
           val canon = PayloadCanonical.forRotation(notice.recipientKey, notice.newEd25519Key, notice.newX25519Key)
           if identity.verify(canon, notice.signature, notice.oldEd25519Key) then
-            val downgraded = if contact.verificationLevel < VerificationLevel.Low then contact.verificationLevel else VerificationLevel.Low
-            Try(contactManagement.updateContact(contact.id, Some(notice.newEd25519Key), Some(notice.newX25519Key), Some(downgraded)))
-            Try(relay.deleteRotation(notice.id))
+            // Item 10 — a rotation claiming continuity from a key the user has flagged
+            // compromised is never auto-accepted. Capture a durable local KeyConflict record
+            // *before* touching the relay notice: the relay may lose its state at any time and
+            // must never be relied on to keep the alert alive. Skip updateContact entirely — the
+            // contact record is left untouched; only a fresh human-verified relink can move it
+            // forward.
+            if contact.revokedEdKeys.exists(_.sameElements(notice.oldEd25519Key)) then
+              Try(
+                keyConflictRepository.save(
+                  KeyConflict(
+                    id = UUID.randomUUID(),
+                    contactId = contact.id,
+                    oldEd25519Key = notice.oldEd25519Key,
+                    newEd25519Key = notice.newEd25519Key,
+                    newX25519Key = notice.newX25519Key,
+                    detectedAt = Instant.now()
+                  )
+                )
+              )
+              Try(relay.deleteRotation(notice.id))
+            else
+              val downgraded = if contact.verificationLevel < VerificationLevel.Low then contact.verificationLevel else VerificationLevel.Low
+              Try(contactManagement.updateContact(contact.id, Some(notice.newEd25519Key), Some(notice.newX25519Key), Some(downgraded)))
+              Try(relay.deleteRotation(notice.id))
         }
       }
     }
@@ -528,3 +552,9 @@ class ShareService @Inject() (
       .getAll()
       .filter(_.contactId == contactId)
       .foreach(share => shareRepository.delete(share.id))
+
+  // ── Item 10: key conflicts (never auto-resolved) ─────────────────────────────
+
+  override def listKeyConflicts(): List[KeyConflict] = keyConflictRepository.getAll()
+
+  override def dismissKeyConflict(id: UUID): Unit = keyConflictRepository.delete(id)
