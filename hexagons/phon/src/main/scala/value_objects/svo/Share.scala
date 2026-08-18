@@ -50,7 +50,10 @@ object ShareTransactionType:
   def fromWire(s: String): Option[ShareTransactionType] = values.find(_.wireValue == s)
 
 enum ShareRequestState:
-  case Pending, Approved, Denied
+  /** Deposit-only (item 9): the recipient unilaterally stopped holding the share. A best-effort
+    * tombstone, not authoritative — see `ShareRelay.withdrawShareRequests`.
+    */
+  case Pending, Approved, Denied, Withdrawn
 
 /** Flat mirror of the relay's ShareRequest — every request type uses the same structure.
   *

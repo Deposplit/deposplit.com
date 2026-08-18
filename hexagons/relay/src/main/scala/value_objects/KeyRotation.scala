@@ -22,19 +22,25 @@
  * THE SOFTWARE.
  */
 
-import com.google.inject.AbstractModule
-import driven_ports.persistence.KeyRotationRepository
-import driven_ports.persistence.ShareRepository
-import driving_ports.KeyRotations
-import driving_ports.ShareRequests
-import driven_adapters.persistence.AnormKeyRotationRepository
-import driven_adapters.persistence.AnormShareRepository
-import driving_adapters.KeyRotationsService
-import driving_adapters.ShareRequestsService
+package value_objects
 
-class Module extends AbstractModule:
-  override def configure(): Unit =
-    bind(classOf[ShareRepository]).to(classOf[AnormShareRepository])
-    bind(classOf[ShareRequests]).to(classOf[ShareRequestsService])
-    bind(classOf[KeyRotationRepository]).to(classOf[AnormKeyRotationRepository])
-    bind(classOf[KeyRotations]).to(classOf[KeyRotationsService])
+import java.time.Instant
+import java.util.UUID
+
+/** A signed key-rotation push (item 9) — a holder's proactive "I am now newEd25519Key, previously
+  * oldEd25519Key" notice, addressed to one contact (`recipientKey`) at a time.
+  *
+  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the
+  * recipient auto-verifies `signature` against `oldEd25519Key` (the trusted key it already knows
+  * this contact by) and, on success, updates its local contact record in place before deleting
+  * this row. See `PayloadCanonical.forRotation` for the exact bytes signed.
+  */
+case class KeyRotation(
+    id: UUID,
+    oldEd25519Key: PublicKey,
+    recipientKey: PublicKey,
+    newEd25519Key: PublicKey,
+    newX25519Key: X25519Key,
+    signature: Signature,
+    createdAt: Instant
+)

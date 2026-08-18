@@ -61,6 +61,16 @@ info:
     defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
     this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
 
+    `signature` on a `POST /key-rotations` push (item 9) follows the same pattern: an Ed25519
+    signature by the caller (who becomes `oldEd25519Key`) over:
+
+    ```
+    recipientKey(base64url) || "\n" || newEd25519Key(base64url) || "\n" || newX25519Key(base64url)
+    ```
+
+    proving the caller still controls the old private key — this is what lets the recipient
+    auto-accept the rotation without a fresh human re-verification.
+
     ## Key exchange
 
     Contacts exchange public keys out-of-band (QR code scanned in person, or a link shared
@@ -145,7 +155,13 @@ components:
 
     ShareRequestState:
       type: string
-      enum: [pending, approved, denied]
+      enum: [pending, approved, denied, withdrawn]
+      description: >
+        `withdrawn` (item 9) applies only to `deposit` rows: set via `POST /share-requests/withdraw`
+        when a holder unilaterally stops holding a share, instead of the row being hard-deleted, so
+        the sender's next poll can observe the tombstone. Best-effort and fire-and-forget — the
+        relay may still garbage-collect the row at any time, so its absence must never be read as a
+        signal; only an *observed* `withdrawn` row counts.
 
     ShareRequest:
       description: >
@@ -278,6 +294,59 @@ components:
             Base64url Ed25519 signature by the caller over this request's canonical bytes —
             see "Payload signatures" above. Returns `400` if it doesn't verify.
 
+    X25519PublicKey:
+      type: string
+      description: >
+        Base64url-encoded X25519 public key (32 bytes, no padding), used for share encryption
+        client-side. The Web app/service never performs key agreement with it — it only ever
+        routes it opaquely, same as ciphertext.
+
+    KeyRotation:
+      description: >
+        Item 9's signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now
+        newEd25519Key, previously oldEd25519Key" notice, addressed to one contact
+        (`recipientKey`) at a time. Deliberately not a `ShareRequest`: it carries no `secretId`
+        and has no consent phase — the recipient auto-verifies `signature` against
+        `oldEd25519Key` (the trusted key it already knows this contact by) and, on success,
+        updates its local contact record in place before deleting the row.
+      type: object
+      required: [id, oldEd25519Key, recipientKey, newEd25519Key, newX25519Key, signature, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        oldEd25519Key:
+          $ref: '#/components/schemas/PublicKey'
+        recipientKey:
+          $ref: '#/components/schemas/PublicKey'
+        newEd25519Key:
+          $ref: '#/components/schemas/PublicKey'
+        newX25519Key:
+          $ref: '#/components/schemas/X25519PublicKey'
+        signature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by oldEd25519Key — see "Payload signatures" above.
+        createdAt:
+          type: string
+          format: date-time
+
+    PushRotationBody:
+      type: object
+      required: [recipientKey, newEd25519Key, newX25519Key, signature]
+      properties:
+        recipientKey:
+          $ref: '#/components/schemas/PublicKey'
+        newEd25519Key:
+          $ref: '#/components/schemas/PublicKey'
+        newX25519Key:
+          $ref: '#/components/schemas/X25519PublicKey'
+        signature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by the caller over this notice's canonical bytes — see
+            "Payload signatures" above. Returns `400` if it doesn't verify.
+
     Error:
       type: object
       required: [code, message]
@@ -395,6 +464,34 @@ paths:
       responses:
         '204':
           description: Rows deleted (or nothing matched — idempotent).
+
+  /share-requests/withdraw:
+    post:
+      operationId: withdrawShareRequests
+      summary: Recipient-initiated unilateral withdrawal (item 9)
+      description: >
+        Flips matching `approved` `deposit` rows where the authenticated caller is the recipient
+        to `withdrawn`, instead of deleting them — a best-effort, fire-and-forget tombstone so the
+        sender's next poll can observe that the holder stopped holding the share. Optionally
+        scoped to a specific sender and/or secret. Rows in any other state (e.g. still `pending`,
+        or already `denied`) are left untouched. No request body.
+      tags: [ShareRequests]
+      parameters:
+        - name: senderKey
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PublicKey'
+          description: Limit withdrawal to deposit rows from this sender.
+        - name: secretId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/SecretId'
+          description: Limit withdrawal to the deposit row for this secret.
+      responses:
+        '204':
+          description: Matching rows withdrawn (or nothing matched — idempotent).
 
   /share-requests/{requestId}:
     get:
@@ -532,6 +629,80 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Request not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /key-rotations:
+    post:
+      operationId: pushRotation
+      summary: Push a signed key-rotation notice to one contact (item 9)
+      description: >
+        The authenticated caller becomes `oldEd25519Key`. Not consent-gated and no conflict check
+        — a fire-and-forget push, the same shape as `inventory` (see item 8): the recipient
+        polls, auto-verifies, and deletes the row once consumed.
+      tags: [KeyRotations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRotationBody'
+      responses:
+        '201':
+          description: Notice pushed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyRotation'
+        '400':
+          description: Missing/invalid field, or signature missing/invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      operationId: listRotations
+      summary: List rotation notices addressed to the caller
+      tags: [KeyRotations]
+      responses:
+        '200':
+          description: Rotation notice list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyRotation'
+
+  /key-rotations/{id}:
+    delete:
+      operationId: deleteRotation
+      summary: Delete a rotation notice once consumed
+      description: >
+        Only the recipient may delete it — unlike `ShareRequest` rows, there's no sender-side
+        reason to read one back.
+      tags: [KeyRotations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notice deleted.
+        '403':
+          description: Caller is not the recipient of this notice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Notice not found.
           content:
             application/json:
               schema:

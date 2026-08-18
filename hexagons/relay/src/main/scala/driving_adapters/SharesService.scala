@@ -168,3 +168,11 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   ): Either[Error, Unit] =
     repository.deleteShareRequests(recipientKey, senderKey, secretId)
     Right(())
+
+  override def withdrawShareRequests(
+      recipientKey: PublicKey,
+      senderKey: Option[PublicKey],
+      secretId: Option[SecretId]
+  ): Either[Error, Unit] =
+    repository.withdrawDeposits(recipientKey, senderKey, secretId)
+    Right(())

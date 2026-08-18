@@ -28,6 +28,7 @@ import driven_ports.ShareRelay
 import driving_ports.Identity
 import jakarta.inject.Inject
 import play.api.libs.json.*
+import value_objects.svo.KeyRotation
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
@@ -115,6 +116,29 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("DELETE", s"/share-requests$q")
     ()
 
+  override def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit =
+    val q = senderKey.fold("")(k => s"?senderKey=${encodeBase64Url(k)}") +
+      secretId.fold("")(id => s"${if senderKey.isDefined then "&" else "?"}secretId=$id")
+    send("POST", s"/share-requests/withdraw$q")
+    ()
+
+  override def pushRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte], signature: Array[Byte]): Unit =
+    val body = Json.obj(
+      "recipientKey" -> encodeBase64Url(recipientKey),
+      "newEd25519Key" -> encodeBase64Url(newEd25519Key),
+      "newX25519Key" -> encodeBase64Url(newX25519Key),
+      "signature" -> encodeBase64Url(signature)
+    )
+    send("POST", "/key-rotations", Some(body))
+    ()
+
+  override def listRotations(): List[KeyRotation] =
+    send("GET", "/key-rotations").as[JsArray].value.map(parseKeyRotation).toList
+
+  override def deleteRotation(id: UUID): Unit =
+    send("DELETE", s"/key-rotations/$id")
+    ()
+
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   private def send(method: String, path: String, body: Option[JsValue] = None): JsValue =
@@ -170,10 +194,11 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
         .fromWire((json \ "transactionType").as[String])
         .getOrElse(throw IllegalArgumentException(s"Unknown transactionType: ${(json \ "transactionType").as[String]}")),
       state = (json \ "state").as[String] match
-        case "pending"  => ShareRequestState.Pending
-        case "approved" => ShareRequestState.Approved
-        case "denied"   => ShareRequestState.Denied
-        case other      => throw IllegalArgumentException(s"Unknown state: $other"),
+        case "pending"   => ShareRequestState.Pending
+        case "approved"  => ShareRequestState.Approved
+        case "denied"    => ShareRequestState.Denied
+        case "withdrawn" => ShareRequestState.Withdrawn
+        case other       => throw IllegalArgumentException(s"Unknown state: $other"),
       shareId = (json \ "shareId").asOpt[String].map(UUID.fromString),
       requestedAt = Instant.parse((json \ "requestedAt").as[String]),
       respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
@@ -182,6 +207,17 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       n = (json \ "n").asOpt[Int],
       senderSignature = decodeBase64Url((json \ "senderSignature").as[String]),
       recipientSignature = (json \ "recipientSignature").asOpt[String].map(decodeBase64Url)
+    )
+
+  private def parseKeyRotation(json: JsValue): KeyRotation =
+    KeyRotation(
+      id = UUID.fromString((json \ "id").as[String]),
+      oldEd25519Key = decodeBase64Url((json \ "oldEd25519Key").as[String]),
+      recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
+      newEd25519Key = decodeBase64Url((json \ "newEd25519Key").as[String]),
+      newX25519Key = decodeBase64Url((json \ "newX25519Key").as[String]),
+      signature = decodeBase64Url((json \ "signature").as[String]),
+      createdAt = Instant.parse((json \ "createdAt").as[String])
     )
 
   // ── Base64 ────────────────────────────────────────────────────────────────

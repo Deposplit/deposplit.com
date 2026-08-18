@@ -22,19 +22,19 @@
  * THE SOFTWARE.
  */
 
-import com.google.inject.AbstractModule
-import driven_ports.persistence.KeyRotationRepository
-import driven_ports.persistence.ShareRepository
-import driving_ports.KeyRotations
-import driving_ports.ShareRequests
-import driven_adapters.persistence.AnormKeyRotationRepository
-import driven_adapters.persistence.AnormShareRepository
-import driving_adapters.KeyRotationsService
-import driving_adapters.ShareRequestsService
+package driven_ports.persistence
 
-class Module extends AbstractModule:
-  override def configure(): Unit =
-    bind(classOf[ShareRepository]).to(classOf[AnormShareRepository])
-    bind(classOf[ShareRequests]).to(classOf[ShareRequestsService])
-    bind(classOf[KeyRotationRepository]).to(classOf[AnormKeyRotationRepository])
-    bind(classOf[KeyRotations]).to(classOf[KeyRotationsService])
+import value_objects.*
+
+import java.util.UUID
+
+trait KeyRotationRepository:
+
+  def saveRotation(rotation: KeyRotation): Unit
+
+  def getRotationById(id: UUID): Option[KeyRotation]
+
+  /** Rotation notices addressed to `recipientKey`. */
+  def getRotationsForRecipient(recipientKey: PublicKey): Seq[KeyRotation]
+
+  def deleteRotationById(id: UUID): Unit

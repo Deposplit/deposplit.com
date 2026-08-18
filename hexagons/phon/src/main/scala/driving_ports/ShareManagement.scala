@@ -70,3 +70,12 @@ trait ShareManagement:
     * existing contact.
     */
   def pushRecoveryMetadata(contactId: UUID): Unit
+
+  // ─── Item 9 — signed rotate(K_old -> K_new) push, client primitive only ─────
+  /** Signs newEd25519Key/newX25519Key with the device's *current* identity (which becomes
+    * oldEd25519Key on the wire) and pushes one signed notice to contactId. There is deliberately
+    * no "regenerate my own identity" trigger yet — see deposplit.com/TODO.md item 9's scope-split
+    * note — so callers supply the new keys directly; this method is exercised by tests today,
+    * not yet by any UI action.
+    */
+  def pushRotation(contactId: UUID, newEd25519Key: Array[Byte], newX25519Key: Array[Byte]): Unit

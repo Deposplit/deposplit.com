@@ -1,7 +1,7 @@
 # --- !Ups
 
 CREATE TYPE share_transaction_type AS ENUM ('deposit', 'retrieval', 'removal', 'inventory');
-CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
+CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'withdrawn');
 
 -- One row per share request of any type.
 -- deposit, retrieval, and removal share a symmetric consent model: sender Alice requests
@@ -20,6 +20,13 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 --             (never carries share bytes) but k/n are required. Not consent-gated: created
 --             directly in 'approved' state (no pending phase), and the recipient polls for it and
 --             deletes the row once consumed.
+--
+-- The 'withdrawn' state (item 9) applies only to deposit rows: when a holder unilaterally stops
+-- holding a share, the relay flips that row to 'withdrawn' instead of hard-deleting it, so the
+-- sender's next poll can observe the tombstone. It is a best-effort, fire-and-forget courtesy,
+-- not authoritative — the relay may still garbage-collect the row at any time, so its absence
+-- must never be read as a signal, only an explicitly observed 'withdrawn' row counts. See
+-- ShareRequests.withdrawShareRequests and deposplit.com/CLAUDE.md "What is next" item 9.
 --
 -- share_id is NULL for deposit and inventory rows (both are roots). For retrieval and removal
 -- rows it carries the id of the originating deposit request, supplied by the client. The relay
@@ -45,7 +52,7 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 -- Add to production PostgreSQL separately:
 --   CREATE UNIQUE INDEX uq_deposit_active
 --       ON share_requests (secret_id, recipient_key)
---       WHERE transaction_type = 'deposit' AND state != 'denied';
+--       WHERE transaction_type = 'deposit' AND state NOT IN ('denied', 'withdrawn');
 --   CREATE UNIQUE INDEX uq_consent_pending
 --       ON share_requests (secret_id, sender_key, recipient_key, transaction_type)
 --       WHERE state = 'pending';
@@ -72,8 +79,36 @@ CREATE INDEX ON share_requests (sender_key);
 CREATE INDEX ON share_requests (recipient_key);
 CREATE INDEX ON share_requests (secret_id);
 
+-- Item 9's signed rotate(K_old -> K_new) push: a holder's proactive "I am now K_new, previously
+-- K_old" notice, addressed to one contact at a time. Deliberately not a share_requests row: it
+-- has no secret_id, no consent phase, and none of the share-specific columns above would ever be
+-- populated, so it earns its own small table instead of growing share_requests' NULL-column
+-- sprawl further.
+--
+-- old_ed25519_key is the trusted key the recipient already knows this contact by — both the
+-- routing key and the key `signature` must verify against, proving continuity of key control.
+-- new_ed25519_key/new_x25519_key are the contact's new identity. signature is an Ed25519
+-- signature by old_ed25519_key's private key over (recipientKey || newEd25519Key ||
+-- newX25519Key) — see hexagons/relay's PayloadCanonical.forRotation for the exact bytes.
+--
+-- No state machine: like inventory, this is a fire-and-forget push, not a consent request. The
+-- recipient polls, auto-verifies against the old key it already trusts, updates its local
+-- contact record in place, and deletes the row once consumed.
+CREATE TABLE key_rotations (
+    id                UUID  DEFAULT gen_random_uuid() PRIMARY KEY,
+    old_ed25519_key   BYTEA NOT NULL,
+    recipient_key     BYTEA NOT NULL,
+    new_ed25519_key   BYTEA NOT NULL,
+    new_x25519_key    BYTEA NOT NULL,
+    signature         BYTEA NOT NULL,
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ON key_rotations (recipient_key);
+
 # --- !Downs
 
+DROP TABLE key_rotations;
 DROP TABLE share_requests;
 
 DROP TYPE share_request_state;

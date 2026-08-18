@@ -26,6 +26,7 @@ package driving_ports
 
 import java.util.UUID
 import value_objects.svo.Contact
+import value_objects.svo.VerificationLevel
 
 trait ContactManagement:
   def listContacts(): List[Contact]
@@ -34,6 +35,12 @@ trait ContactManagement:
   /** Updates an existing contact in place, preserving contactId — never delete-and-re-add, which
     * would mint a fresh id and orphan any HeldShare/ShareMetadata rows anchored to it. See
     * deposplit.com/CLAUDE.md "What is next" item 8.
+    *
+    * `verificationLevel` is `None` by default: when the keys change and no explicit level is
+    * given, this hexagon (no picker UI — item 6's narrower phon scope) defaults to `VeryHigh`,
+    * mirroring `addFromQr`'s in-person-flow default. Item 9's rotation-processing supplies an
+    * explicit level (`min(old, Low)` — a signed rotation proves key continuity, not fresh
+    * personhood, so it must never default to the same `VeryHigh` a human re-scan would earn).
     */
-  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None): Unit
+  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None, verificationLevel: Option[VerificationLevel] = None): Unit
   def deleteContact(contactId: UUID): Unit

@@ -85,3 +85,12 @@ trait ShareRepository:
       senderKey: Option[PublicKey],
       secretId: Option[SecretId]
   ): Unit
+
+  /** Flips matching `Approved` Deposit rows (recipientKey match, optionally filtered by
+    * senderKey and/or secretId) to `Withdrawn`, in place — see `ShareRequests.withdrawShareRequests`.
+    */
+  def withdrawDeposits(
+      recipientKey: PublicKey,
+      senderKey: Option[PublicKey],
+      secretId: Option[SecretId]
+  ): Unit

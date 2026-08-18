@@ -92,3 +92,15 @@ object PayloadCanonical:
       if approved then "approved" else "denied",
       ciphertext.fold("")(base64Std.encodeToString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
+
+  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who
+    * becomes `KeyRotation.oldEd25519Key`. Proves continuity of key control — only someone
+    * holding the old private key can produce this signature, which is what lets the recipient
+    * auto-verify and auto-accept the rotation without a fresh human re-verification.
+    */
+  def forRotation(recipientKey: PublicKey, newEd25519Key: PublicKey, newX25519Key: X25519Key): Array[Byte] =
+    Seq(
+      recipientKey.toBase64Url,
+      newEd25519Key.toBase64Url,
+      newX25519Key.toBase64Url
+    ).mkString("\n").getBytes(StandardCharsets.UTF_8)

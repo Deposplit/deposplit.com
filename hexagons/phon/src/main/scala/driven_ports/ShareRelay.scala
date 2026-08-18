@@ -24,6 +24,7 @@
 
 package driven_ports
 
+import value_objects.svo.KeyRotation
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
@@ -74,3 +75,28 @@ trait ShareRelay:
     * optionally filtered by sender key and/or secret id.
     */
   def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit
+
+  /** Recipient-initiated unilateral withdrawal (item 9) — flips matching approved Deposit rows
+    * to Withdrawn on the relay instead of deleting them, so the sender's next poll can observe
+    * the tombstone. Best-effort and fire-and-forget.
+    */
+  def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit
+
+  // Item 9's signed rotate(K_old -> K_new) push. Grouped onto this trait rather than a separate
+  // port: it's the same physical relay endpoint and the same BYOR per-contact routing as every
+  // other ShareRelay call. deposplit.com's own backend keeps rotation pushes in a dedicated
+  // key_rotations table/KeyRotations service for domain-purity reasons (no secretId, no consent
+  // phase) that are about server-side schema shape, not about this client-side HTTP-calling
+  // port, so no equivalent split is needed here.
+
+  /** Pushes a signed rotation notice to one contact. `signature` must verify against the
+    * caller's own current Ed25519 key (the relay's `oldEd25519Key`) over
+    * `value_objects.svo.PayloadCanonical.forRotation`.
+    */
+  def pushRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte], signature: Array[Byte]): Unit
+
+  /** Rotation notices addressed to this device. */
+  def listRotations(): List[KeyRotation]
+
+  /** Deletes a rotation notice once consumed. */
+  def deleteRotation(id: UUID): Unit

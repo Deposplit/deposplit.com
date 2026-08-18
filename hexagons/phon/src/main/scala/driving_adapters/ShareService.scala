@@ -31,6 +31,7 @@ import driven_ports.ShareRelay
 import driven_ports.ShareRelayResolver
 import driven_ports.ShareRepository
 import driving_adapters.ShareEncryption
+import driving_ports.ContactManagement
 import driving_ports.Identity
 import driving_ports.ShareManagement
 import jakarta.inject.Inject
@@ -46,6 +47,7 @@ import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareTransactionType
 import value_objects.svo.SignatureVerificationException
+import value_objects.svo.VerificationLevel
 
 import java.time.Instant
 import java.util.UUID
@@ -58,6 +60,7 @@ class ShareService @Inject() (
     shareMetadataRepository: ShareMetadataRepository,
     secretRepository: SecretRepository,
     contactRepository: ContactRepository,
+    contactManagement: ContactManagement,
     identity: Identity
 ) extends ShareManagement:
 
@@ -147,15 +150,24 @@ class ShareService @Inject() (
     allRelays().foreach { relay =>
       Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Deposit)))
         .getOrElse(Nil)
-        .foreach(req =>
-          // A row for a holder we no longer have a contact record for can't be re-anchored to a
-          // contactId — skip rather than drop the holder's identity on the floor.
-          contactRepository.getByEdKey(req.recipientKey).foreach { contact =>
-            shareMetadataRepository.save(
-              ShareMetadata(req.id, req.secretId, contact.id)
-            )
-          }
-        )
+        .foreach { req =>
+          if req.state == ShareRequestState.Withdrawn then
+            // Best-effort tombstone (item 9): the holder unilaterally stopped holding this
+            // share. Drop the local pointer so the health count reflects it, then clean up the
+            // relay row — it has served its purpose and needn't linger. Row *absence* is never
+            // itself a signal; only an *observed* withdrawn state counts, and we've just
+            // observed it.
+            Try(shareMetadataRepository.delete(req.id))
+            Try(relay.deleteShareRequest(req.id))
+          else
+            // A row for a holder we no longer have a contact record for can't be re-anchored to
+            // a contactId — skip rather than drop the holder's identity on the floor.
+            contactRepository.getByEdKey(req.recipientKey).foreach { contact =>
+              shareMetadataRepository.save(
+                ShareMetadata(req.id, req.secretId, contact.id)
+              )
+            }
+        }
     }
     reconcileDiscarding()
 
@@ -366,6 +378,40 @@ class ShareService @Inject() (
       }
     }
     processRecoveryMetadata()
+    processRotations()
+
+  /** Item 9, receiving side — auto-verifies a signed rotation notice against the trusted old key
+    * already on file for a known contact, downgrades the verification level to at most Low per
+    * item 10's unifying rule (a signed rotation proves continuity of key control, not a fresh
+    * personhood check, so it can never carry a higher level forward), and updates the contact
+    * record in place, preserving contactId. Unknown senders and forged/mismatched signatures are
+    * silently skipped — a stranger's notice must never mutate a real contact.
+    */
+  private def processRotations(): Unit =
+    allRelays().foreach { relay =>
+      val notices = Try(relay.listRotations()).getOrElse(Nil)
+      notices.foreach { notice =>
+        contactRepository.getByEdKey(notice.oldEd25519Key).foreach { contact =>
+          val canon = PayloadCanonical.forRotation(notice.recipientKey, notice.newEd25519Key, notice.newX25519Key)
+          if identity.verify(canon, notice.signature, notice.oldEd25519Key) then
+            val downgraded = if contact.verificationLevel < VerificationLevel.Low then contact.verificationLevel else VerificationLevel.Low
+            Try(contactManagement.updateContact(contact.id, Some(notice.newEd25519Key), Some(notice.newX25519Key), Some(downgraded)))
+            Try(relay.deleteRotation(notice.id))
+        }
+      }
+    }
+
+  /** Item 9, sending side (client primitive only — see ShareManagement.pushRotation). Signs the
+    * new keys with the device's *current* identity, which becomes oldEd25519Key on the wire,
+    * proving continuity of key control to the recipient.
+    */
+  override def pushRotation(contactId: UUID, newEd25519Key: Array[Byte], newX25519Key: Array[Byte]): Unit =
+    val contact = contactRepository
+      .getById(contactId)
+      .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
+    val canon = PayloadCanonical.forRotation(contact.edPublicKey, newEd25519Key, newX25519Key)
+    val signature = identity.sign(canon)
+    relayForContact(contact).pushRotation(contact.edPublicKey, newEd25519Key, newX25519Key, signature)
 
   /** Identity recovery (item 8) — sender/owner side. Consumes pending recoveryMetadata pushes
     * addressed to this device, rebuilding Secret/ShareMetadata records from what each holder
@@ -459,9 +505,25 @@ class ShareService @Inject() (
     if approved && request.transactionType == ShareTransactionType.Removal then
       shareRepository.getAll().find(_.secretId == request.secretId).foreach(h => shareRepository.delete(h.id))
 
-  override def deleteHeldShare(shareId: UUID): Unit = shareRepository.delete(shareId)
+  /** Unilateral, no approval needed — but as of item 9 not purely silent: best-effort notifies
+    * the sender via a withdraw tombstone before the local record is dropped. The relay call is
+    * fire-and-forget; local deletion always proceeds regardless of its outcome.
+    */
+  override def deleteHeldShare(shareId: UUID): Unit =
+    shareRepository.getAll().find(_.id == shareId).foreach { share =>
+      contactRepository.getById(share.contactId).foreach { senderContact =>
+        Try(relayForContact(senderContact).withdrawShareRequests(secretId = Some(share.secretId)))
+      }
+    }
+    shareRepository.delete(shareId)
 
+  /** Same best-effort withdraw-tombstone courtesy as `deleteHeldShare`, but scoped to every
+    * share from `contactId` in one relay call (senderKey) rather than one per secretId.
+    */
   override def deleteAllHeldFromSender(contactId: UUID): Unit =
+    contactRepository.getById(contactId).foreach { senderContact =>
+      Try(relayForContact(senderContact).withdrawShareRequests(senderKey = Some(senderContact.edPublicKey)))
+    }
     shareRepository
       .getAll()
       .filter(_.contactId == contactId)

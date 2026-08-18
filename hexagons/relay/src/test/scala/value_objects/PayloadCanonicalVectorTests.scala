@@ -90,3 +90,39 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
     val sig = Signature.fromBase64Url(expectedSignatureBase64Url).getOrElse(fail("bad fixture signature"))
     assert(pk.verify(canon, sig))
   }
+
+  // ---------------------------------------------------------------------------
+  // forRotation (item 9) — same cross-platform-interop purpose as forOpen above, checked into
+  // Android's and iOS's PayloadCanonicalVectorTest/-Tests once their turn comes. Uses the same
+  // fixed private key seed as forOpen so both vectors are anchored to one known keypair.
+  // ---------------------------------------------------------------------------
+
+  private val rotationRecipientKey = PublicKey.fromBytes(Array.fill(32)(0x03.toByte)).getOrElse(fail("bad fixture key"))
+  private val newEd25519Key = PublicKey.fromBytes(Array.fill(32)(0x04.toByte)).getOrElse(fail("bad fixture key"))
+  private val newX25519Key = X25519Key.fromBytes(Array.fill(32)(0x05.toByte)).getOrElse(fail("bad fixture key"))
+  private val expectedRotationSignatureBase64Url =
+    "Fs4kRoHL0q5uN2ECfmXdcJnYzSz_yvO-8VNz6AIJYAcMR3QJmPQlu8AyiJpYOfeUGXag0M4VdZtPQ3AoWjPBDQ"
+
+  test("forRotation produces the fixed canonical bytes") {
+    val canon = PayloadCanonical.forRotation(rotationRecipientKey, newEd25519Key, newX25519Key)
+    val expected =
+      "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM\nBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ\nBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU"
+    assertEquals(new String(canon, "UTF-8"), expected)
+  }
+
+  test("signing the rotation canonical bytes with the fixed seed reproduces the fixed signature") {
+    val canon = PayloadCanonical.forRotation(rotationRecipientKey, newEd25519Key, newX25519Key)
+    val privKey = Ed25519PrivateKeyParameters(privateKeySeed, 0)
+    val signer = Ed25519Signer()
+    signer.init(true, privKey)
+    signer.update(canon, 0, canon.length)
+    val sig = signer.generateSignature()
+    assertEquals(b64url.encodeToString(sig), expectedRotationSignatureBase64Url)
+  }
+
+  test("the fixed rotation signature verifies against the fixed public key via PublicKey.verify") {
+    val canon = PayloadCanonical.forRotation(rotationRecipientKey, newEd25519Key, newX25519Key)
+    val pk = PublicKey.fromBase64Url(expectedPublicKeyBase64Url).getOrElse(fail("bad fixture key"))
+    val sig = Signature.fromBase64Url(expectedRotationSignatureBase64Url).getOrElse(fail("bad fixture signature"))
+    assert(pk.verify(canon, sig))
+  }

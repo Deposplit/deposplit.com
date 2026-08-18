@@ -74,22 +74,29 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       )
     )
 
-  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None): Unit =
+  def updateContact(
+      contactId: UUID,
+      edPublicKey: Option[Array[Byte]] = None,
+      xPublicKey: Option[Array[Byte]] = None,
+      verificationLevel: Option[VerificationLevel] = None
+  ): Unit =
     val existing = contactRepository
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
     edPublicKey.foreach(k => require(k.length == 32, "Ed25519 public key must be 32 bytes"))
     xPublicKey.foreach(k => require(k.length == 32, "X25519 public key must be 32 bytes"))
     val changingKeys = edPublicKey.isDefined || xPublicKey.isDefined
+    // A key change forces re-choosing the level fresh (item 8/10), never silently carrying the
+    // old one forward. An explicit `verificationLevel` (item 9's rotation downgrade) always
+    // wins; absent one, a key change defaults to the same VeryHigh addFromQr uses for its
+    // analogous re-scan-in-person flow — phon has no picker UI (item 6's narrower scope).
+    val newLevel = verificationLevel.orElse(if changingKeys then Some(VerificationLevel.VeryHigh) else None)
     contactRepository.save(
       existing.copy(
         edPublicKey = edPublicKey.getOrElse(existing.edPublicKey),
         xPublicKey = xPublicKey.getOrElse(existing.xPublicKey),
-        // A key change forces re-choosing the level fresh (item 8/10) — phon has no picker UI
-        // (item 6), so it defaults to the same VeryHigh addFromQr uses for its analogous
-        // re-scan-in-person flow, rather than silently carrying the old level forward.
-        verificationLevel = if changingKeys then VerificationLevel.VeryHigh else existing.verificationLevel,
-        verifiedAt = if changingKeys then Some(Instant.now()) else existing.verifiedAt
+        verificationLevel = newLevel.getOrElse(existing.verificationLevel),
+        verifiedAt = if changingKeys || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt
       )
     )
 

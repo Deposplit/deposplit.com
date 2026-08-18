@@ -42,7 +42,7 @@ Rejected alternatives:
 | Language / framework | Scala + Play 3 | sbt build; `hexagon` subproject (pure Scala, no Play) + root Play app (adapters, controllers, Twirl views) |
 | Database | PostgreSQL | Relational data model with FK constraints and ACID transactions; `bytea` for opaque share ciphertext; native UUID type for `secret_id`; row-level security as defense-in-depth |
 | DB access | Anorm | SQL-first, minimal abstraction; fits cleanly in the adapter layer. Slick is an acceptable alternative. |
-| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | One table: `share_requests` (four transaction types: `deposit`, `retrieval`, `removal`, `inventory`) |
+| DB schema | Play Evolutions (`conf/evolutions/default/1.sql`) | `share_requests` (four transaction types: `deposit`, `retrieval`, `removal`, `inventory`) + `key_rotations` (item 9's signed rotation push — no consent phase, no `secretId`, so it doesn't fit `share_requests`' shape) |
 | Dev / test DB | H2 (file-backed, `./.devDBs/deposplit`) | No PostgreSQL instance required locally; data persists across `sbt run` restarts |
 | API spec | OpenAPI 3.0 (`conf/openapi.yaml`) | |
 | API serialisation | Play JSON (`play-json`) | Bundled with Play; no explicit dependency needed |
@@ -89,7 +89,7 @@ The architectural sweet spot is native apps for the persistent/receiver role, wi
 
 Secrets are identified by a **UUID** generated at split time. The human-readable label (e.g. "BitLocker key") is display-only metadata.
 
-Three of the four request types are modelled as consent requests — Alice requests something of Bob; Bob can approve or deny. The fourth is a holder-initiated push with no consent phase. One table:
+Three of the four request types are modelled as consent requests — Alice requests something of Bob; Bob can approve or deny. The fourth is a holder-initiated push with no consent phase. All four live in one table, `share_requests`:
 
 | Type | Direction | Description |
 |---|---|---|
@@ -98,7 +98,9 @@ Three of the four request types are modelled as consent requests — Alice reque
 | `removal` | Sender ↔ recipient | Alice requests removal of a share; Bob approves or denies |
 | `inventory` | Holder → owner | Bob pushes a metadata-only report about a share of his back to Alice, so she can rebuild her records after losing her old identity's key; self-approves at creation, no consent phase |
 
-Recipient-initiated deletion is purely local — no message required. The recipient can delete individual shares or all shares from a given sender at any time without approval.
+Recipient-initiated deletion is unilateral — no approval required — but as of item 9 (relay implemented, not yet wired into any client) it is no longer purely silent: `POST /share-requests/withdraw` flips the holder's now-cleared deposit row to a `withdrawn` tombstone instead of deleting it, so the sender's next poll can catch the withdrawal as a best-effort, fire-and-forget courtesy — never authoritative, since the relay may still garbage-collect the row.
+
+Item 9 also adds a **signed key-rotation push** — deliberately *not* a fifth `share_requests` transaction type (no `secretId`, no consent phase), so it lives in its own small `key_rotations` table (`POST`/`GET /key-rotations`, `DELETE /key-rotations/{id}`): a holder proactively tells a contact "I am now this key, previously that key," signed by the old key to prove continuity. See `CLAUDE.md` "What is next" item 9 for the full design and `TODO.md` for implementation status.
 
 **Consent model:**
 - *Deposit* — recipient must approve to receive the share. The relay holds the ciphertext until Bob approves; it is delivered once and then cleared from the relay.

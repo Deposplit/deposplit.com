@@ -10,6 +10,12 @@ GET     /share-requests/:requestId       controllers.api.ShareRequestsController
 PATCH   /share-requests/:requestId       controllers.api.ShareRequestsController.respondToShareRequest(requestId: String)
 DELETE  /share-requests/:requestId       controllers.api.ShareRequestsController.deleteShareRequest(requestId: String)
 DELETE  /share-requests                  controllers.api.ShareRequestsController.deleteShareRequests()
+POST    /share-requests/withdraw         controllers.api.ShareRequestsController.withdrawShareRequests()
+
+# Item 9's signed rotate(K_old -> K_new) push — not a share request, see KeyRotationsController
+POST    /key-rotations                   controllers.api.KeyRotationsController.pushRotation()
+GET     /key-rotations                   controllers.api.KeyRotationsController.listRotations()
+DELETE  /key-rotations/:id               controllers.api.KeyRotationsController.deleteRotation(id: String)
 
 # … but also for the Web-based emulator/simulator
 ->      /phonyPhone                      phon.Routes

@@ -408,6 +408,48 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
+  // ── Withdraw (item 9 — recipient-initiated tombstone) ───────────────────────
+
+  "POST /share-requests/withdraw" should {
+
+    "flip an approved Deposit to withdrawn instead of deleting it" in {
+      val sid = UUID.randomUUID().toString
+      val body = depositBody(alice, bob, sid = sid)
+      val depositResult = route(app, alice.post("/share-requests", body)).get
+      status(depositResult) mustBe CREATED
+      val id = (contentAsJson(depositResult) \ "id").as[String]
+
+      val approveResult = route(app, bob.patch(s"/share-requests/$id", respondBody(bob, id, approved = true))).get
+      status(approveResult) mustBe OK
+
+      val withdrawResult = route(app, bob.post(s"/share-requests/withdraw?secretId=$sid", Array.empty[Byte])).get
+      status(withdrawResult) mustBe NO_CONTENT
+
+      val getResult = route(app, alice.get(s"/share-requests/$id")).get
+      status(getResult) mustBe OK
+      (contentAsJson(getResult) \ "state").as[String] mustBe "withdrawn"
+    }
+
+    "leave a Pending Deposit untouched — nothing to withdraw yet" in {
+      val sid = UUID.randomUUID().toString
+      val body = depositBody(alice, bob, sid = sid)
+      val depositResult = route(app, alice.post("/share-requests", body)).get
+      status(depositResult) mustBe CREATED
+      val id = (contentAsJson(depositResult) \ "id").as[String]
+
+      val withdrawResult = route(app, bob.post(s"/share-requests/withdraw?secretId=$sid", Array.empty[Byte])).get
+      status(withdrawResult) mustBe NO_CONTENT
+
+      val getResult = route(app, alice.get(s"/share-requests/$id")).get
+      (contentAsJson(getResult) \ "state").as[String] mustBe "pending"
+    }
+
+    "is a no-op (still 204) when nothing matches" in {
+      val result = route(app, bob.post("/share-requests/withdraw?secretId=" + UUID.randomUUID(), Array.empty[Byte])).get
+      status(result) mustBe NO_CONTENT
+    }
+  }
+
   // ── Inventory push (item 8) ─────────────────────────────────────────────────
 
   "POST /share-requests (Inventory)" should {

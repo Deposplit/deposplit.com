@@ -96,13 +96,15 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
+    val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
       relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
-      contactRepository = FakeContactRepository(List(aliceContact, charlieContact)),
+      contactRepository = contactRepo,
+      contactManagement = ContactService(contactRepo),
       identity = bobIdentity
     )
 
@@ -126,13 +128,15 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
+    val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
       relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
-      contactRepository = FakeContactRepository(List(aliceContact, charlieContact)),
+      contactRepository = contactRepo,
+      contactManagement = ContactService(contactRepo),
       identity = bobIdentity
     )
 

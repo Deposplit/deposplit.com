@@ -123,3 +123,19 @@ trait ShareRequests:
       senderKey: Option[PublicKey],
       secretId: Option[SecretId]
   ): Either[Error, Unit]
+
+  /** Recipient-initiated unilateral withdrawal (item 9) — Bob stops holding secretId (or all
+    * secrets from a given sender). Unlike `deleteShareRequests`, this does not hard-delete the
+    * matching Deposit rows; it flips matching `Approved` Deposit rows to `Withdrawn` so the
+    * sender's next poll can observe the tombstone. Retrieval/Removal rows for the same grouping
+    * are untouched — those are separate, already-resolving consent flows.
+    *
+    * Best-effort and fire-and-forget: the relay may still garbage-collect a `Withdrawn` row at
+    * any time, so its absence must never be read as a signal — only an *observed* `Withdrawn`
+    * row counts. See deposplit.com/CLAUDE.md "What is next" item 9.
+    */
+  def withdrawShareRequests(
+      recipientKey: PublicKey,
+      senderKey: Option[PublicKey],
+      secretId: Option[SecretId]
+  ): Either[Error, Unit]

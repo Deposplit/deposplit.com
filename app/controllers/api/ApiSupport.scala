@@ -28,6 +28,7 @@ import play.api.libs.json.*
 import play.api.mvc.BaseController
 import play.api.mvc.Result
 import value_objects.Error
+import value_objects.KeyRotation
 import value_objects.ShareRequest
 import value_objects.ShareRequestState
 import value_objects.ShareTransactionType
@@ -59,9 +60,10 @@ trait ApiSupport { self: BaseController =>
       "secretCreatedAt"  -> req.secretCreatedAt.toString,
       "transactionType"  -> req.transactionType.wireValue,
       "state"            -> (req.state match
-        case ShareRequestState.Pending  => "pending"
-        case ShareRequestState.Approved => "approved"
-        case ShareRequestState.Denied   => "denied"),
+        case ShareRequestState.Pending   => "pending"
+        case ShareRequestState.Approved  => "approved"
+        case ShareRequestState.Denied    => "denied"
+        case ShareRequestState.Withdrawn => "withdrawn"),
       "shareId"          -> req.shareId.map(_.toString),
       "requestedAt"      -> req.requestedAt.toString,
       "respondedAt"      -> req.respondedAt.map(_.toString),
@@ -73,4 +75,15 @@ trait ApiSupport { self: BaseController =>
       req.ciphertext.fold(withRecipientSig)(ct => withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
     val withK = req.k.fold(withCiphertext)(k => withCiphertext + ("k" -> JsNumber(k)))
     req.n.fold(withK)(n => withK + ("n" -> JsNumber(n)))
+
+  protected def keyRotationJson(r: KeyRotation): JsValue =
+    Json.obj(
+      "id"            -> r.id.toString,
+      "oldEd25519Key" -> r.oldEd25519Key.toBase64Url,
+      "recipientKey"  -> r.recipientKey.toBase64Url,
+      "newEd25519Key" -> r.newEd25519Key.toBase64Url,
+      "newX25519Key"  -> r.newX25519Key.toBase64Url,
+      "signature"     -> r.signature.toBase64Url,
+      "createdAt"     -> r.createdAt.toString
+    )
 }

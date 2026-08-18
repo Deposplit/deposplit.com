@@ -113,6 +113,13 @@ class RequestSigner:
       .getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
+  /** Signs a `pushRotation` payload (item 9) — mirrors `PayloadCanonical.forRotation`. All three
+    * arguments are base64url public key strings as they appear on the wire.
+    */
+  def signRotation(recipientKey: String, newEd25519Key: String, newX25519Key: String): String =
+    val canon = Seq(recipientKey, newEd25519Key, newX25519Key).mkString("\n").getBytes("UTF-8")
+    b64url.encodeToString(rawSign(canon))
+
   def get(path: String) =
     FakeRequest("GET", path).withHeaders(authHeaders("GET", path)*)
 

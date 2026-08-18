@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 9–10 and 12–13 are design-complete but not yet built** (items 6, 7, 8, and 11 shipped —
-> see below). The current code still implements the *pre-9–10/12–13* model those items supersede.
-> `No migrations` throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
+> ⚠ **Item 9 is mostly shipped; 10 and 12–13 are design-complete but not yet built** (items 6, 7,
+> 8, and 11 shipped too — see below). `No migrations` throughout — Deposplit is pre-launch; test
+> relays and devices reset to a clean slate.
 
 ---
 
@@ -43,7 +43,17 @@ is better served by one board than three. This file lives in the hub repo
   primitives; catalog export/import shipped on Android/iOS with UI, and as a primitive-only
   port on phon. Shipped on the relay, Android, iOS, and (for consistency, not full parity) phon.
   Item 9's rotation push and item 10's revocation both build on this item's `updateContact`.
-- Rough dependency order for what's left: **9 → {10, 12} → 13**.
+- **Item 9's rotation push and withdraw tombstone are done** — shipped on the relay (a dedicated
+  `key_rotations` table, `POST /share-requests/withdraw`), Android, iOS, and (for consistency,
+  not full parity) phon, all landing on the same design independently. Item 10's `min(level,
+  LOW)` downgrade is already baked into every client's rotation-receive path, not deferred to
+  item 10 itself. **Not** shipped under item 9: the pull-style health-check (superseded by item
+  12's heartbeat push before it was ever built) and the "regenerate my own identity" trigger that
+  would let a user actually *originate* a rotation from the UI (deliberately scoped out — see
+  `CLAUDE.md` item 9's "Proactive rotation" bullet). The "reconstruct-and-re-split repair flow"
+  checklist line needs no new code (already composes from item 11's primitives) but has no
+  dedicated UI trigger yet.
+- Rough dependency order for what's left: **{10, 12} → 13** (item 9 no longer blocks either).
 
 ---
 
@@ -106,10 +116,244 @@ Pure-social, `k`-of-`n` by construction; recovery returns **metadata only**, nev
 - [x] `phon` same field renames (k/n, RecoveryMetadata type), retrieve/delete re-key, `updateContact` (keys only, no level param — no picker UI per item 6's narrower phon scope), `pushRecoveryMetadata`/`processRecoveryMetadata`, and the `Catalog`/`CatalogManagement`/`CatalogService` primitive — for cross-platform *consistency*, not full parity (no relink/catalog-backup UI; not originally tagged for this item)
 
 ### Item 9 — Holder-key-change handling + redundancy monitoring · [CLAUDE.md#9](CLAUDE.md)
-NB: the health-check is a **push** — reshaped by item 12 (see below).
-- [ ] `R` `A` `I` signed `rotate(K_old→K_new)` push; auto-verify against trusted old key; update contact in place
-- [ ] `A` `I` reconstruct-and-re-split repair flow (shared with item 11)
-- [ ] `R` `A` `I` "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling (row *absence* never a signal)
+NB: the health-check is a **push** — reshaped by item 12, so the originally-sketched pull
+health-check is deliberately **not** being built here; skip straight to item 12 for that piece.
+
+> ⚠ **Scope split agreed 2026-08-18 (Paul + Claude), before iOS work started:** the rotation
+> push's *receiving* side (auto-verify against the trusted old key, `min(level, LOW)` downgrade,
+> `updateContact` in place) and a callable `pushRotation(to:)` primitive are in scope per-platform
+> below. The *trigger* — a user deliberately regenerating their own keypair while still holding
+> the device (distinct from item 8's device-*loss* recovery) — is **not**: it needs a new
+> `IdentityStore` capability ("replace my keypair, keep contacts/shares/secrets") plus a Settings
+> UI action, neither of which exists yet or is specified by any "What is next" item. Deferred as
+> its own follow-up rather than improvised mid-item-9. See `CLAUDE.md` item 9's "Proactive
+> rotation" bullet for the same note.
+
+- [x] `R` `A` `I` `phon` signed `rotate(K_old→K_new)` push; auto-verify against trusted old key; update contact in place — **done, all four scopes** (receive-side + `pushRotation(to:)` primitive only — see scope-split note above)
+- [ ] `A` `I` reconstruct-and-re-split repair flow (shared with item 11) — the underlying primitives (`reconstruct`, `deposit`, `discardSecret`) already compose into this on every platform, so no new hexagon code is needed; left unchecked because there's no dedicated one-tap "repair" UI action yet, and wiring one before item 12 gives Alice a reason to see it (a lost-holder alert) would be a button with nothing to trigger it
+- [x] `R` `A` `I` `phon` "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling (row *absence* never a signal) — **done, all four scopes**
+
+  **`R` implementation notes (2026-08-18):** Two independent pieces, both relay-only so far —
+  client wiring (Android/iOS/phon) is still open.
+  - **Withdrawn tombstone.** Added `Withdrawn` to `ShareRequestState` (now `Pending`/`Approved`/
+    `Denied`/`Withdrawn`) and a new `ShareRequests.withdrawShareRequests(recipientKey, senderKey?,
+    secretId?)` port method, `POST /share-requests/withdraw` — flips matching **`Approved`
+    `Deposit`** rows to `Withdrawn` in place instead of hard-deleting them (Retrieval/Removal rows
+    for the same grouping, and non-`Approved` Deposit rows, are left untouched — those are
+    separate, already-resolving consent flows). Deliberately a **new** method rather than
+    repurposing the existing bulk `deleteShareRequests`: that method's two actual call sites
+    (Removal-approval cleanup, Deposit-delete cascade) both want a real hard delete, not a
+    tombstone, so overloading its Deposit-row behavior would have silently changed their meaning.
+    `hasActiveDeposit` now excludes `Withdrawn` alongside `Denied`, so a withdrawn holder can be
+    re-deposited to later.
+  - **`key_rotations` — a dedicated table, not a `ShareTransactionType` case.** Considered folding
+    the rotation push into `share_requests` (reusing the existing poll endpoint) but rejected: a
+    rotation notice has no `secretId` and no consent phase, so it would need a nullable
+    `secret_id` plus a pile of forever-`NULL` share-specific columns — exactly the abstraction-fit
+    problem the `ShareTransactionType` rename just cleaned up. Went with a small dedicated table
+    instead: `key_rotations(id, old_ed25519_key, recipient_key, new_ed25519_key, new_x25519_key,
+    signature, created_at)`, no `state` column (no consent, same fire-and-forget shape as
+    `inventory` — the recipient polls, auto-verifies, and deletes once consumed). New value
+    objects `KeyRotation` and `X25519Key` (a dedicated opaque type rather than reusing `PublicKey`,
+    which is documented/used for Ed25519 verification specifically — keeps the two key algorithms
+    from being silently interchangeable despite sharing a 32-byte length; the relay never performs
+    key agreement with it, only routes it opaquely like ciphertext). New
+    `PayloadCanonical.forRotation(recipientKey, newEd25519Key, newX25519Key)`, signed by the
+    caller who becomes `oldEd25519Key` — proves continuity of key control, which is what lets the
+    recipient auto-accept without a fresh human re-verification. New `KeyRotations` driving port +
+    `KeyRotationsService`, `KeyRotationRepository` driven port + `AnormKeyRotationRepository`,
+    `KeyRotationsController` at `POST /key-rotations` (push) / `GET /key-rotations` (list,
+    recipient-scoped) / `DELETE /key-rotations/{id}` (recipient deletes once consumed — unlike
+    `ShareRequest` rows there's no sender-side reason to read one back). Bound in `app/Module.scala`
+    alongside the existing `ShareRequests`/`ShareRepository` bindings.
+  - Cross-platform signature vector added to `PayloadCanonicalVectorTests.scala` for
+    `forRotation`, same fixed-seed pattern as `forOpen` — recomputed via an actual BouncyCastle
+    run: `Fs4kRoHL0q5uN2ECfmXdcJnYzSz_yvO-8VNz6AIJYAcMR3QJmPQlu8AyiJpYOfeUGXag0M4VdZtPQ3AoWjPBDQ`
+    (fixed recipientKey/newEd25519Key/newX25519Key = 32 bytes of `0x03`/`0x04`/`0x05`). Android's
+    and iOS's `PayloadCanonicalVectorTest`/`-Tests` must match this exact value once their turn
+    comes.
+  - `conf/evolutions/default/1.sql` edited in place (new `withdrawn` enum value, new
+    `key_rotations` table + index, updated `hasActiveDeposit`/partial-index prose) — no new
+    evolution file, per the no-migrations pre-launch policy.
+  - `conf/openapi.yaml` fully updated: `ShareRequestState` enum + description, `POST
+    /share-requests/withdraw`, new `KeyRotation`/`PushRotationBody`/`X25519PublicKey` schemas,
+    `POST`/`GET /key-rotations` + `DELETE /key-rotations/{id}` paths, and the "Payload signatures"
+    prose section gained `forRotation`'s canonical construction alongside `forOpen`/`forRespond`.
+  - Tests: `SharesServiceTests` gained 5 withdraw tests (flips to Withdrawn not delete; sender/
+    secretId filtering; Pending rows untouched; Retrieval/Removal rows for the same grouping
+    untouched; a withdrawn deposit no longer blocks re-deposit) — also fixed the
+    `InMemoryShareRepository` test double's `hasActiveDeposit`, which needed the same
+    `Denied`-and-`Withdrawn` exclusion as the real Anorm repo. New `KeyRotationsServiceTests` (6
+    tests: push/verify/list/delete + Forbidden/NotFound) with its own `InMemoryKeyRotationRepository`
+    test double, reusing `SharesServiceTests`'s `Fixtures` object (same package) for keypairs. Root
+    gained `KeyRotationsApiSpec` (9 integration tests) and 3 new tests in `ShareRequestsApiSpec`
+    for the withdraw endpoint; `RequestSigner` gained `signRotation`. Relay hexagon: 69 → 83 tests;
+    root: 39 → 51 tests (phon's 37 untouched, not yet wired to either piece — expected, matching
+    item 8's precedent of `R` landing before client platforms).
+
+  **`I` implementation notes (2026-08-18):** Scoped per the shared note above — receive-side +
+  `pushRotation(to:)` primitive only, no "regenerate my own identity" trigger.
+  - **`ShareRelay` gained the new methods directly, rather than a separate `KeyRotationRelay`
+    port.** The relay backend keeps rotation pushes in a dedicated `KeyRotations`
+    service/`key_rotations` table for domain-purity reasons (no `secretId`, no consent phase) —
+    but those reasons are about *server-side schema shape*, not about this *client-side*
+    HTTP-calling port, which is really just "the wire API surface for one relay instance." Since
+    rotation pushes route through the exact same BYOR per-contact relay resolution as every other
+    `ShareRelay` call, giving them a second port would only have meant a second
+    resolver/cache for zero benefit. New value object `KeyRotation` (no dedicated `X25519Key`
+    type on iOS — unlike the relay, the client never round-trips an X25519 key through a
+    different verification path than an Ed25519 one, so the extra type would have bought nothing);
+    new `PayloadCanonical.forRotation`, byte-identical construction to the relay's Scala version.
+  - **Receiving side** — `ShareService.processRotations()` (private, called from `syncInbox()`
+    alongside the existing `processRecoveryMetadata()`): fans out `listRotations()` across every
+    relay referenced by the contact list (`allRelays()`, the same helper every other fan-out
+    method already uses), matches `oldEd25519Key` against a known contact via
+    `contactRepository.getByEdKey`, independently re-verifies `signature` against that same key
+    (never trusts the relay's word for it — same defense-in-depth posture as `verifyOpen`), and on
+    success calls `contactManagement.updateContact(...)` with `verificationLevel: min(contact
+    .verificationLevel, .low)` — item 10's downgrade rule, applied here since it's inseparable
+    from correct rotation-processing semantics (an unconditional auto-accept with no downgrade
+    would just be a wrong implementation of this receive path, not a simpler one). Consumed
+    notices are deleted from the relay (`deleteRotation`), same "consumed once processed" pattern
+    as `inventory`.
+  - **`ShareService` gained a new `contactManagement: any ContactManagement` constructor
+    dependency** so `processRotations()` can call `updateContact` — a driving-port-to-driving-port
+    collaboration within the same hexagon (both are use-case interfaces the hexagon itself
+    implements), not a boundary violation; `ContactService.updateContact`'s own precondition ("a
+    fresh level is required whenever a key changes") is trivially satisfied here since
+    `processRotations()` always computes and supplies one. `DeposplitApp.swift` reordered so
+    `ContactService` is constructed before `ShareService` and the same instance is passed to both.
+  - **Sending side** — `ShareManagement.pushRotation(contactId:newEd25519Key:newX25519Key:)`:
+    signs the new keys with the device's *current* identity (which becomes `oldEd25519Key` on the
+    wire) and pushes to the resolved contact's relay. Exercised directly by tests; no UI action
+    calls it yet (see the scope-split note above).
+  - **Withdraw tombstone** — `deleteHeldShare`/`deleteAllHeldFromSender` now best-effort-notify
+    the sender's relay (`withdrawShareRequests`) before deleting the local `HeldShare`(s): the
+    single-share case scopes by `secretId` alone (already globally unique per deposit, so
+    `senderKey` isn't needed to disambiguate); the delete-all-from-sender case scopes by
+    `senderKey` instead of looping per secretId, matching the relay's own bulk-filter shape. Both
+    call the relay with `try?` — local deletion always proceeds regardless of the network
+    outcome, since the notify is a courtesy, not a precondition (mirrors the relay's own
+    "fire-and-forget" framing of the tombstone). `syncDistributed()` gained a branch for
+    `req.state == .withdrawn`: drops the local `ShareMetadata` pointer (so the health count — a
+    pre-item-12 proxy over `ShareMetadata` rows, per item 11 — reflects the loss) and deletes the
+    now-consumed relay row, mirroring the "delete once observed and processed" pattern used
+    elsewhere; non-withdrawn rows are upserted exactly as before.
+  - `ShareRequestState` gained `.withdrawn`; two app-layer exhaustive switches over it
+    (`ShareDetailView.stateColor`/`.label`, `DistributedTab`'s private `ShareRequestState.label`
+    extension) needed a case added — caught immediately by `xcodebuild build`, not by `swift
+    test`, since the hexagon package alone doesn't exercise app-layer UI code. In practice a
+    withdrawn row rarely reaches these views at all, since `syncDistributed()` removes the local
+    pointer as soon as it observes one.
+  - Tests: `ShareServiceTests` gained 11 tests (rotation push/verify/downgrade/reject-forged/
+    reject-unknown-sender; withdraw scoping for both single-share and all-from-sender, including a
+    "local delete still happens if the relay call fails" case; `syncDistributed`'s withdrawn vs.
+    non-withdrawn branches). `FakeContactRepository` was upgraded from a set of no-ops to a
+    genuinely mutable in-memory store so tests can observe `updateContact`'s effect; `FakeShareRelay`
+    gained the four new methods with call-tracking. Hexagon: 41 → 52 tests, all passing (`swift
+    test`). Full app-target verification also run and passing: `xcodebuild build` (BUILD SUCCEEDED)
+    and `xcodebuild test` against an iPhone SE simulator (TEST SUCCEEDED).
+
+  **`A` implementation notes (2026-08-18):** Same scope and shape as iOS — receive-side +
+  `pushRotation(to:)` primitive, withdraw wired both ways. Mirrors iOS's design decisions
+  one-for-one since both platforms hit the identical fork (extend `ShareRelay` directly vs. a
+  separate port; add a `ContactManagement` dependency to `ShareService`).
+  - `ShareRelay.kt` gained `withdrawShareRequests`/`pushRotation`/`listRotations`/`deleteRotation`
+    directly, same reasoning as iOS (one physical relay, one BYOR routing scheme — a second
+    port/resolver would have bought nothing). New `KeyRotation` data class in `value_objects/`.
+    `ShareRequestState` gained `WITHDRAWN`. `PayloadCanonicalVectorTest.kt` gained the `forRotation`
+    vector (same fixed seed/fixture bytes as the relay's and iOS's), actually run — confirms
+    BouncyCastle-Kotlin agrees byte-for-byte with BouncyCastle-Scala and CryptoKit-Swift, not just
+    asserted by analogy.
+  - `ShareService` gained a `contactManagement: ContactManagement` constructor parameter; private
+    `processRotations()` (called from `syncInbox()`) fans out `listRotations()` across
+    `allRelays()`, matches `oldEd25519Key` via `contactRepository.getByEdKey`, independently
+    re-verifies `signature` (never trusts the relay's word for it), and on success calls
+    `contactManagement.updateContact(contact.id, notice.newEd25519Key, notice.newX25519Key,
+    minOf(contact.verificationLevel, VerificationLevel.LOW))` — Kotlin enums are ordinal-`Comparable`
+    for free, so `minOf` alone expresses item 10's downgrade rule, no custom comparison needed.
+    Consumed notices are deleted via `deleteRotation`. `pushRotation(contactId:newEd25519Key:
+    newX25519Key:)` signs with the device's current identity and pushes via `relayForContact`;
+    exercised by tests only, no UI action yet (scope-split note above).
+  - `deleteHeldShare`/`deleteAllHeldFromSender` best-effort-notify (`runCatching`) the sender's
+    relay before deleting locally, same `secretId`-alone vs. `senderKey`-bulk scoping as iOS.
+    `syncDistributed()` gained a `req.state == ShareRequestState.WITHDRAWN` branch that drops the
+    local `ShareMetadata` row and deletes the relay row, `continue`-ing past the normal upsert path.
+  - Two exhaustive `when` expressions over `ShareRequestState` needed a `WITHDRAWN` branch
+    (`ShareDetailScreen.kt`'s state-label/color mapping, `HomeScreen.kt`'s holder-status badge) —
+    caught immediately by `:app:compileDebugKotlin`, same category of gap as iOS's Swift `switch`
+    exhaustiveness check. New string resources `share_request_state_withdrawn` added to both
+    `values/strings.xml` ("Withdrawn") and `values-de/strings.xml` ("Zurückgezogen").
+    `DeposplitApiAdapter.kt`'s `toDomain()` state-string `when` also gained a `"withdrawn"` branch
+    (this one wasn't exhaustive-enforced by the compiler — a plain string match with an `error()`
+    fallback — so it would only have surfaced as a runtime crash on the first real withdrawn row
+    without this fix; worth flagging since Kotlin's compiler safety net doesn't cover this shape).
+  - Tests: `ShareServiceTest.kt` gained 11 tests, same coverage shape as iOS (rotation push/
+    verify/downgrade/reject-forged/reject-unknown-old-key; withdraw scoping for both
+    single-share and all-from-sender, including a "local delete still happens if the relay call
+    fails" case; `syncDistributed`'s withdrawn vs. non-withdrawn branches). `FakeContactRepository`
+    upgraded from no-op writes to a genuinely mutable in-memory store (needed to observe
+    `updateContact`'s effect); `FakeShareRelay` gained the four new methods with call-tracking;
+    `newService()` widened from returning a `Triple` to a small `ShareServiceFixture` data class
+    (Kotlin's `Triple` tops out at 3 elements, and this needed 5) — all five call sites updated.
+    `:hexagon:test` (forced via `:hexagon:clean :hexagon:test`, JUnit XML read directly, matching
+    the rename session's established Gradle-false-UP-TO-DATE workaround): 41 → 55 tests, 0
+    failures (11 new `ShareServiceTest` cases + 3 new `PayloadCanonicalVectorTest` `forRotation`
+    cases). `:app:compileDebugKotlin` BUILD SUCCESSFUL (same two pre-existing unrelated warnings
+    as before, no new ones); `:app:test` still blocked by the pre-existing unrelated jlink
+    toolchain issue, not investigated further.
+
+  **`phon` implementation notes (2026-08-18):** Consistency, not parity — ported the same
+  domain/hexagon-level shape as relay/Android/iOS, skipped everything UI (no withdraw button, no
+  rotation-push trigger, no relink-style controller action — phon's minimal HTMX views have no
+  plumbing for any of that already, matching every prior item's precedent).
+  - `Share.scala` gained `ShareRequestState.Withdrawn`; new `value_objects/svo/KeyRotation.scala`
+    (own copy — phon can't depend on relay), using raw `Array[Byte]` fields throughout rather than
+    the relay's dedicated `PublicKey`/`X25519Key` opaque types — those exist for server-side
+    verification-path safety that doesn't apply to this client-side mirror, and every other phon
+    value object (`Contact`, `ShareRequest`) already uses bare byte arrays, so opaque types here
+    would be parity with the relay, not consistency with phon's own conventions. New
+    `PayloadCanonical.forRotation`, byte-for-byte identical to the other three platforms'.
+  - `ShareRelay.scala` (phon's driven port) gained the same four methods as Android/iOS, same
+    "grouped onto this trait, not a separate port" reasoning. `HttpClientShareRelay.scala`
+    (`app/driven_adapters/phon/` — the live HTTP client phon uses to talk to the actual relay) is
+    the load-bearing file again, same as the rename: implements all four against the real
+    `/share-requests/withdraw` and `/key-rotations` endpoints, and its `parseShareRequest`'s
+    `state` match gained a `"withdrawn"` case (previously `throw`s on anything unrecognized —
+    would have been a hard runtime failure the first time a real withdrawn row came back, not
+    just a stale-looking one, since phon actually round-trips through the live relay).
+  - **`ContactManagement.updateContact` needed a real signature change, not just plumbing** — this
+    is the one place phon's "no picker UI" simplification (item 6) collided with item 9's
+    correctness requirement, not just its UI polish. phon's `updateContact` had no
+    `verificationLevel` parameter at all; a key change unconditionally defaulted to `VeryHigh`
+    (mirroring `addFromQr`'s in-person-flow default, per item 8's precedent). Item 10's downgrade
+    rule (`min(old, Low)`) is a domain rule, not UI polish — auto-accepting a rotation at
+    `VeryHigh` would be actively wrong (the same trust level an in-person QR re-scan earns),
+    not merely less polished than Android/iOS. Added `verificationLevel: Option[VerificationLevel]
+    = None` to `updateContact` on both the port and `ContactService`: an explicit level always
+    wins; absent one, the existing key-change-defaults-to-`VeryHigh` behavior is unchanged
+    (verified by a regression test). No existing call site outside tests supplied a level before
+    this change (grepped first), so this was a safe, backward-compatible signature extension.
+  - `ShareService` gained a `contactManagement: ContactManagement` constructor parameter (already
+    bound in `PhonModule.scala` — Guice's `@Inject()` picks it up automatically, no module edit
+    needed) so its new `processRotations()` (private, called from `syncInbox()`) can call
+    `updateContact` with the explicit downgraded level after auto-verifying an incoming notice.
+    `pushRotation`, the withdraw wiring in `deleteHeldShare`/`deleteAllHeldFromSender`, and
+    `syncDistributed()`'s withdrawn branch all mirror Android/iOS exactly.
+  - Tests: `FakeContactRepository` (in `ShareServiceSignatureTests.scala`, package-shared with
+    `ShareRelayResolverFanOutTests.scala` and `ContactServiceTests.scala` via Scala's
+    package-private top-level visibility) upgraded from no-op `save`/`delete` to a genuinely
+    mutable store; `FakeShareRelay` gained the four new methods with call-tracking; `newService`
+    widened from a 3-tuple to a 5-tuple (contactRepo + metaRepo added) — five call sites across
+    two test files updated, plus `newServiceForRecoveryTest`'s single `ShareService(...)`
+    construction. `ShareServiceSignatureTests` gained 11 tests, same coverage shape as Android/iOS
+    (rotation push/verify/downgrade/reject-forged/reject-unknown-old-key; withdraw scoping for
+    both single-share and all-from-sender, including a "local delete still happens if the relay
+    call fails" case; `syncDistributed`'s withdrawn vs. non-withdrawn branches).
+    `ContactServiceTests` gained 2 tests for the new `verificationLevel` parameter (explicit level
+    honored; still defaults to `VeryHigh` with none given). `phon/test`: 37 → 50 tests, 0 failures.
+    Full project `sbt test` (relay 83 + phon 50 + root 51 = 184) also run clean, confirming
+    end-to-end wire-compatibility, not just independent compilation.
 
 ### Item 10 — Malicious key substitution + stolen-key revocation · [CLAUDE.md#10](CLAUDE.md)
 - [ ] `A` `I` `K_old`-signed rotation auto-accept with `min(level, LOW)` downgrade (ties to item 9)
@@ -184,4 +428,6 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
 cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, and 11 have since shipped
-(see `CHANGELOG.md`); all other implementation above is pending.
+(see `CHANGELOG.md`); item 9's rotation push and withdraw tombstone have too, across every
+platform — its remaining pieces (the health-check, and the "regenerate my own identity" trigger)
+were deliberately scoped out, not merely pending. All other implementation above is pending.

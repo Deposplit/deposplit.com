@@ -92,3 +92,30 @@ class ContactServiceTests extends munit.FunSuite:
       svc.updateContact(UUID.randomUUID(), edPublicKey = Some(Array.fill(32)(0x01.toByte)))
     }
   }
+
+  // Item 9: an explicit verificationLevel (the rotation-processing downgrade) always wins over
+  // the no-picker-UI VeryHigh default a bare key change would otherwise apply.
+  test("updateContact honors an explicit verificationLevel instead of defaulting to VeryHigh on a key change") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact()
+    repo.save(original)
+    val newEd = Array.fill(32)(0x06.toByte)
+
+    svc.updateContact(original.id, edPublicKey = Some(newEd), verificationLevel = Some(VerificationLevel.Low))
+
+    val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
+    assert(updated.edPublicKey.sameElements(newEd))
+    assertEquals(updated.verificationLevel, VerificationLevel.Low)
+  }
+
+  test("updateContact still defaults to VeryHigh on a key change when no explicit level is given") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact().copy(verificationLevel = VerificationLevel.Low)
+    repo.save(original)
+
+    svc.updateContact(original.id, edPublicKey = Some(Array.fill(32)(0x07.toByte)))
+
+    assertEquals(repo.getById(original.id).map(_.verificationLevel), Some(VerificationLevel.VeryHigh))
+  }
