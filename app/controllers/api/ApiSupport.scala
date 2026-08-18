@@ -27,6 +27,7 @@ package controllers.api
 import play.api.libs.json.*
 import play.api.mvc.BaseController
 import play.api.mvc.Result
+import value_objects.CustodyHeartbeat
 import value_objects.Error
 import value_objects.KeyRotation
 import value_objects.ShareRequest
@@ -85,5 +86,16 @@ trait ApiSupport { self: BaseController =>
       "newX25519Key"  -> r.newX25519Key.toBase64Url,
       "signature"     -> r.signature.toBase64Url,
       "createdAt"     -> r.createdAt.toString
+    )
+
+  protected def custodyHeartbeatJson(h: CustodyHeartbeat): JsValue =
+    Json.obj(
+      "id"        -> h.id.toString,
+      "holderKey" -> h.holderKey.toBase64Url,
+      "ownerKey"  -> h.ownerKey.toBase64Url,
+      "secretIds" -> h.secretIds.map(_.toString),
+      "optedOut"  -> h.optedOut,
+      "signature" -> h.signature.toBase64Url,
+      "createdAt" -> h.createdAt.toString
     )
 }

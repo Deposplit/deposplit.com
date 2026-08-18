@@ -22,25 +22,37 @@
  * THE SOFTWARE.
  */
 
-import com.google.inject.AbstractModule
-import driven_ports.persistence.CustodyHeartbeatRepository
-import driven_ports.persistence.KeyRotationRepository
-import driven_ports.persistence.ShareRepository
-import driving_ports.CustodyHeartbeats
-import driving_ports.KeyRotations
-import driving_ports.ShareRequests
-import driven_adapters.persistence.AnormCustodyHeartbeatRepository
-import driven_adapters.persistence.AnormKeyRotationRepository
-import driven_adapters.persistence.AnormShareRepository
-import driving_adapters.CustodyHeartbeatsService
-import driving_adapters.KeyRotationsService
-import driving_adapters.ShareRequestsService
+package driving_adapters
 
-class Module extends AbstractModule:
-  override def configure(): Unit =
-    bind(classOf[ShareRepository]).to(classOf[AnormShareRepository])
-    bind(classOf[ShareRequests]).to(classOf[ShareRequestsService])
-    bind(classOf[KeyRotationRepository]).to(classOf[AnormKeyRotationRepository])
-    bind(classOf[KeyRotations]).to(classOf[KeyRotationsService])
-    bind(classOf[CustodyHeartbeatRepository]).to(classOf[AnormCustodyHeartbeatRepository])
-    bind(classOf[CustodyHeartbeats]).to(classOf[CustodyHeartbeatsService])
+import driven_ports.persistence.CustodyHeartbeatRepository
+import driving_ports.CustodyHeartbeats
+import jakarta.inject.Inject
+import value_objects.*
+
+import java.time.Instant
+import java.util.UUID
+
+class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository) extends CustodyHeartbeats:
+
+  override def pushHeartbeat(
+      holderKey: PublicKey,
+      ownerKey: PublicKey,
+      secretIds: Seq[UUID],
+      optedOut: Boolean,
+      signature: Signature
+  ): Either[Error, CustodyHeartbeat] =
+    val canon = PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut)
+    if !holderKey.verify(canon, signature) then return Left(Error.BadRequest)
+    val heartbeat = CustodyHeartbeat(
+      id = UUID.randomUUID(),
+      holderKey = holderKey,
+      ownerKey = ownerKey,
+      secretIds = secretIds,
+      optedOut = optedOut,
+      signature = signature,
+      createdAt = Instant.now()
+    )
+    Right(repository.upsertHeartbeat(heartbeat))
+
+  override def listHeartbeats(ownerKey: PublicKey): Either[Error, Seq[CustodyHeartbeat]] =
+    Right(repository.getHeartbeatsForOwner(ownerKey))

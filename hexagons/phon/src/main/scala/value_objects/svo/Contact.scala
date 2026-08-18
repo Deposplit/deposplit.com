@@ -61,7 +61,24 @@ case class Contact(
       * changed N days ago" — the attack signature item 10 hardens against is key change followed
       * by a quick retrieval request.
       */
-    keyChangedAt: Option[Instant] = None
+    keyChangedAt: Option[Instant] = None,
+    /** Item 12, owner role — this contact (as a holder of one of my secrets) sent a signed
+      * opt-out notice at this time: "my silence from here on is not a loss signal". None means
+      * either never opted out, or opted back in (cleared on the next non-opted-out heartbeat).
+      * Durable and local — captured the instant the notice is observed, since the relay may lose
+      * its state at any time and must never be relied on to keep this alert alive.
+      */
+    heartbeatOptedOutAt: Option[Instant] = None,
+    /** Item 12, holder role — when this device last pushed a custodial heartbeat *to* this
+      * contact (who is the owner in that relationship). Drives ShareService's opportunistic
+      * per-sender emission cadence; reset to None by setHeartbeatEmissionOptedOut so a toggled
+      * preference reaches the contact on the very next poll rather than waiting out the interval.
+      */
+    lastHeartbeatSentAt: Option[Instant] = None,
+    /** Item 12, holder role — this device's own choice to stop heartbeating this contact (who is
+      * the owner in that relationship). Defaults to false (heartbeating is opt-out, not opt-in).
+      */
+    heartbeatEmissionOptedOut: Boolean = false
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id

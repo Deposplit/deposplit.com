@@ -120,6 +120,13 @@ class RequestSigner:
     val canon = Seq(recipientKey, newEd25519Key, newX25519Key).mkString("\n").getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
+  /** Signs a `pushHeartbeat` payload (item 12) — mirrors `PayloadCanonical.forHeartbeat`.
+    * `secretIds` is sorted before joining, same as the relay's own construction.
+    */
+  def signHeartbeat(ownerKey: String, secretIds: Seq[String], optedOut: Boolean): String =
+    val canon = Seq(ownerKey, secretIds.sorted.mkString(","), optedOut.toString).mkString("\n").getBytes("UTF-8")
+    b64url.encodeToString(rawSign(canon))
+
   def get(path: String) =
     FakeRequest("GET", path).withHeaders(authHeaders("GET", path)*)
 

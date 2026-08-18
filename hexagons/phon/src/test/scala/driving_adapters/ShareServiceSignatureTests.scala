@@ -26,6 +26,7 @@ package driving_adapters
 
 import driven_ports.ContactRepository
 import driven_ports.KeyConflictRepository
+import driven_ports.RetainedDepositRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
@@ -83,8 +84,14 @@ private class FakeShareRepository extends ShareRepository:
 private class FakeShareMetadataRepository extends ShareMetadataRepository:
   private var metas: List[ShareMetadata] = Nil
   override def getAll(): List[ShareMetadata] = metas
-  override def save(share: ShareMetadata): Unit = metas = share :: metas
+  override def save(share: ShareMetadata): Unit = metas = share :: metas.filterNot(_.id == share.id)
   override def delete(shareId: UUID): Unit = metas = metas.filterNot(_.id == shareId)
+
+private class FakeRetainedDepositRepository extends RetainedDepositRepository:
+  private var blobs: List[RetainedDepositBlob] = Nil
+  override def getAll(): List[RetainedDepositBlob] = blobs
+  override def save(blob: RetainedDepositBlob): Unit = blobs = blob :: blobs.filterNot(_.id == blob.id)
+  override def delete(id: UUID): Unit = blobs = blobs.filterNot(_.id == id)
 
 private class FakeSecretRepository extends SecretRepository:
   private var secrets: List[Secret] = Nil
@@ -122,6 +129,12 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
   var rotationsToReturn: List[KeyRotation] = Nil
   var deletedRotationIds: List[UUID] = Nil
   var throwOnWithdraw: Boolean = false
+
+  // Item 12
+  case class PushedHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte])
+  var pushedHeartbeats: List[PushedHeartbeat] = Nil
+  var heartbeatsToReturn: List[CustodyHeartbeat] = Nil
+  var throwOnPushHeartbeat: Boolean = false
 
   override def openShareRequest(
       secretId: UUID,
@@ -194,6 +207,14 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
 
   override def deleteRotation(id: UUID): Unit = deletedRotationIds :+= id
 
+  override def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit =
+    pushedHeartbeats :+= PushedHeartbeat(ownerKey, secretIds, optedOut, signature)
+    if throwOnPushHeartbeat then throw RuntimeException("simulated push-heartbeat failure")
+
+  override def listHeartbeats(): List[CustodyHeartbeat] =
+    if unreachable then throw RuntimeException("simulated relay outage")
+    else heartbeatsToReturn
+
 /** Resolves to the same relay regardless of the requested URL — these tests exercise signature
   * verification, not multi-relay routing (see `ShareRelayResolverFanOutTests` for that).
   */
@@ -223,13 +244,22 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   private def newService(
       relay: FakeShareRelay,
       contacts: List[Contact] = List(aliceContact)
-  ): (ShareService, IdentityService, FakeShareRepository, FakeContactRepository, FakeShareMetadataRepository, FakeKeyConflictRepository) =
+  ): (
+      ShareService,
+      IdentityService,
+      FakeShareRepository,
+      FakeContactRepository,
+      FakeShareMetadataRepository,
+      FakeKeyConflictRepository,
+      FakeRetainedDepositRepository
+  ) =
     val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(contacts)
     val metaRepo = FakeShareMetadataRepository()
     val conflictRepo = FakeKeyConflictRepository()
+    val retainedRepo = FakeRetainedDepositRepository()
     val svc = ShareService(
       relayResolver = FixedShareRelayResolver(relay),
       encryption = NoOpShareEncryption,
@@ -239,9 +269,10 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       contactRepository = contactRepo,
       contactManagement = ContactService(contactRepo),
       keyConflictRepository = conflictRepo,
+      retainedDepositRepository = retainedRepo,
       identity = bobIdentity
     )
-    (svc, bobIdentity, shareRepo, contactRepo, metaRepo, conflictRepo)
+    (svc, bobIdentity, shareRepo, contactRepo, metaRepo, conflictRepo, retainedRepo)
 
   private def depositRow(
       id: UUID,
@@ -276,7 +307,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox approves and saves a Deposit with a valid senderSignature from a known contact") {
     val relay = FakeShareRelay()
-    val (svc, bob, shareRepo, _, _, _) = newService(relay)
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
     val id = UUID.randomUUID()
     val unsigned = depositRow(id, aliceKeys.publicKey, bob.edPublicKey(), Array.empty)
     val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
@@ -291,7 +322,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox skips a Deposit whose senderSignature doesn't verify against the claimed sender") {
     val relay = FakeShareRelay()
-    val (svc, bob, shareRepo, _, _, _) = newService(relay)
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
     val id = UUID.randomUUID()
     val unsigned = depositRow(id, aliceKeys.publicKey, bob.edPublicKey(), Array.empty)
     // Signed by a stranger, not by alice — claims to be from alice but doesn't verify against her key.
@@ -307,7 +338,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox skips a Deposit from an unknown sender even with a self-consistent signature") {
     val relay = FakeShareRelay()
-    val (svc, bob, shareRepo, _, _, _) = newService(relay)
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
     val id = UUID.randomUUID()
     val unsigned = depositRow(id, strangerKeys.publicKey, bob.edPublicKey(), Array.empty)
     val row = unsigned.copy(senderSignature = signOpenAs(strangerKeys, unsigned))
@@ -322,7 +353,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("listPendingRequests filters out a row with an unverifiable senderSignature") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, _, _, _) = newService(relay)
+    val (svc, bob, _, _, _, _, _) = newService(relay)
     val id = UUID.randomUUID()
     val unsigned = depositRow(id, aliceKeys.publicKey, bob.edPublicKey(), Array.empty)
       .copy(transactionType = ShareTransactionType.Removal)
@@ -334,7 +365,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("respond throws SignatureVerificationException when senderSignature doesn't verify") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, _, _, _) = newService(relay)
+    val (svc, bob, _, _, _, _, _) = newService(relay)
     val id = UUID.randomUUID()
     val unsigned = depositRow(id, aliceKeys.publicKey, bob.edPublicKey(), Array.empty)
       .copy(transactionType = ShareTransactionType.Removal)
@@ -364,6 +395,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       contactRepository = contactRepo,
       contactManagement = ContactService(contactRepo),
       keyConflictRepository = FakeKeyConflictRepository(),
+      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
     (svc, bobIdentity, shareRepo, secretRepo, metaRepo)
@@ -495,7 +527,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("pushRotation signs with the current identity and pushes to the contact's relay") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, _, _, _) = newService(relay)
+    val (svc, bob, _, _, _, _, _) = newService(relay)
     val newEd = Array.fill(32)(0x08.toByte)
     val newX = Array.fill(32)(0x09.toByte)
 
@@ -512,7 +544,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("pushRotation throws for an unknown contact") {
     val relay = FakeShareRelay()
-    val (svc, _, _, _, _, _) = newService(relay)
+    val (svc, _, _, _, _, _, _) = newService(relay)
 
     intercept[IllegalStateException] {
       svc.pushRotation(UUID.randomUUID(), Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
@@ -522,7 +554,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   test("syncInbox auto-accepts a valid rotation notice and downgrades verification level to Low") {
     val relay = FakeShareRelay()
     // aliceContact starts at VeryHigh.
-    val (svc, bob, _, contactRepo, _, _) = newService(relay)
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay)
     val newEd = Array.fill(32)(0x0c.toByte)
     val newX = Array.fill(32)(0x0d.toByte)
     val notice = signedRotation(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, newEd, newX)
@@ -547,7 +579,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       edPublicKey = daveKeys.publicKey,
       verificationLevel = VerificationLevel.VeryLow
     )
-    val (svc, bob, _, contactRepo, _, _) = newService(relay, contacts = List(daveContact))
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay, contacts = List(daveContact))
     val notice = signedRotation(daveKeys.publicKey, bob.edPublicKey(), daveKeys)
     relay.rotationsToReturn = List(notice)
 
@@ -560,7 +592,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox ignores a rotation notice with a forged signature") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, contactRepo, _, _) = newService(relay)
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay)
     // Claims to be from alice (oldEd25519Key = aliceKeys.publicKey) but signed by a stranger.
     val notice = signedRotation(aliceKeys.publicKey, bob.edPublicKey(), strangerKeys)
     relay.rotationsToReturn = List(notice)
@@ -573,7 +605,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox ignores a rotation notice from an unknown old key") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, contactRepo, _, _) = newService(relay)
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay)
     val notice = signedRotation(strangerKeys.publicKey, bob.edPublicKey(), strangerKeys)
     relay.rotationsToReturn = List(notice)
 
@@ -585,7 +617,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("deleteHeldShare withdraws from the sender's relay scoped by secretId then deletes locally") {
     val relay = FakeShareRelay()
-    val (svc, _, shareRepo, _, _, _) = newService(relay)
+    val (svc, _, shareRepo, _, _, _, _) = newService(relay)
     val secretId = UUID.randomUUID()
     val shareId = UUID.randomUUID()
     shareRepo.save(
@@ -610,7 +642,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("deleteAllHeldFromSender withdraws by senderKey then deletes all locally") {
     val relay = FakeShareRelay()
-    val (svc, _, shareRepo, _, _, _) = newService(relay)
+    val (svc, _, shareRepo, _, _, _, _) = newService(relay)
     shareRepo.save(
       HeldShare(
         id = UUID.randomUUID(),
@@ -649,7 +681,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   test("deleteHeldShare still deletes locally even if the withdraw call fails") {
     val relay = FakeShareRelay()
     relay.throwOnWithdraw = true
-    val (svc, _, shareRepo, _, _, _) = newService(relay)
+    val (svc, _, shareRepo, _, _, _, _) = newService(relay)
     val shareId = UUID.randomUUID()
     shareRepo.save(
       HeldShare(
@@ -695,7 +727,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncDistributed removes the local pointer and deletes the relay row for a withdrawn deposit") {
     val relay = FakeShareRelay()
-    val (svc, _, _, _, metaRepo, _) = newService(relay)
+    val (svc, _, _, _, metaRepo, _, _) = newService(relay)
     val depositId = UUID.randomUUID()
     val secretId = UUID.randomUUID()
     metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
@@ -709,7 +741,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncDistributed still upserts normally for a non-withdrawn row") {
     val relay = FakeShareRelay()
-    val (svc, _, _, _, metaRepo, _) = newService(relay)
+    val (svc, _, _, _, metaRepo, _, _) = newService(relay)
     val depositId = UUID.randomUUID()
     val secretId = UUID.randomUUID()
     relay.pending = List(bareDepositRow(depositId, secretId, aliceContact.edPublicKey, ShareRequestState.Approved))
@@ -725,7 +757,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   test("syncInbox refuses auto-accept and captures a key conflict when the old key is revoked") {
     val relay = FakeShareRelay()
     val revokedAliceContact = aliceContact.copy(revokedEdKeys = List(aliceKeys.publicKey))
-    val (svc, bob, _, contactRepo, _, conflictRepo) = newService(relay, contacts = List(revokedAliceContact))
+    val (svc, bob, _, contactRepo, _, conflictRepo, _) = newService(relay, contacts = List(revokedAliceContact))
     val newEd = Array.fill(32)(0x0e.toByte)
     val newX = Array.fill(32)(0x0f.toByte)
     val notice = signedRotation(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, newEd, newX)
@@ -751,7 +783,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val relay = FakeShareRelay()
     // Some unrelated historical key, not the one this notice claims continuity from.
     val contactWithUnrelatedRevocation = aliceContact.copy(revokedEdKeys = List(Array.fill(32)(0x99.toByte)))
-    val (svc, bob, _, contactRepo, _, conflictRepo) = newService(relay, contacts = List(contactWithUnrelatedRevocation))
+    val (svc, bob, _, contactRepo, _, conflictRepo, _) = newService(relay, contacts = List(contactWithUnrelatedRevocation))
     val newEd = Array.fill(32)(0x10.toByte)
     val notice = signedRotation(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, newEd)
     relay.rotationsToReturn = List(notice)
@@ -764,7 +796,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("listAndDismissKeyConflict round-trips") {
     val relay = FakeShareRelay()
-    val (svc, _, _, _, _, conflictRepo) = newService(relay)
+    val (svc, _, _, _, _, conflictRepo, _) = newService(relay)
     val conflict = KeyConflict(
       id = UUID.randomUUID(),
       contactId = aliceContact.id,
@@ -780,4 +812,218 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     svc.dismissKeyConflict(conflict.id)
 
     assert(svc.listKeyConflicts().isEmpty)
+  }
+
+  // ── Item 12: custodial heartbeats + deposit retention ────────────────────────
+
+  private val holderTwoKeys = TestKeyPair.generate()
+  private val holderTwoContact = aliceContact.copy(
+    id = UUID.randomUUID(),
+    pseudonym = "holderTwo",
+    edPublicKey = holderTwoKeys.publicKey
+  )
+
+  private def signedHeartbeat(
+      holderKey: Array[Byte],
+      ownerKey: Array[Byte],
+      signer: TestKeyPair,
+      secretIds: Seq[UUID] = Nil,
+      optedOut: Boolean = false
+  ): CustodyHeartbeat =
+    val canon = PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut)
+    CustodyHeartbeat(UUID.randomUUID(), holderKey, ownerKey, secretIds, optedOut, signer.sign(canon), Instant.now())
+
+  test("deposit retains an encrypted blob per holder") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, retainedRepo) = newService(relay, contacts = List(aliceContact, holderTwoContact))
+
+    svc.deposit(Array[Byte](1, 2, 3), "test secret", List(aliceContact, holderTwoContact), threshold = 2)
+
+    val blobs = retainedRepo.getAll()
+    assertEquals(blobs.size, 2)
+    assert(blobs.forall(b => b.k == 2 && b.n == 2))
+    assertEquals(blobs.map(_.contactId).toSet, Set(aliceContact.id, holderTwoContact.id))
+  }
+
+  test("syncDistributed stamps freshness and discards the retained blob on first observed approval") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, metaRepo, _, retainedRepo) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    relay.pending = List(bareDepositRow(depositId, secretId, aliceContact.edPublicKey, ShareRequestState.Approved))
+
+    svc.syncDistributed()
+
+    val meta = metaRepo.getAll().find(_.id == depositId).getOrElse(fail("metadata missing"))
+    assert(meta.lastConfirmedAt.isDefined)
+    assert(retainedRepo.getAll().isEmpty)
+  }
+
+  test("syncDistributed does not refresh freshness on a subsequent poll of an already-confirmed row") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, metaRepo, _, retainedRepo) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    relay.pending = List(bareDepositRow(depositId, secretId, aliceContact.edPublicKey, ShareRequestState.Approved))
+
+    svc.syncDistributed()
+    val firstConfirmedAt = metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
+
+    // Second poll: the relay still returns the same already-approved row, and the retained blob
+    // is already gone — must not bump freshness again.
+    svc.syncDistributed()
+    val secondConfirmedAt = metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
+
+    assertEquals(firstConfirmedAt, secondConfirmedAt)
+  }
+
+  test("syncDistributed stamps freshness from an approved retrieval") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, metaRepo, _, _) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
+    val retrievalRow = bareDepositRow(UUID.randomUUID(), secretId, aliceContact.edPublicKey, ShareRequestState.Approved)
+      .copy(transactionType = ShareTransactionType.Retrieval, shareId = Some(depositId))
+    relay.pending = List(retrievalRow)
+
+    svc.syncDistributed()
+
+    val meta = metaRepo.getAll().find(_.id == depositId).getOrElse(fail("metadata missing"))
+    assert(meta.lastConfirmedAt.isDefined)
+  }
+
+  test("syncInbox emits a heartbeat to each distinct sender this device holds a share from") {
+    val relay = FakeShareRelay()
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
+    val secretId = UUID.randomUUID()
+    shareRepo.save(HeldShare(UUID.randomUUID(), secretId, "test secret", aliceContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+
+    svc.syncInbox()
+
+    assertEquals(relay.pushedHeartbeats.size, 1)
+    val pushed = relay.pushedHeartbeats.head
+    assert(pushed.ownerKey.sameElements(aliceContact.edPublicKey))
+    assertEquals(pushed.secretIds, Seq(secretId))
+    assertEquals(pushed.optedOut, false)
+    val canon = PayloadCanonical.forHeartbeat(aliceContact.edPublicKey, Seq(secretId), false)
+    assert(bob.verify(canon, pushed.signature, bob.edPublicKey()))
+  }
+
+  test("syncInbox does not re-emit a heartbeat before the emission interval elapses") {
+    val relay = FakeShareRelay()
+    val recentlySentContact = aliceContact.copy(lastHeartbeatSentAt = Some(Instant.now()))
+    val (svc, _, shareRepo, _, _, _, _) = newService(relay, contacts = List(recentlySentContact))
+    shareRepo.save(
+      HeldShare(UUID.randomUUID(), UUID.randomUUID(), "test secret", recentlySentContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3)
+    )
+
+    svc.syncInbox()
+
+    assert(relay.pushedHeartbeats.isEmpty)
+  }
+
+  test("syncInbox sends an opt-out notice with empty secretIds when heartbeat emission is opted out") {
+    val relay = FakeShareRelay()
+    val optedOutContact = aliceContact.copy(heartbeatEmissionOptedOut = true)
+    val (svc, _, shareRepo, _, _, _, _) = newService(relay, contacts = List(optedOutContact))
+    val secretId = UUID.randomUUID()
+    shareRepo.save(HeldShare(UUID.randomUUID(), secretId, "test secret", optedOutContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+
+    svc.syncInbox()
+
+    assertEquals(relay.pushedHeartbeats.size, 1)
+    val pushed = relay.pushedHeartbeats.head
+    assertEquals(pushed.secretIds, Seq.empty)
+    assertEquals(pushed.optedOut, true)
+  }
+
+  test("syncInbox does not advance lastHeartbeatSentAt when the push fails") {
+    val relay = FakeShareRelay()
+    relay.throwOnPushHeartbeat = true
+    val (svc, _, shareRepo, contactRepo, _, _, _) = newService(relay)
+    shareRepo.save(HeldShare(UUID.randomUUID(), UUID.randomUUID(), "test secret", aliceContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+
+    svc.syncInbox()
+
+    assert(contactRepo.getById(aliceContact.id).flatMap(_.lastHeartbeatSentAt).isEmpty)
+  }
+
+  test("syncDistributed processes a valid heartbeat and stamps freshness on matching shares") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, _, metaRepo, _, retainedRepo) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
+    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    val notice = signedHeartbeat(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, secretIds = Seq(secretId))
+    relay.heartbeatsToReturn = List(notice)
+
+    svc.syncDistributed()
+
+    val meta = metaRepo.getAll().find(_.id == depositId).getOrElse(fail("metadata missing"))
+    assert(meta.lastConfirmedAt.isDefined)
+    assert(retainedRepo.getAll().isEmpty)
+  }
+
+  test("syncDistributed records an opt-out heartbeat without touching share metadata") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, contactRepo, metaRepo, _, _) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
+    val notice = signedHeartbeat(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, optedOut = true)
+    relay.heartbeatsToReturn = List(notice)
+
+    svc.syncDistributed()
+
+    val updated = contactRepo.getById(aliceContact.id).getOrElse(fail("contact missing"))
+    assert(updated.heartbeatOptedOutAt.isDefined)
+    assert(metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).isEmpty)
+  }
+
+  test("syncDistributed clears a prior opt-out once the holder resumes heartbeating") {
+    val relay = FakeShareRelay()
+    val previouslyOptedOutContact = aliceContact.copy(heartbeatOptedOutAt = Some(Instant.now().minusSeconds(3600)))
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay, contacts = List(previouslyOptedOutContact))
+    val notice = signedHeartbeat(aliceKeys.publicKey, bob.edPublicKey(), aliceKeys, optedOut = false)
+    relay.heartbeatsToReturn = List(notice)
+
+    svc.syncDistributed()
+
+    assert(contactRepo.getById(previouslyOptedOutContact.id).flatMap(_.heartbeatOptedOutAt).isEmpty)
+  }
+
+  test("syncDistributed ignores a heartbeat with a forged signature") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, contactRepo, _, _, _) = newService(relay)
+    val notice = signedHeartbeat(aliceKeys.publicKey, bob.edPublicKey(), strangerKeys)
+    relay.heartbeatsToReturn = List(notice)
+
+    svc.syncDistributed()
+
+    assertEquals(contactRepo.getAll(), List(aliceContact))
+  }
+
+  test("setHeartbeatEmissionOptedOut toggles the flag and resets lastHeartbeatSentAt") {
+    val relay = FakeShareRelay()
+    val sentContact = aliceContact.copy(lastHeartbeatSentAt = Some(Instant.now()))
+    val (svc, _, _, contactRepo, _, _, _) = newService(relay, contacts = List(sentContact))
+
+    svc.setHeartbeatEmissionOptedOut(sentContact.id, optedOut = true)
+
+    val updated = contactRepo.getById(sentContact.id).getOrElse(fail("contact missing"))
+    assertEquals(updated.heartbeatEmissionOptedOut, true)
+    assert(updated.lastHeartbeatSentAt.isEmpty)
+  }
+
+  test("setHeartbeatEmissionOptedOut throws for an unknown contact") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, _) = newService(relay)
+
+    intercept[IllegalStateException] {
+      svc.setHeartbeatEmissionOptedOut(UUID.randomUUID(), optedOut = true)
+    }
   }

@@ -17,6 +17,10 @@ POST    /key-rotations                   controllers.api.KeyRotationsController.
 GET     /key-rotations                   controllers.api.KeyRotationsController.listRotations()
 DELETE  /key-rotations/:id               controllers.api.KeyRotationsController.deleteRotation(id: String)
 
+# Item 12's signed custodial-heartbeat push — see CustodyHeartbeatsController
+POST    /custody-heartbeats              controllers.api.CustodyHeartbeatsController.pushHeartbeat()
+GET     /custody-heartbeats              controllers.api.CustodyHeartbeatsController.listHeartbeats()
+
 # … but also for the Web-based emulator/simulator
 ->      /phonyPhone                      phon.Routes
 

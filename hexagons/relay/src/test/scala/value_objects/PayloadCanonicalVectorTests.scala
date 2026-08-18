@@ -126,3 +126,45 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
     val sig = Signature.fromBase64Url(expectedRotationSignatureBase64Url).getOrElse(fail("bad fixture signature"))
     assert(pk.verify(canon, sig))
   }
+
+  // ---------------------------------------------------------------------------
+  // forHeartbeat (item 12) — same cross-platform-interop purpose as forOpen/forRotation above,
+  // checked into Android's and iOS's PayloadCanonicalVectorTest/-Tests once their turn comes.
+  // Uses the same fixed private key seed as forOpen/forRotation so all three vectors are anchored
+  // to one known keypair.
+  // ---------------------------------------------------------------------------
+
+  private val heartbeatOwnerKey = PublicKey.fromBytes(Array.fill(32)(0x06.toByte)).getOrElse(fail("bad fixture key"))
+  // Deliberately out of sorted order in the fixture to prove forHeartbeat sorts before joining —
+  // a naive pass-through would silently disagree with a platform that assembled the list differently.
+  private val heartbeatSecretIds = Seq(
+    UUID.fromString("33333333-3333-3333-3333-333333333333"),
+    UUID.fromString("11111111-1111-1111-1111-111111111111"),
+    UUID.fromString("22222222-2222-2222-2222-222222222222")
+  )
+  private val expectedHeartbeatSignatureBase64Url =
+    "w6fmGn4t7y2RSNakPBzi57H40u5kJI6CZAhEGdzLBOwZd__jabsge2tEmIpczMqEd3ODpNUJ72Ww2KEe8LYQCw"
+
+  test("forHeartbeat produces the fixed canonical bytes, sorted regardless of input order") {
+    val canon = PayloadCanonical.forHeartbeat(heartbeatOwnerKey, heartbeatSecretIds, optedOut = false)
+    val expected =
+      "BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY\n11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222,33333333-3333-3333-3333-333333333333\nfalse"
+    assertEquals(new String(canon, "UTF-8"), expected)
+  }
+
+  test("signing the heartbeat canonical bytes with the fixed seed reproduces the fixed signature") {
+    val canon = PayloadCanonical.forHeartbeat(heartbeatOwnerKey, heartbeatSecretIds, optedOut = false)
+    val privKey = Ed25519PrivateKeyParameters(privateKeySeed, 0)
+    val signer = Ed25519Signer()
+    signer.init(true, privKey)
+    signer.update(canon, 0, canon.length)
+    val sig = signer.generateSignature()
+    assertEquals(b64url.encodeToString(sig), expectedHeartbeatSignatureBase64Url)
+  }
+
+  test("the fixed heartbeat signature verifies against the fixed public key via PublicKey.verify") {
+    val canon = PayloadCanonical.forHeartbeat(heartbeatOwnerKey, heartbeatSecretIds, optedOut = false)
+    val pk = PublicKey.fromBase64Url(expectedPublicKeyBase64Url).getOrElse(fail("bad fixture key"))
+    val sig = Signature.fromBase64Url(expectedHeartbeatSignatureBase64Url).getOrElse(fail("bad fixture signature"))
+    assert(pk.verify(canon, sig))
+  }

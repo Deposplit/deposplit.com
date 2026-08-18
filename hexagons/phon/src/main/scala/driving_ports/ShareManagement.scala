@@ -84,3 +84,10 @@ trait ShareManagement:
   // ─── Item 10 — key conflicts (never auto-resolved), local-only, no relay involvement ────────
   def listKeyConflicts(): List[KeyConflict]
   def dismissKeyConflict(id: UUID): Unit
+
+  // ─── Item 12 — custodial heartbeats, holder-side opt-out ────────────────────
+  /** This device's own choice to stop (or resume) heartbeating contactId (who is the owner of
+    * shares this device holds from them). Low-stakes and reversible, unlike marking a key
+    * compromised — no confirmation needed.
+    */
+  def setHeartbeatEmissionOptedOut(contactId: UUID, optedOut: Boolean): Unit

@@ -106,8 +106,39 @@ CREATE TABLE key_rotations (
 
 CREATE INDEX ON key_rotations (recipient_key);
 
+-- Item 12's signed custodial-heartbeat push: a holder's proactive "still guarding {secretIds}
+-- for you" notice (or, when opted_out is true, a signed "my silence from here on is not a loss
+-- signal" notice), addressed to one owner at a time. Deliberately not a share_requests row (no
+-- secret_id singular, no consent phase) and, unlike key_rotations/inventory, deliberately NOT
+-- consumed-and-deleted: this table holds only the LATEST heartbeat per (holder_key, owner_key)
+-- pair, upserted on every push, since it represents an ongoing "last seen" status rather than a
+-- one-shot delivery. The owner's durable freshness/opt-out state lives on the owner's own
+-- device, refreshed each time it observes this row — this table may be GC'd or pruned by
+-- operators at any time without consequence (see hexagons/relay's CustodyHeartbeat and
+-- deposplit.com/CLAUDE.md "What is next" item 12).
+--
+-- secret_ids is a comma-joined list of UUID strings — opaque to the relay, which only stores and
+-- forwards it. Kept as TEXT rather than a native array column for portability (H2/Postgres) and
+-- consistency with how every other opaque payload on this table is stored.
+--
+-- signature is an Ed25519 signature by holder_key's private key over (ownerKey || sortedSecretIds
+-- || optedOut) — see hexagons/relay's PayloadCanonical.forHeartbeat for the exact bytes.
+CREATE TABLE custody_heartbeats (
+    id           UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
+    holder_key   BYTEA   NOT NULL,
+    owner_key    BYTEA   NOT NULL,
+    secret_ids   TEXT    NOT NULL,
+    opted_out    BOOLEAN NOT NULL DEFAULT false,
+    signature    BYTEA   NOT NULL,
+    created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    UNIQUE (holder_key, owner_key)
+);
+
+CREATE INDEX ON custody_heartbeats (owner_key);
+
 # --- !Downs
 
+DROP TABLE custody_heartbeats;
 DROP TABLE key_rotations;
 DROP TABLE share_requests;
 

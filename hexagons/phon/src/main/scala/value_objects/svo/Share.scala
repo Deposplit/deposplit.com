@@ -95,5 +95,9 @@ case class ShareMetadata(
     secretId: UUID,
     // The holder's stable local contact id — not their Ed25519 key — so this record survives a
     // holder key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
-    contactId: UUID
+    contactId: UUID,
+    // Item 12 — the last time this holder proved custody (relay-observed pickup, a retrieve
+    // approval, or a custodial heartbeat), gating whether this share counts toward n_live within
+    // CustodyHeartbeatTuning.lossThreshold. None until first confirmed.
+    lastConfirmedAt: Option[Instant] = None
 ) extends Serializable

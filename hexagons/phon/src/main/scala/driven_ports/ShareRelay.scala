@@ -24,6 +24,7 @@
 
 package driven_ports
 
+import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
@@ -100,3 +101,19 @@ trait ShareRelay:
 
   /** Deletes a rotation notice once consumed. */
   def deleteRotation(id: UUID): Unit
+
+  // Item 12's signed custodial-heartbeat push. Grouped onto this trait for the same reason as
+  // the rotation methods above — same physical relay endpoint, same BYOR per-contact routing.
+
+  /** Pushes (upserts) a signed heartbeat to one owner. `signature` must verify against the
+    * caller's own current Ed25519 key (the relay's `holderKey`) over
+    * `value_objects.svo.PayloadCanonical.forHeartbeat`. The same call covers the opt-out notice
+    * (`optedOut = true`).
+    */
+  def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit
+
+  /** The latest heartbeat from each holder addressed to this device (the owner). Never
+    * consumed-and-deleted — see `CustodyHeartbeat` for why it's a standing status, not a
+    * one-shot delivery.
+    */
+  def listHeartbeats(): List[CustodyHeartbeat]

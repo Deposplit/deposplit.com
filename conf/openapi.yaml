@@ -71,6 +71,20 @@ info:
     proving the caller still controls the old private key — this is what lets the recipient
     auto-accept the rotation without a fresh human re-verification.
 
+    `signature` on a `POST /custody-heartbeats` push (item 12) follows the same pattern: an
+    Ed25519 signature by the caller (who becomes `holderKey`) over:
+
+    ```
+    ownerKey(base64url) || "\n" || sortedSecretIds(comma-joined, lowercase) || "\n" || optedOut("true"|"false")
+    ```
+
+    A heartbeat is a standing "still guarding {secretIds} for you" status, not a one-shot
+    delivery: the relay keeps only the *latest* push per `(holderKey, ownerKey)` pair (upserted,
+    never accumulated or deleted on read). The same construction covers the signed opt-out notice
+    (`optedOut: true`, `secretIds` typically empty) — mechanically the same push, different meaning
+    to the reader. The owner's own device is what durably remembers a holder's opted-out status;
+    the relay row itself may be GC'd at any time without consequence.
+
     ## Key exchange
 
     Contacts exchange public keys out-of-band (QR code scanned in person, or a link shared
@@ -345,6 +359,62 @@ components:
           type: string
           description: >
             Base64url Ed25519 signature by the caller over this notice's canonical bytes — see
+            "Payload signatures" above. Returns `400` if it doesn't verify.
+
+    CustodyHeartbeat:
+      description: >
+        Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding
+        {secretIds} for you" notice (or, when optedOut is true, a signed "my silence from here on
+        is not a loss signal" notice), addressed to one owner at a time. Deliberately not a
+        `ShareRequest`/`KeyRotation`: no singular `secretId`, no consent phase, and — unlike
+        `KeyRotation`/inventory — never consumed-and-deleted; the Web app/service keeps only the
+        *latest* heartbeat per `(holderKey, ownerKey)` pair, upserted on every push.
+      type: object
+      required: [id, holderKey, ownerKey, secretIds, optedOut, signature, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        holderKey:
+          $ref: '#/components/schemas/PublicKey'
+        ownerKey:
+          $ref: '#/components/schemas/PublicKey'
+        secretIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Every secret this holder currently holds a share of for this owner.
+        optedOut:
+          type: boolean
+          description: >
+            When true, this holder has signalled it will no longer heartbeat this owner — the
+            owner's app should stop treating subsequent silence from this holder as a loss signal.
+        signature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by holderKey — see "Payload signatures" above.
+        createdAt:
+          type: string
+          format: date-time
+
+    PushHeartbeatBody:
+      type: object
+      required: [ownerKey, secretIds, optedOut, signature]
+      properties:
+        ownerKey:
+          $ref: '#/components/schemas/PublicKey'
+        secretIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        optedOut:
+          type: boolean
+        signature:
+          type: string
+          description: >
+            Base64url Ed25519 signature by the caller over this heartbeat's canonical bytes — see
             "Payload signatures" above. Returns `400` if it doesn't verify.
 
     Error:
@@ -707,3 +777,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /custody-heartbeats:
+    post:
+      operationId: pushHeartbeat
+      summary: Push (upsert) a signed custodial-heartbeat for one owner (item 12)
+      description: >
+        The authenticated caller becomes `holderKey`. Not consent-gated and no conflict check —
+        a fire-and-forget push, the same shape as `inventory`/`key-rotations`. Unlike those,
+        never consumed-and-deleted: this upserts by `(holderKey, ownerKey)`, replacing any
+        previous heartbeat from the same holder to the same owner rather than accumulating.
+      tags: [CustodyHeartbeats]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushHeartbeatBody'
+      responses:
+        '201':
+          description: Heartbeat pushed (created or updated).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustodyHeartbeat'
+        '400':
+          description: Missing/invalid field, or signature missing/invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      operationId: listHeartbeats
+      summary: List the latest heartbeat from each holder addressed to the caller
+      tags: [CustodyHeartbeats]
+      responses:
+        '200':
+          description: Heartbeat list, one entry per distinct holder.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustodyHeartbeat'

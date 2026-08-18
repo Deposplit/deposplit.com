@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Item 9 is mostly shipped; item 10 is fully shipped; 12–13 are design-complete but not yet
-> built** (items 6, 7, 8, and 11 shipped too — see below). `No migrations` throughout — Deposplit
-> is pre-launch; test relays and devices reset to a clean slate.
+> ⚠ **Item 9 is mostly shipped; items 10 and 12 are fully shipped; 13 is design-complete but not
+> yet built** (items 6, 7, 8, and 11 shipped too — see below). `No migrations` throughout —
+> Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -60,7 +60,15 @@ is better served by one board than three. This file lives in the hub repo
   resolved conflict UI, and the retrieve-approval "key changed N days ago" indicator. Shipped on
   Android and iOS with full UI; phon picked up the data-model + gating logic for consistency,
   no HTMX UI.
-- Rough dependency order for what's left: **9 (repair-flow UI trigger) and 12 → 13**.
+- **Item 12 (custodial-heartbeat cadence) is done** — closes the last piece item 9 left open by
+  flipping its health-check from a sender-pull to a holder-push. Relay gained a `custody_heartbeats`
+  table (latest-wins upsert per `(holder_key, owner_key)`, never consumed-and-deleted, unlike
+  `inventory`/`key_rotations`). Every client gained deposit-blob retention until first-observed
+  pickup confirmation (relay-observed *or* heartbeat-attested), a freshness clock on `ShareMetadata`
+  (`lastConfirmedAt`), and opt-out capture on `Contact`. Shipped on the relay, Android, iOS, and
+  (for consistency, not full parity) phon.
+- Rough dependency order for what's left: **9 (repair-flow UI trigger + regenerate-identity
+  trigger) → 13**.
 
 ---
 
@@ -92,7 +100,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — items 6, 7, 8, 10, 11 done, 9 mostly shipped, 12–13 design-complete but not yet built
+## Planned items (6–13) — items 6, 7, 8, 10, 11, 12 done, 9 mostly shipped, 13 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -466,18 +474,24 @@ on all three platforms before this item; no new code needed there. Hexagon only;
 - [x] `A` `I` `discardSecret(secretId)` fan-out consent-gated `delete` primitive + "discard secret" UI
 - [x] `A` `I` two-state `ACTIVE`/`DISCARDING` + health-alarm suppression while `DISCARDING`; record removed on teardown/force-forget (`forceForgetSecret`)
 - [x] `A` `I` split-time three-axis soft warnings (operational burden / confidentiality tail `k` low vs `n` / availability tail `n−k` small)
-- [x] `A` `I` graduated `n_live` health alarm (`>=k+2` healthy · `==k+1` caution · `==k` critical · `<k` lost) — feeds item 9; `n_live` is a pre-item-9/12 proxy (locally-tracked holder count) until item 12's freshness model lands
+- [x] `A` `I` graduated `n_live` health alarm (`>=k+2` healthy · `==k+1` caution · `==k` critical · `<k` lost) — feeds item 9; `n_live` was a pre-item-12 proxy (locally-tracked holder count) at the time this item shipped, since refined into item 12's freshness-gated count
 - [x] `A` `I` free-cap counts `ACTIVE` only; `discardSecret` frees the slot immediately (item 5 / C4) — no enforcement exists yet since item 5 itself isn't built, but the `Secret.state` data model is ready for it
 - [x] `phon` `Secret` aggregate + `reconstruct`/`discardSecret`/`forceForgetSecret` primitives; simplified its existing manual delete-fan-out to call `discardSecret` directly. Skipped the health badge and split-time warning UI (consistency, not full parity — not originally tagged for this item)
 
-### Item 12 — Polling, staleness & relay-TTL cadence (custodial-heartbeat) · [CLAUDE.md#12](CLAUDE.md)
-Flips item 9's health-check pull→push. `relay` untouched (blind mailbox).
-- [ ] `R` `A` `I` reshape item 9's health-check → holder-initiated **signed custodial-heartbeat push** (default-on, holder-disableable) + **signed opt-out notice** message type
-- [ ] `A` `I` per-holder freshness clock + three buckets (`Confirmed` / `Unmonitored-by-choice` / `Silent-overdue`) feeding `n_live`; refreshed by any signed proof-of-custody (heartbeat / pickup / retrieve approval)
-- [ ] `A` `I` "getting stale" early-nudge UI; long-silent holders drop out of `n_live` (reversible)
-- [ ] `A` `I` client-side "retain encrypted-to-holder blob until pickup confirmed (relay-observed *or* heartbeat-attested)" rule in the deposit flow
-- [ ] `R` two-class relay TTL (action-requests generous / pushes short-latest-wins) — operator config
+### Item 12 — Polling, staleness & relay-TTL cadence (custodial-heartbeat) · [CLAUDE.md#12](CLAUDE.md) · *done*
+Flips item 9's health-check pull→push. `relay` schema gained one new table (`custody_heartbeats`); the relay's role as a blind mailbox is otherwise unchanged.
+- [x] `R` `A` `I` `phon` reshape item 9's health-check → holder-initiated **signed custodial-heartbeat push** (default-on, holder-disableable) + **signed opt-out notice** message type — same wire shape covers both (`optedOut: true`, `secretIds` typically empty)
+- [x] `A` `I` per-holder freshness clock + three buckets (`Confirmed` / `Unmonitored-by-choice` / `Silent-overdue`) feeding `n_live`; refreshed by any signed proof-of-custody (heartbeat / pickup / retrieve approval)
+- [x] `A` `I` "getting stale" early-nudge UI; long-silent holders drop out of `n_live` (reversible)
+- [x] `A` `I` `phon` client-side "retain encrypted-to-holder blob until pickup confirmed (relay-observed *or* heartbeat-attested)" rule in the deposit flow
+- [-] `R` two-class relay TTL (action-requests generous / pushes short-latest-wins) — operator config; **not enforced by the relay code itself** (no TTL/GC job was written — the item's own framing is "the relay may GC aggressively under quota pressure," an operational deployment concern, not application logic to build pre-launch)
 - [x] nonce/auth window stays 5 min (no change)
+
+  **`R` implementation notes (2026-08-18):** `hexagons/relay/src/main/scala/value_objects/CustodyHeartbeat.scala` (`id, holderKey, ownerKey, secretIds, optedOut, signature, createdAt`) + `PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut)` (sorts `secretIds` before joining, so the signed bytes are independent of list-construction order) + `driving_ports/CustodyHeartbeats` (`pushHeartbeat`, `listHeartbeats` — no delete method) + `driven_ports/persistence/CustodyHeartbeatRepository` (`upsertHeartbeat`, `getHeartbeatsForOwner`) + `driving_adapters/CustodyHeartbeatsService`. `app/driven_adapters/persistence/AnormCustodyHeartbeatRepository` — the one real gotcha: H2's PostgreSQL-compatibility mode doesn't support `ON CONFLICT ... DO UPDATE`, so `upsertHeartbeat` does a portable select-existing-id-then-branch-to-INSERT-or-UPDATE instead, the same pattern already established for partial-index emulation elsewhere in this codebase. `app/controllers/api/CustodyHeartbeatsController` (`POST`/`GET /custody-heartbeats`), routes, `ApiSupport.custodyHeartbeatJson`, `Module` binding, `conf/evolutions/default/1.sql` (`custody_heartbeats` table, `UNIQUE (holder_key, owner_key)`), `conf/openapi.yaml`. Tests: `PayloadCanonicalVectorTests` gained 3 `forHeartbeat` vector cases (fixed 32-byte seed, deliberately unsorted `secretIds` fixture, expected signature computed from an actual BouncyCastle run); `CustodyHeartbeatsServiceTests` (6 new, `InMemoryCustodyHeartbeatRepository` double); `CustodyHeartbeatsApiSpec` (7 new integration tests). `relay/test`: 83 → 92 tests.
+
+  **`I`/`A` implementation notes (2026-08-18):** Both platforms landed on the same design independently. New value objects: `CustodyHeartbeat` (addressed to this device), `CustodyHeartbeatTuning` (`emissionInterval = 3 days`, `lossThreshold = 3×`, `staleWarningThreshold = 2×` — UI tuning, not load-bearing spec per the item's own framing), `RetainedDepositBlob` + a new `RetainedDepositRepository` driven port. `Contact` gained `heartbeatOptedOutAt`/`lastHeartbeatSentAt`/`heartbeatEmissionOptedOut`; `ShareMetadata` gained `lastConfirmedAt`. `ShareRelay` gained `pushHeartbeat`/`listHeartbeats`; `ShareManagement` gained `setHeartbeatEmissionOptedOut`. `ShareService.deposit()` now saves a `RetainedDepositBlob` per holder (safe to retain — each blob is encrypted to the *holder's* X25519 key, so the sender can't decrypt it herself); `syncDistributed()` was rewritten to gate the freshness stamp on `isRetentionStillPending(id)` rather than the row's `Approved` state alone (a **one-time transition** — an unchanging Approved row on a later poll must not keep re-stamping freshness, or a long-dead holder would look perpetually confirmed), to poll approved retrievals purely for their freshness side effect, and to call the new `processHeartbeats()`; `syncInbox()` calls the new `emitHeartbeats()`. `emitHeartbeats()` (holder side) coalesces one signed heartbeat/opt-out notice per distinct sender once due, advancing `lastHeartbeatSentAt` **only on a successful push** (so a transient relay outage retries next poll rather than waiting a full interval). `processHeartbeats()` (owner side) auto-verifies each notice against the holder's trusted key, captures/clears `heartbeatOptedOutAt` the instant it's observed (durable and local — mirrors item 10's `KeyConflict` pattern, since the relay may lose its state at any time), and stamps `lastConfirmedAt` on matching `ShareMetadata`. Android/iOS UI: a `FreshnessBucket` enum feeding a freshness-gated `n_live` on `SecretGroup.health`, stale/unmonitored/silent-overdue labels on the Distributed tab, and a per-contact "Pause/Resume Heartbeats" Contacts-screen action. Tests: iOS `ShareServiceTests` gained 15 new cases (widened `makeService()`'s tuple 6→7 across 19 destructured call sites plus 3 direct constructions; `FakeShareMetadataRepository.save` had to be fixed from append-only to upsert — a pre-existing bug the new freshness tests exposed) plus 2 `PayloadCanonicalVectorTests` cases; `swift test` 73/73. Android `ShareServiceTest` gained 13 new cases (`FakeShareMetadataRepository.save` proactively fixed to upsert *before* running any tests, applying the iOS lesson — all 13 passed first try) plus 3 `PayloadCanonicalVectorTest` cases (byte-identical signature match confirmed against the relay's fixture); `:hexagon:test` 62 → 78. `:app:compileDebugKotlin` and full `./gradlew test` green.
+
+  **`phon` implementation notes (2026-08-18):** Consistency, not parity — full data model + `ShareService` gating logic (deposit retention, freshness stamping, heartbeat emit/process, opt-out toggle), no HTMX UI (no toggle button, no freshness badge — phon's minimal views have no plumbing for either yet, matching every prior item's precedent). New `value_objects/svo/CustodyHeartbeat.scala`, `CustodyHeartbeatTuning.scala`, `RetainedDepositBlob.scala` + `driven_ports/RetainedDepositRepository.scala`. `Contact.scala`/`Share.scala` gained the same fields as Android/iOS; `PayloadCanonical.forHeartbeat` mirrors the relay's construction byte-for-byte; `ShareRelay.scala` gained `pushHeartbeat`/`listHeartbeats`; `ShareManagement.scala` gained `setHeartbeatEmissionOptedOut`. `ShareService.scala`'s `deposit`/`syncDistributed`/`syncInbox` were extended identically to Android's shape (Scala `Option`/`Try` in place of Kotlin nullable/`runCatching`), with the same first-observation retention-gating fix applied *before* running tests (the `FakeShareMetadataRepository.save` upsert bug had already been caught twice by this point — Android and iOS — so it was fixed proactively here too). Root-app wiring: `HttpClientShareRelay` gained `pushHeartbeat`/`listHeartbeats` HTTP calls against the real `POST`/`GET /custody-heartbeats` endpoints; new `driven_adapters/phon/FileRetainedDepositRepository.scala` (structurally identical to `FileShareRepository.scala`); bound in `PhonModule.scala`. Tests: `ShareServiceSignatureTests` gained 14 new cases via a `FakeRetainedDepositRepository` test double and extending `FakeShareRelay` with heartbeat push/list tracking — needed widening `newService`'s return tuple from 6 to 7 across 19 destructured call sites (`ShareServiceSignatureTests.scala`) plus 2 in the separate `ShareRelayResolverFanOutTests.scala` file (same package, so the new fake is visible there without duplication); `FakeShareMetadataRepository.save` fixed from append-only to upsert alongside the others. `phon/test`: 57 → 71 tests, 0 failures. Full project `sbt test` (relay 92 + phon 71 + root 58 = 221) green.
 
 ### Item 13 — Retrieve fan-out beyond `k` + reconstruction integrity · [CLAUDE.md#13](CLAUDE.md)
 Client-only; `relay` untouched. Integrity via over-determination **only** (no stored commitment).
@@ -523,7 +537,8 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, and 11 have since shipped
-(see `CHANGELOG.md`); item 9's rotation push and withdraw tombstone have too, across every
-platform — its remaining pieces (the health-check, and the "regenerate my own identity" trigger)
-were deliberately scoped out, not merely pending. All other implementation above is pending.
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, 10, 11, and 12 have since
+shipped (see `CHANGELOG.md`); item 9's rotation push and withdraw tombstone have too, across
+every platform, and its health-check piece shipped separately under item 12's reshape — its one
+remaining piece, the "regenerate my own identity" trigger, was deliberately scoped out, not
+merely pending. All other implementation above is pending.

@@ -28,6 +28,7 @@ import driven_ports.ShareRelay
 import driving_ports.Identity
 import jakarta.inject.Inject
 import play.api.libs.json.*
+import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
@@ -139,6 +140,19 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("DELETE", s"/key-rotations/$id")
     ()
 
+  override def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit =
+    val body = Json.obj(
+      "ownerKey"  -> encodeBase64Url(ownerKey),
+      "secretIds" -> secretIds.map(_.toString),
+      "optedOut"  -> optedOut,
+      "signature" -> encodeBase64Url(signature)
+    )
+    send("POST", "/custody-heartbeats", Some(body))
+    ()
+
+  override def listHeartbeats(): List[CustodyHeartbeat] =
+    send("GET", "/custody-heartbeats").as[JsArray].value.map(parseCustodyHeartbeat).toList
+
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   private def send(method: String, path: String, body: Option[JsValue] = None): JsValue =
@@ -216,6 +230,17 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
       newEd25519Key = decodeBase64Url((json \ "newEd25519Key").as[String]),
       newX25519Key = decodeBase64Url((json \ "newX25519Key").as[String]),
+      signature = decodeBase64Url((json \ "signature").as[String]),
+      createdAt = Instant.parse((json \ "createdAt").as[String])
+    )
+
+  private def parseCustodyHeartbeat(json: JsValue): CustodyHeartbeat =
+    CustodyHeartbeat(
+      id = UUID.fromString((json \ "id").as[String]),
+      holderKey = decodeBase64Url((json \ "holderKey").as[String]),
+      ownerKey = decodeBase64Url((json \ "ownerKey").as[String]),
+      secretIds = (json \ "secretIds").as[Seq[String]].map(UUID.fromString),
+      optedOut = (json \ "optedOut").as[Boolean],
       signature = decodeBase64Url((json \ "signature").as[String]),
       createdAt = Instant.parse((json \ "createdAt").as[String])
     )
