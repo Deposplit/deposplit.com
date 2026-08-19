@@ -85,10 +85,10 @@ is better served by one board than three. This file lives in the hub repo
 - [ ] Android deposits → iOS approves the Deposit → later a Retrieval → Android reconstructs, against a live `sbt run`
 - [ ] BYOR variant: two local `sbt run` instances on different ports; one contact with a `relayBaseUrl` override → verify deposit/pickup/retrieve/delete route through the override while a no-override contact still round-trips through the default
 
-### Item 3 — Recipient-side signature verification · [CLAUDE.md#3](CLAUDE.md) · *mostly done*
+### Item 3 — Recipient-side signature verification · [CLAUDE.md#3](CLAUDE.md) · *done*
 - [x] `R` `senderSignature`/`recipientSignature` over `PayloadCanonical`, server-side re-verify (89 tests)
 - [x] `A` sign + re-verify against local contact key (31 tests)
-- [~] `I` implemented but **not yet compiled / test-run** — needs a real `swift build`/`swift test` on macOS (see `iOS/CLAUDE.md` "TODO for Claude on macOS")
+- [x] `I` implemented and now confirmed compiled/test-run — **stale-note correction, 2026-08-19**: this was flagged "not yet compiled/test-run" back when this Mac session first got a working Swift toolchain, but every item shipped since (6–12, the repair flow, item 1) has required a passing `swift build`/`swift test`/`xcodebuild build` on this same `hexagon` package, so the signature-verification/BYOR code has actually been compiled and exercised many times over; the note just never got updated. Re-confirmed directly: `swift test --filter ShareServiceTests` (41/41, signature-verification + BYOR fan-out gating), `--filter PayloadCanonicalVectorTests` (5/5, cross-platform vector), `--filter IdentityServiceVerifyTests` (3/3) all pass.
 
 ### Item 4 — BYOR (Bring Your Own Relay) · [CLAUDE.md#4](CLAUDE.md) · *self-hosted done*
 - [x] `R` `A` `I` self-hosted-instance BYOR: `Contact.relayBaseUrl`, `ShareRelayResolver`, deduped fan-out, QR `v:2` `relay` field, runtime "default relay" setting
