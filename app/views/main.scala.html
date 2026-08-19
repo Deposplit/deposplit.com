@@ -40,6 +40,7 @@
 </head>
 
 <body>
+    <a class="visually-hidden-focusable" href="#content">@messages("skipToMainContent")</a> @* https://getbootstrap.com/docs/5.3/getting-started/accessibility/#visually-hidden-content *@
     <header class="navbar navbar-expand-md navbar-dark fixed-top bg-primary">
         <nav class="container-fluid" aria-label="Main navigation">
             <a class="navbar-brand" href="/">Deposplit</a>
@@ -120,7 +121,7 @@
         </nav>
     </header>
 
-    <main class="container">
+    <main class="container" id="content">
         @content
     </main>
 

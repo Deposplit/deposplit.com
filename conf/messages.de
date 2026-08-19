@@ -1,5 +1,7 @@
 locale = de
 
+skipToMainContent = Direkt zum Hauptinhalt
+
 notFound.title = Nicht Gefunden
 notFound.page = Die Seite, welche Sie angefordert haben, wurde nicht gefunden.
 
@@ -48,7 +50,7 @@ keyTransmission = Übertragungsschlüssel
 mySecrets = Meine Geheimnisse
 pendingRequests = Hängige Anfragen
 pseudonym = Pseudonym
-pseudonymHelp = Pseudonyms dürfen nicht leer (aber müssen nicht eindeutig) sein.
+pseudonymHelp = Pseudonyme dürfen nicht leer (aber müssen nicht eindeutig) sein.
 secretsManagement = Geheimnisverwaltung
 splitAndShareSecret = Geheimnis auf- & verteilen
 theirShares = Deren Anteile

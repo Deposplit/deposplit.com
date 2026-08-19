@@ -1,5 +1,7 @@
 locale = en
 
+skipToMainContent = Skip to main content
+
 notFound.title = Not Found
 notFound.page = The page that you have requested has not been found.
 
