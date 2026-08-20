@@ -22,6 +22,14 @@ Deposplit's architecture evolved through several design sessions:
 
 6. **Unified single-table relay:** The two-table schema (`shares` + `share_requests`) was collapsed into a single `share_requests` table with three transaction types: `deposit`, `retrieval`, and `removal`. All three follow the same symmetric consent model — Alice requests something of Bob; Bob can approve or deny. Every row is self-describing with embedded `sender_key` and `recipient_key`, making the relay fully stateless. The DB schema now has one table.
 
+7. **Relay bounded-context review (Aug 2026):** the relay grew from one table (`share_requests`) to three (`share_requests`, `key_rotations`, `custody_heartbeats`) as items 8, 9, and 12 landed, each adding its own port/service/repository/controller slice. A review confirmed this growth had not fractured the bounded context: all three slices share one actor model (Ed25519-identified callers, no registration), one delivery pattern (signed, opaque, self-describing rows, poll-based), and a common shared kernel of value objects (`PublicKey`, `Signature`, `PayloadCanonical`, `AuthHelper`) — a shared kernel this large between "contexts" is itself the DDD tell that they're one context with two subdomains, not two contexts. This matches how the clients already treat the relay: `ShareRelay` deliberately grew item 9's and item 12's methods onto its single existing port rather than a second one, reasoning explicitly (see `TODO.md` item 9) that it's "one physical relay, one BYOR routing scheme — a second port/resolver would have bought nothing." The same reasoning applies with equal force on the server side.
+
+   The one real seam, already implicit in item 12's two retention classes (**generous** retention for consent-gated action requests vs. **short/latest-wins** for fire-and-forget pushes), is now named explicitly as two subdomains within the single Relay bounded context — **naming only, no structural or package change**:
+   - **Custody Transactions** — `share_requests` (deposit/retrieval/removal/inventory): the consent-gated core protocol that actually moves share material.
+   - **Presence & Identity Notices** — `key_rotations` + `custody_heartbeats`: fire-and-forget gossip supporting the core protocol (key continuity, liveness) but never itself carrying share bytes.
+
+   No code, package, or sbt-subproject change follows from this — it's a documentation seam, giving a precise place to cut later if a structural split is ever warranted (e.g. if item 4's parked non-REST BYOR relay-kinds are ever revisited, a smaller "Custody Transactions only" core is the natural thing to backport to a non-REST backend, since presence/gossip doesn't fit a spreadsheet model anyway).
+
 ## Architecture Decisions
 
 ### Communication Layer: Custom Web App/Service
