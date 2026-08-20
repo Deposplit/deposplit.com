@@ -18,9 +18,9 @@ is better served by one board than three. This file lives in the hub repo
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
 > ⚠ **Item 9 is shipped except for its deliberately-parked identity-regen trigger; items 10 and 12
-> are fully shipped; 13 is design-complete but not yet built** (items 6, 7, 8, and 11 shipped too
-> — see below). `No migrations` throughout — Deposplit is pre-launch; test relays and devices
-> reset to a clean slate.
+> are fully shipped; 13 and 14 are design-complete but not yet built** (items 6, 7, 8, and 11
+> shipped too — see below). `No migrations` throughout — Deposplit is pre-launch; test relays and
+> devices reset to a clean slate.
 
 ---
 
@@ -71,8 +71,12 @@ is better served by one board than three. This file lives in the hub repo
   pickup confirmation (relay-observed *or* heartbeat-attested), a freshness clock on `ShareMetadata`
   (`lastConfirmedAt`), and opt-out capture on `Contact`. Shipped on the relay, Android, iOS, and
   (for consistency, not full parity) phon.
-- Rough dependency order for what's left: **13** (item 9's only remaining piece, the
-  regenerate-identity trigger, is deliberately parked, not a scheduling dependency).
+- **Item 14 (crypto agility) depends on item 7 (done) and extends item 9's rotation mechanism +
+  item 10's downgrade rule (both done)** — no new prerequisite work, safe to start any time.
+  Independent of item 13; the two can proceed in either order or in parallel.
+- Rough dependency order for what's left: **13, 14** (independent of each other; item 9's only
+  remaining piece, the regenerate-identity trigger, is deliberately parked, not a scheduling
+  dependency).
 
 ---
 
@@ -104,7 +108,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–13) — items 6, 7, 8, 9, 10, 11, 12 done (9's identity-regen trigger deliberately parked), 13 design-complete but not yet built
+## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12 done (9's identity-regen trigger deliberately parked), 13 and 14 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -572,6 +576,19 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 - [ ] `A` `I` cross-check any surplus to detect (`k+1`) / identify-and-exclude (Reed-Solomon `⌊m/2⌋`) a bad or malicious share
 - [ ] `A` `I` "reconstructed without integrity margin" advisory when `n_live == k`
 
+### Item 14 — Crypto agility (self-describing keys, bundled cipher suites, transport tagging) · [CLAUDE.md#14](CLAUDE.md)
+Touches the relay, Android, iOS, and (for consistency) phon. **No migrations** (pre-launch).
+- [ ] `R` `phon` `A` `I` rename `Contact`/`Identity`/`IdentityStore` fields: `edPublicKey`/`edPrivateKey` → `verifyKey`/`signKey`; `xPublicKey`/`xPrivateKey` → `encKey`/`decKey`
+- [ ] `R` `phon` `A` `I` add `CipherSuite` value object (bundled sign+agreement algorithm pair, `wireValue`-style tag, not a raw ordinal) + `Contact.cipherSuite` field, one entry (`"ed25519+x25519-v1"`) on day one
+- [ ] `R` `phon` `A` `I` `key_rotations` schema: rename `old_ed25519_key`/`new_ed25519_key`/`new_x25519_key` → `old_verify_key`/`new_verify_key`/`new_enc_key`; add `new_cipher_suite` column (no `old_cipher_suite` — implied by the existing pinned `Contact` record); extend `PayloadCanonical.forRotation`'s signed bytes (append-only) + recompute the cross-platform fixed-seed vector
+- [ ] `phon` `A` `I` extend item 10's `min(level, LOW)` downgrade to trigger on a cipher-suite-only change too, no key-value change required
+- [ ] `R` `PublicKey.verify()` becomes algorithm-dispatching (single-branch today; the extension point for a future second signing algorithm)
+- [ ] `R` `phon` `A` `I` drop the hard-coded `KeyLength = 32` check in `PublicKey`/`X25519Key` (and platform equivalents) — variable-length keys/signatures
+- [ ] `phon` `A` `I` new `TransportSuite` value object (KDF+AEAD wire tag) + self-describing ciphertext wire format (`suiteTag || nonce || ciphertext+tag`, replacing `nonce || ciphertext+tag`); encrypt always writes the current suite, decrypt dispatches on the tag, unknown tag → typed user-visible error, not a silent misparse. No `share_requests`/`PayloadCanonical` schema change needed — the `ciphertext` blob is already fully signed
+- [ ] `A` `I` QR/link contact-exchange payload gains a `cipherSuite` field (version bump from `v:2`); decide whether `ed`/`x` field names get renamed alongside it
+- [ ] `doc` update CLAUDE.md's Cryptography/Transport Encryption sections and the Android/iOS `CLAUDE.md` package-layout tables once implemented
+- [ ] *(parked, not this item)* holder-rotates-key-mid-flight decrypt race between deposit and pickup — noticed during this item's design walk, orthogonal (key version, not algorithm), no owner yet
+
 ---
 
 ## Cross-cutting implementation chores (not tied to one item)
@@ -608,11 +625,14 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
 
 ## Recently decided (spec walk, Aug 2026)
 
-Items 4–13 and the C4/C5 sub-decisions were settled at the specification level this
+Items 4–14 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
 cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, 9, 10, 11, and 12 have since
 shipped (see `CHANGELOG.md`) — item 9's rotation push and withdraw tombstone landed across every
 platform, its health-check piece shipped separately under item 12's reshape, and its
 reconstruct-and-re-split repair-flow UI trigger shipped 2026-08-19 on Android and iOS. Item 9's
 one remaining piece, the "regenerate my own identity" trigger, was deliberately scoped out, not
-merely pending. All other implementation above is pending.
+merely pending. Item 14 (crypto agility — self-describing keys, bundled cipher suites, per-message
+transport tagging) was added in a second spec walk the same month, alongside a documentation-only
+review confirming the relay is still one bounded context (see `CLAUDE.md` → "How We Got Here" #7 —
+no TODO items, no code change). All other implementation above is pending.
