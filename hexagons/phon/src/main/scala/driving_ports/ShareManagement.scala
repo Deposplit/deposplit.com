@@ -27,6 +27,7 @@ package driving_ports
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
 import value_objects.svo.KeyConflict
+import value_objects.svo.ReconstructionResult
 import value_objects.svo.Secret
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
@@ -43,10 +44,12 @@ trait ShareManagement:
   def listSentRequests(): List[ShareRequest]
   def requestAll(secretId: UUID): Unit
   def openRequest(shareId: UUID, transactionType: ShareTransactionType): ShareRequest
-  /** Pure read (item 11) — collects k approved retrieval shares and decrypts them. Never tears
-    * down local `ShareMetadata` or relay rows; use `discardSecret` for that.
+  /** Pure read (item 11) — collects approved retrieval shares (possibly more than k, item 13) and
+    * decrypts them. Never tears down local `ShareMetadata` or relay rows; use `discardSecret` for
+    * that. Cross-checks any surplus beyond k for consistency (item 13) — throws rather than
+    * returning a guessed secret if the surplus can't be reconciled.
     */
-  def reconstruct(secretId: UUID): Array[Byte]
+  def reconstruct(secretId: UUID): ReconstructionResult
   /** Fans out a sender-initiated removal request to every known holder of secretId and flips the
     * Secret to Discarding immediately (before any holder responds).
     */

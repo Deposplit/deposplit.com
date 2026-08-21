@@ -57,7 +57,7 @@ For Deposplit specifically, the native-vs-web trade-off breaks down as follows.
 
 - Splitting a secret and distributing shares is a one-shot interactive action — no background process needed, fits a web tab naturally.
 - Initiating reconstruction is similarly session-bound.
-- The SSS reference implementation ([privy-io/shamir-secret-sharing](https://github.com/privy-io/shamir-secret-sharing)) is already TypeScript, so there would be zero porting effort for the crypto layer.
+- The SSS reference implementation ([privy-io/shamir-secret-sharing](https://github.com/privy-io/shamir-secret-sharing)) is already TypeScript, so there would be zero porting effort for the crypto layer — though Deposplit's own ports have since grown beyond that reference: `combineWithIntegrity`, added for reconstruction-integrity checking (`CLAUDE.md` item 13), has no Privy counterpart and was designed specifically for this project.
 
 **Where a web app falls short**
 

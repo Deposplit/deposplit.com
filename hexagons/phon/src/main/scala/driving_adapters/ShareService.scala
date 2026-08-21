@@ -43,6 +43,8 @@ import value_objects.svo.CustodyHeartbeatTuning
 import value_objects.svo.HeldShare
 import value_objects.svo.KeyConflict
 import value_objects.svo.PayloadCanonical
+import value_objects.svo.ReconstructionIntegrity
+import value_objects.svo.ReconstructionResult
 import value_objects.svo.RetainedDepositBlob
 import value_objects.svo.Role
 import value_objects.svo.Secret
@@ -245,13 +247,30 @@ class ShareService @Inject() (
       .flatMap(relay => Try(relay.listShareRequests(Role.Sender)).getOrElse(Nil))
       .filterNot(_.transactionType == ShareTransactionType.Deposit)
 
+  // Item 13 — a holder is worth prioritizing for a fresh retrieval ask when item 12's own
+  // "still counts toward n_live" freshness rule already trusts them: an unexpired
+  // proof-of-custody and no standing opt-out. Recomputed here (not shared with the app-layer's
+  // own freshness display logic) — a small, deliberate duplication of a threshold check rather
+  // than restructuring already-shipped item-12 code.
+  private def isConfirmed(meta: ShareMetadata): Boolean =
+    contactRepository.getById(meta.contactId).exists { contact =>
+      contact.heartbeatOptedOutAt.isEmpty &&
+        meta.lastConfirmedAt.exists(t => Duration.between(t, Instant.now()).compareTo(CustodyHeartbeatTuning.lossThreshold) <= 0)
+    }
+
   override def requestAll(secretId: UUID): Unit =
     secretRepository.getAll().find(_.id == secretId).foreach { secret =>
       val deposited = shareMetadataRepository.getAll().filter(_.secretId == secretId)
       val existing = allRelays().flatMap(relay =>
         Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval))).getOrElse(Nil)
       )
-      deposited.foreach { meta =>
+      // Item 13 — fan out to the health-informed fresh set first; widen to everyone only when
+      // there aren't enough confirmed holders to reach k. A retrieval request exists solely to
+      // feed an eventual reconstruct(), so this targeting applies here rather than as a
+      // separate method.
+      val confirmed = deposited.filter(isConfirmed)
+      val targets   = if confirmed.size >= secret.k then confirmed else deposited
+      targets.foreach { meta =>
         contactRepository.getById(meta.contactId).foreach { contact =>
           // Matched on secretId, not the local shareId — a recovered ShareMetadata's id is a
           // freshly generated local UUID with no relay-row counterpart. See item 8.
@@ -323,7 +342,7 @@ class ShareService @Inject() (
     * local `ShareMetadata` or relay rows. Use `discardSecret` for teardown — reconstruct is now a
     * *step* toward a possible re-split, not an implicit "I'm done with this" signal.
     */
-  override def reconstruct(secretId: UUID): Array[Byte] =
+  override def reconstruct(secretId: UUID): ReconstructionResult =
     val secret = secretRepository
       .getAll()
       .find(_.id == secretId)
@@ -342,13 +361,21 @@ class ShareService @Inject() (
     }
     require(approved.size >= secret.k, s"Need at least ${secret.k} approved shares (have ${approved.size})")
     val contacts = contactRepository.getAll()
-    val decrypted = approved.map { case (_, req) =>
+    // Item 13 — each decrypted share is kept paired with its originating contact so an excluded
+    // index (from combineWithIntegrity) reports back as a suspect contact, not a meaningless
+    // array position.
+    val decryptedWithContact = approved.map { case (_, req) =>
       val contact = contacts
         .find(_.edPublicKey.sameElements(req.recipientKey))
         .getOrElse(throw IllegalStateException(s"Contact not found for recipient key"))
-      encryption.decrypt(req.ciphertext.get, contact.xPublicKey)
+      (encryption.decrypt(req.ciphertext.get, contact.xPublicKey), contact.id)
     }
-    SecretSharing.combine(decrypted)
+    val result = SecretSharing.combineWithIntegrity(decryptedWithContact.map(_._1), secret.k)
+    val integrity =
+      if !result.hasIntegrityMargin then ReconstructionIntegrity.NoMargin
+      else if result.excludedIndices.isEmpty then ReconstructionIntegrity.Confirmed
+      else ReconstructionIntegrity.ExcludedSuspects(result.excludedIndices.map(decryptedWithContact(_)._2))
+    ReconstructionResult(result.secret, integrity)
 
   /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to
     * Discarding immediately, before any holder has responded — see item 11.

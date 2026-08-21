@@ -153,3 +153,77 @@ class SecretSharingTest extends FunSuite:
     // Both shares have x = 0x05 (last byte)
     intercept[IllegalArgumentException]:
       SecretSharing.combine(List(Array[Byte](0x01, 0x05), Array[Byte](0x02, 0x05)))
+
+  // ---------------------------------------------------------------------------
+  // combineWithIntegrity() — item 13 (reconstruction integrity via over-determination)
+  // ---------------------------------------------------------------------------
+
+  // Corrupts every secret byte of a share (leaving its x-coordinate intact), simulating a
+  // tampered/forged/bit-flipped holder response — wrong as a whole, not selectively per-byte.
+  private def tamper(share: Array[Byte]): Array[Byte] =
+    val tampered = share.clone()
+    for i <- 0 until tampered.length - 1 do
+      tampered(i) = (tampered(i) + 1).toByte
+    tampered
+
+  test("combineWithIntegrity at exactly threshold has no margin"):
+    val secret = "no margin here".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 4, threshold = 4)
+    val result = SecretSharing.combineWithIntegrity(shares, 4)
+    assertBytesEqual(result.secret, secret)
+    assertEquals(result.hasIntegrityMargin, false)
+    assertEquals(result.excludedIndices, Set.empty[Int])
+
+  test("combineWithIntegrity with surplus all consistent is confirmed"):
+    val secret = "all agree".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 5, threshold = 4)
+    val result = SecretSharing.combineWithIntegrity(shares, 4)
+    assertBytesEqual(result.secret, secret)
+    assertEquals(result.hasIntegrityMargin, true)
+    assertEquals(result.excludedIndices, Set.empty[Int])
+
+  test("combineWithIntegrity at margin 1 with one bad share detects but cannot correct"):
+    // threshold+1 collected, one bad: can only *detect* a problem exists (CLAUDE.md item 13),
+    // never identify which side is at fault — must throw rather than guess.
+    val secret = "margin one".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 5, threshold = 4).toArray
+    shares(0) = tamper(shares(0))
+    intercept[SecretSharing.ReconstructionIntegrityException]:
+      SecretSharing.combineWithIntegrity(shares.toList, 4)
+
+  test("combineWithIntegrity at margin 2 with one bad share excludes it and reconstructs"):
+    val secret = "margin two corrects one bad share".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 6, threshold = 4).toArray
+    shares(2) = tamper(shares(2))
+    val result = SecretSharing.combineWithIntegrity(shares.toList, 4)
+    assertBytesEqual(result.secret, secret)
+    assertEquals(result.excludedIndices, Set(2))
+
+  test("combineWithIntegrity at margin 3 with two bad shares exceeds correctable bound"):
+    // floor(margin/2) = floor(3/2) = 1 correctable — two simultaneous bad shares exceed it, so
+    // this must refuse to guess rather than silently pick a spurious "majority".
+    val secret = "margin three cannot correct two bad".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 7, threshold = 4).toArray
+    shares(1) = tamper(shares(1))
+    shares(5) = tamper(shares(5))
+    intercept[SecretSharing.ReconstructionIntegrityException]:
+      SecretSharing.combineWithIntegrity(shares.toList, 4)
+
+  test("combineWithIntegrity at margin 4 with two bad shares excludes both and reconstructs"):
+    val secret = "margin four corrects two bad shares".getBytes("UTF-8")
+    val shares = SecretSharing.split(secret, shares = 8, threshold = 4).toArray
+    shares(0) = tamper(shares(0))
+    shares(7) = tamper(shares(7))
+    val result = SecretSharing.combineWithIntegrity(shares.toList, 4)
+    assertBytesEqual(result.secret, secret)
+    assertEquals(result.excludedIndices, Set(0, 7))
+
+  test("combineWithIntegrity validates like combine"):
+    intercept[IllegalArgumentException]:
+      SecretSharing.combineWithIntegrity(List(Array[Byte](0x01, 0x02)), 2)
+    intercept[IllegalArgumentException]:
+      SecretSharing.combineWithIntegrity(List(Array[Byte](0x01), Array[Byte](0x02)), 2)
+    intercept[IllegalArgumentException]:
+      SecretSharing.combineWithIntegrity(List(Array[Byte](0x01, 0x02), Array[Byte](0x01, 0x02, 0x03)), 2)
+    intercept[IllegalArgumentException]:
+      SecretSharing.combineWithIntegrity(List(Array[Byte](0x01, 0x05), Array[Byte](0x02, 0x05), Array[Byte](0x03, 0x05)), 2)

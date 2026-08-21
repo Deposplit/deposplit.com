@@ -134,6 +134,8 @@ Both the Kotlin (Android) and Swift (iOS) implementations are **hand-ports of th
 | Bouncy Castle (`org.bouncycastle.crypto.threshold`) | `ShamirSecretSplitter` exposes `Algorithm`/`Mode` enums (multiple variants); which variant matches Privy's exact GF/generator/table choices is not documented, risking silent cross-platform incompatibility. Also a heavyweight dependency for ~150 lines of arithmetic. |
 | [CharlZKP/shamirs-secret-sharing-swift-privyio](https://github.com/CharlZKP/shamirs-secret-sharing-swift-privyio) | Single-contributor repo, unknown maintenance status; acceptable as a reference while writing the Swift port, but not adopted as-is for a security-critical primitive. |
 
+**Beyond the Privy reference — `combineWithIntegrity` (item 13, 2026-08-21).** Privy's reference (and Deposplit's `split`/`combine` ports of it) implements *classic* Shamir, which has no built-in integrity: `combine()` blindly interpolates whatever shares it's given, so a single bad share silently produces a wrong secret with no error signal. Deposplit's Android, iOS, and (for consistency) phon ports each added a new function alongside `split`/`combine` — not present in, and not derived from, the Privy source — that reconstructs from a surplus of shares beyond `k` by finding the largest mutually-consistent subset (bounded-exhaustive maximum-agreement decoding against the Reed–Solomon unique-decoding-radius bound), detecting or excluding a bad/malicious share rather than silently trusting it. It reuses the same GF(2⁸) arithmetic and lives in the same file as `split`/`combine`, but is an original addition designed for this project — see "What is next" item 13 for the full algorithm and rationale.
+
 #### Transport Encryption: X25519 + HKDF-SHA-256 + ChaCha20-Poly1305
 
 Holder-decrypts-at-pickup (implemented — see "What is next" item 7): each leg of a share's journey is encrypted using whichever pair of *current* keys is live at that moment, never a key pinned back at deposit time. This is what makes k-of-n social recovery cryptographically possible — no participant's ability to decrypt is bound to a keypair from the past.
@@ -169,8 +171,8 @@ The SSS ports are **complete and fully tested**:
 
 | Library | Module | Public API |
 |---|---|---|
-| `Android/` | `com.deposplit.shamir` | `split(secret: ByteArray, shares: Int, threshold: Int): List<ByteArray>` / `combine(shares: List<ByteArray>): ByteArray` — throws `IllegalArgumentException` |
-| `iOS/` | `ShamirSecretSharing` | `split(secret: [UInt8], shares: Int, threshold: Int) throws -> [[UInt8]]` / `combine(shares: [[UInt8]]) throws -> [UInt8]` — throws `ShamirError` |
+| `Android/` | `com.deposplit.shamir` | `split(secret: ByteArray, shares: Int, threshold: Int): List<ByteArray>` / `combine(shares: List<ByteArray>): ByteArray` — throws `IllegalArgumentException`; `combineWithIntegrity(shares, threshold): IntegrityCombineResult` (item 13) — throws `ReconstructionIntegrityException` |
+| `iOS/` | `ShamirSecretSharing` | `split(secret: [UInt8], shares: Int, threshold: Int) throws -> [[UInt8]]` / `combine(shares: [[UInt8]]) throws -> [UInt8]` — throws `ShamirError`; `combineWithIntegrity(shares:threshold:) throws -> IntegrityCombineResult` (item 13) — throws `ShamirError.reconstructionIntegrityFailed` |
 
 The Android `IdentityService` uses **BouncyCastle** (`bcprov-jdk18on`) for all crypto — no native libraries, no JNA. The iOS equivalent uses **Swift Crypto**. The Web app/service uses BouncyCastle for Ed25519 verification and passes share ciphertext through opaquely.
 
@@ -191,7 +193,7 @@ There are four request types exchanged via the deposplit.com Web app/service API
 | `removal` | Sender → recipient | Request: references Deposit ID. Response: ack | **Remove** a share (sender-initiated, requires Bob's approval) |
 | `inventory` | Holder → owner | `secret_id`, `label`, `secret_created_at`, `k`, `n` — no ciphertext | Reports what a holder still guards for a secret whose owner lost her local state (item 8); self-approves at creation, no PATCH phase |
 
-> ⚠ **Still to come — see "What is next" item 13.** Item 9's **signed rotation push** (`key_rotations`, a dedicated table — not a fifth `ShareTransactionType`) and its **"withdrawn by recipient"** row state are implemented across the relay and all three clients (2026-08-18) — every client's receive-side auto-accept already applies item 10's `min(level, LOW)` downgrade; item 10 itself (the compromised/revoked key flag, conflict-resolution UI, "key changed N days ago" retrieve-approval indicator) is fully implemented on Android, iOS, and phon (2026-08-18) — see item 10 below; and item 9's **health-check push**, reshaped and pinned down by item 12, is likewise fully implemented everywhere (2026-08-18) — see item 12 below, which was the last piece item 9 left open. Only **item 13's retrieve fan-out + reconstruction integrity** remains unbuilt everywhere; item 9's "regenerate my own identity" trigger (the UI action that would let a user actually *originate* a rotation) also remains deliberately out of scope — see item 9's "Proactive rotation" note.
+> ⚠ **Status note.** Item 9's **signed rotation push** (`key_rotations`, a dedicated table — not a fifth `ShareTransactionType`) and its **"withdrawn by recipient"** row state are implemented across the relay and all three clients (2026-08-18) — every client's receive-side auto-accept already applies item 10's `min(level, LOW)` downgrade; item 10 itself (the compromised/revoked key flag, conflict-resolution UI, "key changed N days ago" retrieve-approval indicator) is fully implemented on Android, iOS, and phon (2026-08-18) — see item 10 below; item 9's **health-check push**, reshaped and pinned down by item 12, is likewise fully implemented everywhere (2026-08-18) — see item 12 below; and **item 13's retrieve fan-out + reconstruction integrity** is fully implemented on Android, iOS, and phon (2026-08-21) — see item 13 below. The only piece of this table's protocol still not built is item 9's "regenerate my own identity" trigger (the UI action that would let a user actually *originate* a rotation), which remains deliberately out of scope — see item 9's "Proactive rotation" note.
 
 **Recipient-initiated deletion** is unilateral (no approval needed). The recipient can delete individual shares or all shares from a given sender at any time. *(Revised — see "What is next" item 9: it stays unilateral but is no longer purely silent; the holder's app additionally writes a best-effort "withdrawn by recipient" tombstone so the sender isn't blindsided by silent redundancy erosion.)*
 
@@ -572,7 +574,7 @@ The items below capture *design rationale* — why each decision was made, and w
     Cross-platform Ed25519 vectors: BouncyCastle (relay, Android) reproduces the identical `forHeartbeat` signature for a fixed seed/fixture; CryptoKit (iOS) uses hedged signatures, so only canonical-bytes-match and verify-against-the-fixed-signature are meaningful there. No migration code was written — Deposplit is pre-launch. `swift test` 73/73 hexagon tests, `xcodebuild build`/`test` green on a simulator; Android `:hexagon:test` 78/78 plus a clean `:app:compileDebugKotlin` and full `./gradlew test`; `sbt test` 221/221 (92 relay hexagon + 71 phon + 58 root — was 207) all pass.
 
     **Work items:** tracked in `TODO.md` (item 12). Relay untouched (blind mailbox); Android + iOS hexagon/app. **No migrations** (pre-launch).
-13. **Retrieve fan-out beyond `k` + reconstruction integrity (over-determination).** Decided during the spec walk. Refines item 11's `reconstruct()` / the retrieve flow; touches item 10 (malicious holder) and item 12 (health-informed targeting). **Client-only; relay untouched.**
+13. ~~**Retrieve fan-out beyond `k` + reconstruction integrity (over-determination).**~~ — **done.** Decided during the spec walk. Refines item 11's `reconstruct()` / the retrieve flow; touches item 10 (malicious holder) and item 12 (health-informed targeting). **Client-only; relay untouched.**
 
     **Fan out beyond `k`, first `k` win — use the redundancy SSS already paid for.** Requesting shares from exactly `k` holders blocks the moment one is dark or slow to approve (each retrieve needs the holder's out-of-band consent, item 10), forcing serial escalation. Instead, `reconstruct(secretId)` **fans out to the health-informed fresh set** — item 12's `Confirmed` holders — widening to stale / unmonitored holders only if fewer than `k` are fresh, and **collects until `k` consistent shares are in.** Using `n_live` avoids wasting asks (and consent prompts) on known-dark holders; reconstruction is a rare event, so occasionally bothering the whole fresh set is an acceptable cost for latency and availability. Tolerates up to (fan-out − `k`) non-responders with no serial round-trips.
 
@@ -585,6 +587,39 @@ The items below capture *design rationale* — why each decision was made, and w
     **Integrity is over-determination only — no stored per-share commitment (rejected).** A per-share commitment (`H(share)`, or a hardware-keyed HMAC, stored in `ShareMetadata`) was considered as an alternative integrity mechanism — verify each returned share individually, needing only `k` reachable holders — and **rejected.** A plain hash of a **low-entropy** secret's tiny share (a 1-byte secret → a 256-value share) is brute-forceable, so **exfiltrating Alice's stored commitments** (a stolen backup / cloud sync / file-reading malware — not even a live device) would let an attacker recover all `n` shares and **reconstruct, bypassing the holder-consent layer** — re-introducing the exact "Alice's device holds something reconstructable" risk splitting exists to remove. A hardware-keyed HMAC (`K_device` non-extractable in Keystore/Secure Enclave) *would* close the offline-exfiltration hole, but adds on-device state + crypto for a benefit over-determination already provides. **Keeping Alice's device holding *nothing* that pins her shares is simpler and more faithful to the trust-minimising premise**, so integrity rests on over-fetching live responses, never on stored local data.
 
     **Consequence — reconstruct wants a healthy live margin, reinforcing item 12.** Detecting/excluding a lying holder needs `k`+1 / `k`+2 *live* responders, so integrity degrades exactly when redundancy is already thin — another reason item 12's health monitoring (catch erosion while comfortably ≥ `k`) is load-bearing, not a nicety. A secret at `n_live == k` can still be reconstructed but **without any integrity cross-check** (no margin to compare against) — surfaced honestly to Alice.
+
+    **Implemented (2026-08-21)** on Android `:hexagon`, iOS `hexagon`, and (for cross-platform
+    *consistency*, not full parity — not originally tagged for this item, ported anyway per this
+    file's own established precedent for items 7–12) `phon`. `reconstruct(secretId)` stayed a pure
+    read (item 11's GET/DELETE separation is untouched); the "fans out" half of this item lives in
+    `requestAll`, which now targets item 12's `Confirmed` freshness bucket first (recomputed via a
+    small private hexagon-local helper reusing `ShareMetadata.lastConfirmedAt` +
+    `Contact.heartbeatOptedOutAt` + `CustodyHeartbeatTuning.lossThreshold` — all already
+    hexagon-visible), widening to every holder only when fewer than `k` are confirmed — changing
+    `requestAll`'s behavior in place rather than adding a parallel method, since a `RETRIEVAL`
+    request exists for no other purpose than eventually feeding a `reconstruct()`. A new
+    `combineWithIntegrity` function (alongside `split`/`combine` in each platform's Shamir module,
+    reusing the existing `interpolatePolynomial` evaluator, which already generalizes to any `x`)
+    does bounded-exhaustive maximum-agreement decoding: every size-`k` subset of the collected
+    shares is tried as a hypothesis, the one with the largest byte-for-byte-agreeing set wins, and
+    it is accepted only if it clears the Reed–Solomon unique-decoding-radius bound
+    (`agreeing.size >= collected - ⌊(collected - k) / 2⌋`) — a hard mathematical guarantee (two
+    distinct degree-`<k` polynomials can agree on at most `k - 1` points), not a heuristic, capped
+    at 5,000 hypotheses tried as a documented safety valve against pathological large fan-outs.
+    Chosen over an algebraic Reed-Solomon decoder (Berlekamp-Welch) since this app's realistic
+    scale (personal use, `n` already soft-capped by item 11's own operational-burden warning) makes
+    the combinatorics cheap, and a from-scratch decoder would be substantially more code to get
+    right identically across three languages. `ShareManagement.reconstruct`'s return type changed
+    from raw bytes to `ReconstructionResult(secret, integrity: ReconstructionIntegrity)` —
+    `NoMargin | Confirmed | ExcludedSuspects(excludedContactIds)` — a breaking port-signature
+    change, fine pre-launch. Android and iOS additionally gained a reusable
+    `ReconstructionAdvisory` view/composable rendering the three cases as a one-line badge under
+    the reconstructed secret, in both `ShareDetailView`/`Screen` and the item-9 Repair flow; phon
+    has no UI for it, matching every prior item's precedent. The algorithm was hand-verified
+    against 9 constructed cases in a throwaway Python prototype before being ported three times.
+    Tests: 7 new Shamir-level cases and 7 new `ShareService`-level cases on each of Android
+    (25 + 45), iOS (25 + 87 hexagon total), and phon (25 + 44); relay and root untouched (92 and 58
+    tests respectively, unaffected).
 
     **Work items:** tracked in `TODO.md` (item 13). Hexagon (Android + iOS); relay untouched. **No migrations** (pre-launch).
 

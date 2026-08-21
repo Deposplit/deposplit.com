@@ -17,8 +17,8 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Item 9 is shipped except for its deliberately-parked identity-regen trigger; items 10 and 12
-> are fully shipped; 13 and 14 are design-complete but not yet built** (items 6, 7, 8, and 11
+> ⚠ **Item 9 is shipped except for its deliberately-parked identity-regen trigger; items 10, 12, and
+> 13 are fully shipped; 14 is design-complete but not yet built** (items 6, 7, 8, and 11
 > shipped too — see below). `No migrations` throughout — Deposplit is pre-launch; test relays and
 > devices reset to a clean slate.
 
@@ -71,12 +71,16 @@ is better served by one board than three. This file lives in the hub repo
   pickup confirmation (relay-observed *or* heartbeat-attested), a freshness clock on `ShareMetadata`
   (`lastConfirmedAt`), and opt-out capture on `Contact`. Shipped on the relay, Android, iOS, and
   (for consistency, not full parity) phon.
+- **Item 13 (retrieve fan-out + reconstruction integrity) is done** — client-only, relay untouched.
+  `combineWithIntegrity` (a new function alongside `split`/`combine` in each platform's Shamir
+  module) does bounded-exhaustive maximum-agreement decoding to detect/exclude bad shares among a
+  surplus beyond `k`, and `requestAll`'s fan-out now targets item 12's `Confirmed` freshness bucket
+  first, widening to every holder only when fewer than `k` are confirmed. Shipped on Android, iOS,
+  and (for consistency, not full parity) phon.
 - **Item 14 (crypto agility) depends on item 7 (done) and extends item 9's rotation mechanism +
   item 10's downgrade rule (both done)** — no new prerequisite work, safe to start any time.
-  Independent of item 13; the two can proceed in either order or in parallel.
-- Rough dependency order for what's left: **13, 14** (independent of each other; item 9's only
-  remaining piece, the regenerate-identity trigger, is deliberately parked, not a scheduling
-  dependency).
+- Rough dependency order for what's left: **14** (item 9's only remaining piece, the
+  regenerate-identity trigger, is deliberately parked, not a scheduling dependency).
 
 ---
 
@@ -108,7 +112,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12 done (9's identity-regen trigger deliberately parked), 13 and 14 design-complete but not yet built
+## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12, 13 done (9's identity-regen trigger deliberately parked), 14 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -570,11 +574,104 @@ Flips item 9's health-check pull→push. `relay` schema gained one new table (`c
 
   **`phon` implementation notes (2026-08-18):** Consistency, not parity — full data model + `ShareService` gating logic (deposit retention, freshness stamping, heartbeat emit/process, opt-out toggle), no HTMX UI (no toggle button, no freshness badge — phon's minimal views have no plumbing for either yet, matching every prior item's precedent). New `value_objects/svo/CustodyHeartbeat.scala`, `CustodyHeartbeatTuning.scala`, `RetainedDepositBlob.scala` + `driven_ports/RetainedDepositRepository.scala`. `Contact.scala`/`Share.scala` gained the same fields as Android/iOS; `PayloadCanonical.forHeartbeat` mirrors the relay's construction byte-for-byte; `ShareRelay.scala` gained `pushHeartbeat`/`listHeartbeats`; `ShareManagement.scala` gained `setHeartbeatEmissionOptedOut`. `ShareService.scala`'s `deposit`/`syncDistributed`/`syncInbox` were extended identically to Android's shape (Scala `Option`/`Try` in place of Kotlin nullable/`runCatching`), with the same first-observation retention-gating fix applied *before* running tests (the `FakeShareMetadataRepository.save` upsert bug had already been caught twice by this point — Android and iOS — so it was fixed proactively here too). Root-app wiring: `HttpClientShareRelay` gained `pushHeartbeat`/`listHeartbeats` HTTP calls against the real `POST`/`GET /custody-heartbeats` endpoints; new `driven_adapters/phon/FileRetainedDepositRepository.scala` (structurally identical to `FileShareRepository.scala`); bound in `PhonModule.scala`. Tests: `ShareServiceSignatureTests` gained 14 new cases via a `FakeRetainedDepositRepository` test double and extending `FakeShareRelay` with heartbeat push/list tracking — needed widening `newService`'s return tuple from 6 to 7 across 19 destructured call sites (`ShareServiceSignatureTests.scala`) plus 2 in the separate `ShareRelayResolverFanOutTests.scala` file (same package, so the new fake is visible there without duplication); `FakeShareMetadataRepository.save` fixed from append-only to upsert alongside the others. `phon/test`: 57 → 71 tests, 0 failures. Full project `sbt test` (relay 92 + phon 71 + root 58 = 221) green.
 
-### Item 13 — Retrieve fan-out beyond `k` + reconstruction integrity · [CLAUDE.md#13](CLAUDE.md)
+### Item 13 — Retrieve fan-out beyond `k` + reconstruction integrity · [CLAUDE.md#13](CLAUDE.md) · *done*
 Client-only; `relay` untouched. Integrity via over-determination **only** (no stored commitment).
-- [ ] `A` `I` `reconstruct(secretId)` fans out to item-12's `Confirmed` fresh set (widen if `< k`), collects until `k` **consistent** shares (first `k` win)
-- [ ] `A` `I` cross-check any surplus to detect (`k+1`) / identify-and-exclude (Reed-Solomon `⌊m/2⌋`) a bad or malicious share
-- [ ] `A` `I` "reconstructed without integrity margin" advisory when `n_live == k`
+- [x] `A` `I` `reconstruct(secretId)` fans out to item-12's `Confirmed` fresh set (widen if `< k`), collects until `k` **consistent** shares (first `k` win)
+- [x] `A` `I` cross-check any surplus to detect (`k+1`) / identify-and-exclude (Reed-Solomon `⌊m/2⌋`) a bad or malicious share
+- [x] `A` `I` "reconstructed without integrity margin" advisory when `n_live == k`
+- [x] `phon` same `combineWithIntegrity` + `reconstruct`/`requestAll` changes, for cross-platform *consistency* — not originally tagged for this item, ported anyway per this file's established precedent (items 7–12)
+
+  **Design notes (2026-08-21):** `reconstruct(secretId)` stayed a **pure read** (item 11's GET/DELETE
+  separation is untouched) — the "fans out" half of this item lives entirely in `requestAll`, which
+  now targets item 12's `Confirmed` freshness bucket first (recomputed via a small private
+  `isConfirmed`/equivalent helper reusing `ShareMetadata.lastConfirmedAt` + `Contact
+  .heartbeatOptedOutAt` + `CustodyHeartbeatTuning.lossThreshold` — all already hexagon-visible, so
+  no new dependency was needed), widening to every deposited holder only when the confirmed count
+  is `< secret.k`. This changes `requestAll`'s behavior **in place** rather than adding a parallel
+  method, on the reasoning that a `RETRIEVAL` request exists for no other purpose than eventually
+  feeding a `reconstruct()`, so both of `requestAll`'s call sites (the standalone "Request
+  Retrieval (all)" button and the Repair flow's "Gather" step, item 9) legitimately want the same
+  targeting.
+
+  **Algorithm — bounded-exhaustive maximum-agreement decoding**, a new `combineWithIntegrity`
+  function added alongside `split`/`combine` in each platform's Shamir module (same file, reusing
+  the existing `interpolatePolynomial` evaluator, which already generalizes to *any* `x`, not just
+  `0` — no new field arithmetic needed anywhere). Chosen over implementing an algebraic
+  Reed-Solomon decoder (Berlekamp-Welch): this app's realistic scale (personal use, `n` already
+  soft-capped by item 11's own operational-burden warning) makes brute-force combinatorics cheap,
+  and a from-scratch algebraic decoder would be substantially more code to get right identically
+  across three languages for no correctness benefit at this scale. For `m` collected shares beyond
+  `threshold`, every size-`threshold` subset is tried as a "hypothesis" (lexicographic order, so
+  the first hypothesis tried is always shares `[0, threshold)` — the overwhelmingly common
+  "everyone agrees" case resolves on the very first check); each hypothesis's implied secret is
+  checked against every one of the `m` shares at *every* byte position (a forged/corrupted share
+  is wrong as a whole, not selectively per-byte), and the hypothesis with the largest agreeing set
+  wins, capped at 5,000 hypotheses tried as a documented safety valve against pathological `C(m,
+  threshold)` blow-up for unrealistically large fan-outs. The result is accepted only if
+  `agreeing.size >= m - ⌊(m - threshold) / 2⌋` — the Reed–Solomon unique-decoding-radius bound,
+  which is a hard mathematical guarantee (two distinct degree-`<threshold` polynomials can agree
+  on at most `threshold - 1` points; a short pigeonhole argument then shows no *other* hypothesis
+  can ever tie or beat a result clearing this bar), not a heuristic — so whenever this succeeds the
+  result is provably the unique correct answer. Below the bound (e.g. exactly `threshold + 1`
+  collected with one bad share) the function throws rather than guesses, matching CLAUDE.md's own
+  "`k+1` consistent → detect only" language. The algorithm was hand-verified against 9 constructed
+  cases (0/1/2 bad shares at margins 0/1/2/3/4/6) in a throwaway Python prototype before being
+  ported three times, specifically to avoid propagating a subtle bug across languages.
+
+  `ShareManagement.reconstruct(secretId)`'s return type changed from raw bytes to a new
+  `ReconstructionResult(secret, integrity: ReconstructionIntegrity)` value object —
+  `ReconstructionIntegrity` is `NoMargin | Confirmed | ExcludedSuspects(excludedContactIds)` — a
+  breaking port-signature change, fine pre-launch (no compat shim). `reconstruct()` keeps each
+  decrypted share paired with its originating `contactId` so an excluded index from
+  `combineWithIntegrity` reports back as a named suspect, not a meaningless array position.
+
+  **UI (Android/iOS only — phon has no UI for this, matching every prior item's precedent):** a new
+  reusable `ReconstructionAdvisory` view/composable (`ui/reconstruction/` on both platforms) renders
+  the three `ReconstructionIntegrity` cases as a one-line badge, shown under the reconstructed
+  secret in both `ShareDetailView`/`Screen` and the item-9 Repair flow's re-deposit step; a
+  dedicated `ReconstructionIntegrityException`/`ShamirError.reconstructionIntegrityFailed` catch
+  branch surfaces a distinct error message when the integrity check itself fails outright (too many
+  inconsistent shares), rather than the generic reconstruct-failed message.
+
+  **`I` implementation notes:** `ShamirError` gained `.reconstructionIntegrityFailed(largestConsistentGroup:totalShares:)`.
+  New `value_objects/ReconstructionResult.swift`. `ShareDetailViewModel`'s `ReconstructState
+  .reconstructed` case gained an `integrity` associated value; `RepairViewModel` gained a
+  `reconstructionIntegrity` property and an `allContacts`-backed `contactName(_:)` lookup mirroring
+  `ShareDetailViewModel`'s existing one. Tests: `ShamirSecretSharingTests` gained 7 cases; a widened
+  `makeServiceForRecoveryTest(relay:contacts:)` (previously fixed to a single contact) plus a new
+  `HolderFixture`/`makeApprovedRetrievalRow` fixture pair let `ShareServiceTests` gain 7 cases (4
+  reconstruct outcomes + 3 `requestAll` targeting scenarios). Hexagon: 73 → 87 tests, `swift test`
+  all passing; `xcodebuild build` (device SDK) BUILD SUCCEEDED.
+
+  **`A` implementation notes:** Mirrors iOS's design one-for-one. New `ReconstructionIntegrityException`
+  in `com.deposplit.shamir` (a plain exception class, since Android's Shamir.kt already uses
+  `require()`-thrown exceptions rather than iOS's `ShamirError` enum). New
+  `value_objects/ReconstructionResult.kt`. `ShareDetailViewModel.UiState` and `RepairViewModel
+  .UiState` each gained a `reconstructionIntegrity: ReconstructionIntegrity?` field (`RepairViewModel
+  .UiState` also gained `contacts: List<Contact>`, previously loaded but not retained, needing a new
+  private `LoadResult` 4-field data class in place of the prior `Triple`). New reusable
+  `ui/reconstruction/ReconstructionAdvisory.kt` Compose function. `newServiceForRecoveryTest`
+  widened with a defaulted `contacts` parameter (backward-compatible, no existing call site
+  touched). Tests: `ShamirTest` gained 7 cases (25 total, `:hexagon:clean :hexagon:test` forced per
+  the established Gradle-false-UP-TO-DATE workaround); `ShareServiceTest` gained 7 cases (38 → 45).
+  `:app:compileDebugKotlin` BUILD SUCCESSFUL (one pre-existing unrelated warning, no new ones).
+
+  **`phon` implementation notes:** Consistency, not parity — full `combineWithIntegrity` port +
+  `ShareService` gating logic (return-type change, `requestAll` targeting), no HTMX UI (phon's
+  minimal views have no plumbing for a reconstruction-advisory badge, matching every prior item's
+  precedent). `shamir.SecretSharing` gained `combineWithIntegrity` + `IntegrityCombineResult` +
+  `ReconstructionIntegrityException` (a nested case class, `SecretSharing.ReconstructionIntegrityException`).
+  New `value_objects/svo/ReconstructionResult.scala` (`ReconstructionIntegrity` enum + `ReconstructionResult`
+  case class, both `Serializable` per this package's uniform convention even though a reconstruction
+  result is never itself persisted). `ShareManagement.reconstruct`'s return type changed to
+  `ReconstructionResult`; `ShareService`'s `reconstruct`/`requestAll` mirror Android/iOS's shape
+  exactly. `newServiceForRecoveryTest` widened with a defaulted `contacts` parameter, same
+  backward-compatible approach as Android. Tests: `SecretSharingTest` gained 7 cases (18 → 25);
+  `ShareServiceSignatureTests` gained 7 cases (37 → 44) via a `HolderFixture`/`makeApprovedRetrievalRow`
+  fixture pair mirroring Android/iOS. Full phon suite (`CatalogServiceTests` + `IdentityServiceVerifyTests`
+  + `ContactServiceTests` + `ShareRelayResolverFanOutTests` + `SecretSharingTest` + `ShareServiceSignatureTests`):
+  64 → 85 tests, all passing. `sbt test` (root, 58 tests) and `sbt relay/test` also run clean,
+  confirming the relay and root app are unaffected (this item never touches them).
 
 ### Item 14 — Crypto agility (self-describing keys, bundled cipher suites, transport tagging) · [CLAUDE.md#14](CLAUDE.md)
 Touches the relay, Android, iOS, and (for consistency) phon. **No migrations** (pre-launch).

@@ -36,6 +36,7 @@ import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
+import shamir.SecretSharing
 import value_objects.svo.*
 
 import java.security.SecureRandom
@@ -379,13 +380,16 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   // ── Identity recovery (item 8) ──────────────────────────────────────────────
 
-  private def newServiceForRecoveryTest(relay: FakeShareRelay): (ShareService, IdentityService, FakeShareRepository, FakeSecretRepository, FakeShareMetadataRepository) =
+  private def newServiceForRecoveryTest(
+      relay: FakeShareRelay,
+      contacts: List[Contact] = List(aliceContact)
+  ): (ShareService, IdentityService, FakeShareRepository, FakeSecretRepository, FakeShareMetadataRepository) =
     val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val secretRepo = FakeSecretRepository()
     val metaRepo = FakeShareMetadataRepository()
-    val contactRepo = FakeContactRepository(List(aliceContact))
+    val contactRepo = FakeContactRepository(contacts)
     val svc = ShareService(
       relayResolver = FixedShareRelayResolver(relay),
       encryption = NoOpShareEncryption,
@@ -1026,4 +1030,181 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     intercept[IllegalStateException] {
       svc.setHeartbeatEmissionOptedOut(UUID.randomUUID(), optedOut = true)
     }
+  }
+
+  // ── Reconstruction integrity + fan-out targeting (item 13) ──────────────────
+
+  /** A holder contact with its own real keypair — reconstruct() tests need several distinct
+    * holders (unlike most of this file's single-contact fixtures), each independently able to
+    * produce a validly-signed recipientSignature on its own retrieval response.
+    */
+  private case class HolderFixture(keys: TestKeyPair, contact: Contact)
+
+  private def makeHolderFixture(pseudonym: String): HolderFixture =
+    val keys = TestKeyPair.generate()
+    val contact = Contact(
+      id = UUID.randomUUID(),
+      pseudonym = pseudonym,
+      edPublicKey = keys.publicKey,
+      xPublicKey = Array.fill(32)(0x09.toByte),
+      verificationLevel = VerificationLevel.VeryHigh,
+      verifiedAt = None,
+      addedAt = Instant.now()
+    )
+    HolderFixture(keys, contact)
+
+  /** An already-Approved retrieval response row, signed by the holder — mirrors what respond()
+    * would have produced. ciphertext is used as-is by NoOpShareEncryption, so passing a real
+    * split() share here makes it stand in directly as the "decrypted" plaintext.
+    */
+  private def makeApprovedRetrievalRow(secretId: UUID, holder: HolderFixture, ciphertext: Array[Byte]): ShareRequest =
+    val id = UUID.randomUUID()
+    val canon = PayloadCanonical.forRespond(id, true, Some(ciphertext))
+    val sig = holder.keys.sign(canon)
+    ShareRequest(
+      id = id,
+      secretId = secretId,
+      senderKey = Array.emptyByteArray,
+      recipientKey = holder.contact.edPublicKey,
+      label = "s",
+      secretCreatedAt = Instant.now(),
+      transactionType = ShareTransactionType.Retrieval,
+      state = ShareRequestState.Approved,
+      shareId = Some(UUID.randomUUID()),
+      requestedAt = Instant.now(),
+      respondedAt = Some(Instant.now()),
+      ciphertext = Some(ciphertext),
+      senderSignature = Array.emptyByteArray,
+      recipientSignature = Some(sig)
+    )
+
+  test("reconstruct with exactly k approved shares has no integrity margin") {
+    val relay = FakeShareRelay()
+    val holders = (0 until 4).map(i => makeHolderFixture(s"holder$i")).toList
+    val (svc, _, _, secretRepo, _) = newServiceForRecoveryTest(relay, holders.map(_.contact))
+    val secretBytes = "no margin test secret".getBytes("UTF-8")
+    val shares = SecretSharing.split(secretBytes, shares = 4, threshold = 4)
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 4, 4, Instant.now(), SecretState.Active))
+    relay.pending = holders.zip(shares).map((holder, share) => makeApprovedRetrievalRow(secretId, holder, share))
+
+    val result = svc.reconstruct(secretId)
+
+    assertEquals(result.secret.toList, secretBytes.toList)
+    assertEquals(result.integrity, ReconstructionIntegrity.NoMargin)
+  }
+
+  test("reconstruct with surplus all consistent shares is confirmed") {
+    val relay = FakeShareRelay()
+    val holders = (0 until 5).map(i => makeHolderFixture(s"holder$i")).toList
+    val (svc, _, _, secretRepo, _) = newServiceForRecoveryTest(relay, holders.map(_.contact))
+    val secretBytes = "surplus confirmed test secret".getBytes("UTF-8")
+    val shares = SecretSharing.split(secretBytes, shares = 5, threshold = 4)
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 4, 5, Instant.now(), SecretState.Active))
+    relay.pending = holders.zip(shares).map((holder, share) => makeApprovedRetrievalRow(secretId, holder, share))
+
+    val result = svc.reconstruct(secretId)
+
+    assertEquals(result.secret.toList, secretBytes.toList)
+    assertEquals(result.integrity, ReconstructionIntegrity.Confirmed)
+  }
+
+  test("reconstruct excludes a tampered share and still reconstructs correctly") {
+    val relay = FakeShareRelay()
+    val holders = (0 until 6).map(i => makeHolderFixture(s"holder$i")).toList
+    val (svc, _, _, secretRepo, _) = newServiceForRecoveryTest(relay, holders.map(_.contact))
+    val secretBytes = "excluded suspect test secret".getBytes("UTF-8")
+    val shares = SecretSharing.split(secretBytes, shares = 6, threshold = 4).toArray
+    // Simulate a compromised/corrupted holder — every secret byte wrong, x-coordinate untouched.
+    val tampered = shares(2).clone()
+    for i <- 0 until tampered.length - 1 do tampered(i) = (tampered(i) + 1).toByte
+    shares(2) = tampered
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 4, 6, Instant.now(), SecretState.Active))
+    relay.pending = holders.zip(shares.toList).map((holder, share) => makeApprovedRetrievalRow(secretId, holder, share))
+
+    val result = svc.reconstruct(secretId)
+
+    assertEquals(result.secret.toList, secretBytes.toList)
+    assertEquals(result.integrity, ReconstructionIntegrity.ExcludedSuspects(Set(holders(2).contact.id)))
+  }
+
+  test("reconstruct throws when too many shares are inconsistent to safely resolve") {
+    val relay = FakeShareRelay()
+    val holders = (0 until 5).map(i => makeHolderFixture(s"holder$i")).toList
+    val (svc, _, _, secretRepo, _) = newServiceForRecoveryTest(relay, holders.map(_.contact))
+    val secretBytes = "margin one throw test".getBytes("UTF-8")
+    val shares = SecretSharing.split(secretBytes, shares = 5, threshold = 4).toArray
+    val tampered = shares(0).clone()
+    for i <- 0 until tampered.length - 1 do tampered(i) = (tampered(i) + 1).toByte
+    shares(0) = tampered
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 4, 5, Instant.now(), SecretState.Active))
+    relay.pending = holders.zip(shares.toList).map((holder, share) => makeApprovedRetrievalRow(secretId, holder, share))
+
+    intercept[SecretSharing.ReconstructionIntegrityException] {
+      svc.reconstruct(secretId)
+    }
+  }
+
+  test("requestAll targets only confirmed holders when they already meet k") {
+    val relay = FakeShareRelay()
+    val fresh1 = makeHolderFixture("fresh1")
+    val fresh2 = makeHolderFixture("fresh2")
+    val stale = makeHolderFixture("stale")
+    val (svc, _, _, secretRepo, metaRepo) =
+      newServiceForRecoveryTest(relay, List(fresh1.contact, fresh2.contact, stale.contact))
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 2, 3, Instant.now(), SecretState.Active))
+    val now = Instant.now()
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, fresh1.contact.id, lastConfirmedAt = Some(now)))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, fresh2.contact.id, lastConfirmedAt = Some(now)))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, stale.contact.id, lastConfirmedAt = None))
+
+    svc.requestAll(secretId)
+
+    val targeted = relay.openedRequests.map(_.recipientKey.toList).toSet
+    val expected = Set(fresh1.contact.edPublicKey.toList, fresh2.contact.edPublicKey.toList)
+    assertEquals(targeted, expected)
+  }
+
+  test("requestAll widens to every holder when fewer than k are confirmed") {
+    val relay = FakeShareRelay()
+    val fresh = makeHolderFixture("fresh")
+    val stale1 = makeHolderFixture("stale1")
+    val stale2 = makeHolderFixture("stale2")
+    val (svc, _, _, secretRepo, metaRepo) =
+      newServiceForRecoveryTest(relay, List(fresh.contact, stale1.contact, stale2.contact))
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 2, 3, Instant.now(), SecretState.Active))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, fresh.contact.id, lastConfirmedAt = Some(Instant.now())))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, stale1.contact.id, lastConfirmedAt = None))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, stale2.contact.id, lastConfirmedAt = None))
+
+    svc.requestAll(secretId)
+
+    val targeted = relay.openedRequests.map(_.recipientKey.toList).toSet
+    val expected = Set(fresh.contact.edPublicKey.toList, stale1.contact.edPublicKey.toList, stale2.contact.edPublicKey.toList)
+    assertEquals(targeted, expected)
+  }
+
+  test("requestAll treats a heartbeat opted-out holder as not confirmed even with a recent timestamp") {
+    val relay = FakeShareRelay()
+    val optedOutBase = makeHolderFixture("optedOut")
+    val optedOutContact = optedOutBase.contact.copy(heartbeatOptedOutAt = Some(Instant.now()))
+    val other = makeHolderFixture("other")
+    val (svc, _, _, secretRepo, metaRepo) =
+      newServiceForRecoveryTest(relay, List(optedOutContact, other.contact))
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 2, 2, Instant.now(), SecretState.Active))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, optedOutContact.id, lastConfirmedAt = Some(Instant.now())))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, other.contact.id, lastConfirmedAt = None))
+
+    svc.requestAll(secretId)
+
+    // Only 1 of 2 holders is genuinely confirmed (< k=2), so targeting widens to everyone.
+    val targeted = relay.openedRequests.map(_.recipientKey.toList).toSet
+    val expected = Set(optedOutContact.edPublicKey.toList, other.contact.edPublicKey.toList)
+    assertEquals(targeted, expected)
   }
