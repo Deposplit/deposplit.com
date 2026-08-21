@@ -39,8 +39,8 @@ enum VerificationLevel extends Ordered[VerificationLevel]:
 case class Contact(
     id: UUID,
     pseudonym: String,
-    edPublicKey: Array[Byte],
-    xPublicKey: Array[Byte],
+    verifyKey: Array[Byte],
+    encKey: Array[Byte],
     verificationLevel: VerificationLevel,
     verifiedAt: Option[Instant],
     addedAt: Instant,
@@ -78,7 +78,13 @@ case class Contact(
     /** Item 12, holder role — this device's own choice to stop heartbeating this contact (who is
       * the owner in that relationship). Defaults to false (heartbeating is opt-out, not opt-in).
       */
-    heartbeatEmissionOptedOut: Boolean = false
+    heartbeatEmissionOptedOut: Boolean = false,
+    /** Item 14 — the signing + key-agreement algorithm pairing this contact currently uses.
+      * Defaulted (not required) purely to keep the large item-14 rename from also being a
+      * "thread a new value through every call site" exercise; the default is correct today (every
+      * contact really is on this one suite), not a placeholder.
+      */
+    cipherSuite: CipherSuite = CipherSuite.current
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id

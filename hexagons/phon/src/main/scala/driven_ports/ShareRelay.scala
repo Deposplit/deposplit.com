@@ -24,6 +24,7 @@
 
 package driven_ports
 
+import value_objects.svo.CipherSuite
 import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.Role
@@ -91,10 +92,11 @@ trait ShareRelay:
   // port, so no equivalent split is needed here.
 
   /** Pushes a signed rotation notice to one contact. `signature` must verify against the
-    * caller's own current Ed25519 key (the relay's `oldEd25519Key`) over
-    * `value_objects.svo.PayloadCanonical.forRotation`.
+    * caller's own current verify key (the relay's `oldVerifyKey`) over
+    * `value_objects.svo.PayloadCanonical.forRotation`. `newCipherSuite` (item 14) is the signing +
+    * key-agreement algorithm pairing `newVerifyKey`/`newEncKey` use.
     */
-  def pushRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte], signature: Array[Byte]): Unit
+  def pushRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite, signature: Array[Byte]): Unit
 
   /** Rotation notices addressed to this device. */
   def listRotations(): List[KeyRotation]

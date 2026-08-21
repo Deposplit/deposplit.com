@@ -24,13 +24,14 @@
 
 package value_objects.svo
 
-// A freshly generated Ed25519 + X25519 keypair, not yet persisted as this device's identity — see
-// item 9's "regenerate my own identity" trigger. Kept separate from IdentityStore.save's
-// parameters so a caller can push a signed rotation notice (proving continuity from the *old*
-// key) before activating the new one.
+// A freshly generated keypair, not yet persisted as this device's identity — see item 9's
+// "regenerate my own identity" trigger. Kept separate from IdentityStore.save's parameters so a
+// caller can push a signed rotation notice (proving continuity from the *old* key) before
+// activating the new one. Field names follow item 14's rename (verifyKey/signKey/encKey/decKey) —
+// the same vocabulary whether the keys are mine or a contact's.
 case class KeyPairMaterial(
-    edPublicKey: Array[Byte],
-    edPrivateKey: Array[Byte],
-    xPublicKey: Array[Byte],
-    xPrivateKey: Array[Byte]
+    verifyKey: Array[Byte],
+    signKey: Array[Byte],
+    encKey: Array[Byte],
+    decKey: Array[Byte]
 ) extends Serializable

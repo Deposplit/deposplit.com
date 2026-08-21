@@ -38,6 +38,7 @@ import driving_ports.Identity
 import driving_ports.ShareManagement
 import jakarta.inject.Inject
 import shamir.SecretSharing
+import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.CustodyHeartbeatTuning
 import value_objects.svo.HeldShare
@@ -114,7 +115,7 @@ class ShareService @Inject() (
         req.k,
         req.n
       )
-      identity.verify(canon, req.senderSignature, contact.edPublicKey)
+      identity.verify(canon, req.senderSignature, contact.verifyKey)
     }
 
   private def verifyRespond(req: ShareRequest): Boolean =
@@ -124,7 +125,7 @@ class ShareService @Inject() (
         val signedCiphertext =
           if approved && req.transactionType == ShareTransactionType.Retrieval then req.ciphertext else None
         val canon = PayloadCanonical.forRespond(req.id, approved, signedCiphertext)
-        identity.verify(canon, sig, contact.edPublicKey)
+        identity.verify(canon, sig, contact.verifyKey)
       }
     }
 
@@ -135,13 +136,13 @@ class ShareService @Inject() (
     val secretId = UUID.randomUUID()
     val createdAt = Instant.now()
     shares.zip(contacts).foreach { (share, contact) =>
-      val ct = encryption.encrypt(share, contact.xPublicKey)
+      val ct = encryption.encrypt(share, contact.encKey)
       val canon =
-        PayloadCanonical.forOpen(secretId, ShareTransactionType.Deposit, contact.edPublicKey, label, createdAt, None, Some(ct), Some(threshold), Some(contacts.size))
+        PayloadCanonical.forOpen(secretId, ShareTransactionType.Deposit, contact.verifyKey, label, createdAt, None, Some(ct), Some(threshold), Some(contacts.size))
       val senderSignature = identity.sign(canon)
       val req = relayForContact(contact).openShareRequest(
         secretId,
-        contact.edPublicKey,
+        contact.verifyKey,
         label,
         createdAt,
         ShareTransactionType.Deposit,
@@ -284,7 +285,7 @@ class ShareService @Inject() (
               val canon = PayloadCanonical.forOpen(
                 meta.secretId,
                 ShareTransactionType.Retrieval,
-                contact.edPublicKey,
+                contact.verifyKey,
                 secret.label,
                 secret.secretCreatedAt,
                 Some(meta.id),
@@ -293,7 +294,7 @@ class ShareService @Inject() (
               val senderSignature = identity.sign(canon)
               relayForContact(contact).openShareRequest(
                 meta.secretId,
-                contact.edPublicKey,
+                contact.verifyKey,
                 secret.label,
                 secret.secretCreatedAt,
                 ShareTransactionType.Retrieval,
@@ -321,7 +322,7 @@ class ShareService @Inject() (
     val canon = PayloadCanonical.forOpen(
       meta.secretId,
       transactionType,
-      contact.edPublicKey,
+      contact.verifyKey,
       secret.label,
       secret.secretCreatedAt,
       Some(shareId),
@@ -330,7 +331,7 @@ class ShareService @Inject() (
     val senderSignature = identity.sign(canon)
     relayForContact(contact).openShareRequest(
       meta.secretId,
-      contact.edPublicKey,
+      contact.verifyKey,
       secret.label,
       secret.secretCreatedAt,
       transactionType,
@@ -367,9 +368,9 @@ class ShareService @Inject() (
     // array position.
     val decryptedWithContact = approved.map { case (_, req) =>
       val contact = contacts
-        .find(_.edPublicKey.sameElements(req.recipientKey))
+        .find(_.verifyKey.sameElements(req.recipientKey))
         .getOrElse(throw IllegalStateException(s"Contact not found for recipient key"))
-      (encryption.decrypt(req.ciphertext.get, contact.xPublicKey), contact.id)
+      (encryption.decrypt(req.ciphertext.get, contact.encKey), contact.id)
     }
     val result = SecretSharing.combineWithIntegrity(decryptedWithContact.map(_._1), secret.k)
     val integrity =
@@ -423,7 +424,7 @@ class ShareService @Inject() (
                 val recipientSignature = identity.sign(canon)
                 val responded = relay.respondToShareRequest(req.id, approved = true, recipientSignature = recipientSignature)
                 responded.ciphertext.foreach { ct =>
-                  val plaintext = encryption.decrypt(ct, senderContact.xPublicKey)
+                  val plaintext = encryption.decrypt(ct, senderContact.encKey)
                   shareRepository.save(
                     HeldShare(
                       id = req.id,
@@ -464,9 +465,9 @@ class ShareService @Inject() (
         }
         if isDue then
           val secretIds = if contact.heartbeatEmissionOptedOut then Nil else held.filter(_.contactId == contactId).map(_.secretId)
-          val canon = PayloadCanonical.forHeartbeat(contact.edPublicKey, secretIds, contact.heartbeatEmissionOptedOut)
+          val canon = PayloadCanonical.forHeartbeat(contact.verifyKey, secretIds, contact.heartbeatEmissionOptedOut)
           Try(identity.sign(canon)).toOption.foreach { signature =>
-            val pushed = Try(relayForContact(contact).pushHeartbeat(contact.edPublicKey, secretIds, contact.heartbeatEmissionOptedOut, signature)).isSuccess
+            val pushed = Try(relayForContact(contact).pushHeartbeat(contact.verifyKey, secretIds, contact.heartbeatEmissionOptedOut, signature)).isSuccess
             if pushed then contactRepository.save(contact.copy(lastHeartbeatSentAt = Some(now)))
           }
       }
@@ -478,7 +479,7 @@ class ShareService @Inject() (
   // delivery. Unknown senders and forged signatures are silently skipped, same posture as
   // processRotations().
   private def processHeartbeats(): Unit =
-    val myKey = identity.edPublicKey()
+    val myKey = identity.verifyKey()
     val existingMetadata = shareMetadataRepository.getAll()
     allRelays().foreach { relay =>
       val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
@@ -519,48 +520,51 @@ class ShareService @Inject() (
     allRelays().foreach { relay =>
       val notices = Try(relay.listRotations()).getOrElse(Nil)
       notices.foreach { notice =>
-        contactRepository.getByEdKey(notice.oldEd25519Key).foreach { contact =>
-          val canon = PayloadCanonical.forRotation(notice.recipientKey, notice.newEd25519Key, notice.newX25519Key)
-          if identity.verify(canon, notice.signature, notice.oldEd25519Key) then
+        contactRepository.getByEdKey(notice.oldVerifyKey).foreach { contact =>
+          val canon = PayloadCanonical.forRotation(notice.recipientKey, notice.newVerifyKey, notice.newEncKey, notice.newCipherSuite)
+          if identity.verify(canon, notice.signature, notice.oldVerifyKey) then
             // Item 10 — a rotation claiming continuity from a key the user has flagged
             // compromised is never auto-accepted. Capture a durable local KeyConflict record
             // *before* touching the relay notice: the relay may lose its state at any time and
             // must never be relied on to keep the alert alive. Skip updateContact entirely — the
             // contact record is left untouched; only a fresh human-verified relink can move it
             // forward.
-            if contact.revokedEdKeys.exists(_.sameElements(notice.oldEd25519Key)) then
+            if contact.revokedEdKeys.exists(_.sameElements(notice.oldVerifyKey)) then
               Try(
                 keyConflictRepository.save(
                   KeyConflict(
                     id = UUID.randomUUID(),
                     contactId = contact.id,
-                    oldEd25519Key = notice.oldEd25519Key,
-                    newEd25519Key = notice.newEd25519Key,
-                    newX25519Key = notice.newX25519Key,
+                    oldVerifyKey = notice.oldVerifyKey,
+                    newVerifyKey = notice.newVerifyKey,
+                    newEncKey = notice.newEncKey,
                     detectedAt = Instant.now()
                   )
                 )
               )
               Try(relay.deleteRotation(notice.id))
             else
+              // Item 14 — a cipher-suite-only change goes through the same downgrade as a plain
+              // key rotation: an algorithm change is still continuity of key control, not a
+              // fresh personhood check.
               val downgraded = if contact.verificationLevel < VerificationLevel.Low then contact.verificationLevel else VerificationLevel.Low
-              Try(contactManagement.updateContact(contact.id, Some(notice.newEd25519Key), Some(notice.newX25519Key), Some(downgraded)))
+              Try(contactManagement.updateContact(contact.id, Some(notice.newVerifyKey), Some(notice.newEncKey), Some(notice.newCipherSuite), Some(downgraded)))
               Try(relay.deleteRotation(notice.id))
         }
       }
     }
 
   /** Item 9, sending side (client primitive only — see ShareManagement.pushRotation). Signs the
-    * new keys with the device's *current* identity, which becomes oldEd25519Key on the wire,
+    * new keys with the device's *current* identity, which becomes oldVerifyKey on the wire,
     * proving continuity of key control to the recipient.
     */
-  override def pushRotation(contactId: UUID, newEd25519Key: Array[Byte], newX25519Key: Array[Byte]): Unit =
+  override def pushRotation(contactId: UUID, newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite): Unit =
     val contact = contactRepository
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
-    val canon = PayloadCanonical.forRotation(contact.edPublicKey, newEd25519Key, newX25519Key)
+    val canon = PayloadCanonical.forRotation(contact.verifyKey, newVerifyKey, newEncKey, newCipherSuite)
     val signature = identity.sign(canon)
-    relayForContact(contact).pushRotation(contact.edPublicKey, newEd25519Key, newX25519Key, signature)
+    relayForContact(contact).pushRotation(contact.verifyKey, newVerifyKey, newEncKey, newCipherSuite, signature)
 
   /** Item 9's identity-regen trigger. Order matters: the drain and the rotation pushes must both
     * happen before activateKeyPair, since pushRotation (and the drain's own relay calls) sign
@@ -576,7 +580,7 @@ class ShareService @Inject() (
     val newKeys = identity.generateNewKeyPair()
     val contacts = contactRepository.getAll()
     val notified = contacts.count { contact =>
-      Try(pushRotation(contact.id, newKeys.edPublicKey, newKeys.xPublicKey)).isSuccess
+      Try(pushRotation(contact.id, newKeys.verifyKey, newKeys.encKey, CipherSuite.current)).isSuccess
     }
     identity.activateKeyPair(newKeys)
     RegenerateIdentityResult(notified, contacts.size)
@@ -615,7 +619,7 @@ class ShareService @Inject() (
         val canon = PayloadCanonical.forOpen(
           share.secretId,
           ShareTransactionType.Inventory,
-          contact.edPublicKey,
+          contact.verifyKey,
           share.label,
           share.createdAt,
           None,
@@ -626,7 +630,7 @@ class ShareService @Inject() (
         val senderSignature = identity.sign(canon)
         relayForContact(contact).openShareRequest(
           share.secretId,
-          contact.edPublicKey,
+          contact.verifyKey,
           share.label,
           share.createdAt,
           ShareTransactionType.Inventory,
@@ -665,7 +669,7 @@ class ShareService @Inject() (
         val requesterContact = contactRepository
           .getByEdKey(request.senderKey)
           .getOrElse(throw IllegalStateException(s"Contact not found for requester"))
-        Some(encryption.encrypt(plaintext, requesterContact.xPublicKey))
+        Some(encryption.encrypt(plaintext, requesterContact.encKey))
       else None
     val canon = PayloadCanonical.forRespond(requestId, approved, ciphertext)
     val recipientSignature = identity.sign(canon)
@@ -690,7 +694,7 @@ class ShareService @Inject() (
     */
   override def deleteAllHeldFromSender(contactId: UUID): Unit =
     contactRepository.getById(contactId).foreach { senderContact =>
-      Try(relayForContact(senderContact).withdrawShareRequests(senderKey = Some(senderContact.edPublicKey)))
+      Try(relayForContact(senderContact).withdrawShareRequests(senderKey = Some(senderContact.verifyKey)))
     }
     shareRepository
       .getAll()

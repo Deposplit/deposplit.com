@@ -25,29 +25,34 @@
 package driving_ports
 
 import java.util.UUID
+import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.VerificationLevel
 
 trait ContactManagement:
   def listContacts(): List[Contact]
-  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
-  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
+  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
+  // cipherSuite (item 14) is required here (unlike addManually) because the QR/link payload is
+  // exactly where this self-describing fact comes from — manual entry has no wire payload to read
+  // one from, so addManually assumes today's one suite instead.
+  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None): Unit
   /** Updates an existing contact in place, preserving contactId — never delete-and-re-add, which
     * would mint a fresh id and orphan any HeldShare/ShareMetadata rows anchored to it. See
     * deposplit.com/CLAUDE.md "What is next" item 8.
     *
-    * `verificationLevel` is `None` by default: when the keys change and no explicit level is
-    * given, this hexagon (no picker UI — item 6's narrower phon scope) defaults to `VeryHigh`,
-    * mirroring `addFromQr`'s in-person-flow default. Item 9's rotation-processing supplies an
-    * explicit level (`min(old, Low)` — a signed rotation proves key continuity, not fresh
-    * personhood, so it must never default to the same `VeryHigh` a human re-scan would earn).
+    * `verificationLevel` is `None` by default: when the keys or cipher suite change (item 14
+    * extends this to a suite-only change too) and no explicit level is given, this hexagon (no
+    * picker UI — item 6's narrower phon scope) defaults to `VeryHigh`, mirroring `addFromQr`'s
+    * in-person-flow default. Item 9's rotation-processing supplies an explicit level
+    * (`min(old, Low)` — a signed rotation proves key continuity, not fresh personhood, so it must
+    * never default to the same `VeryHigh` a human re-scan would earn).
     */
-  def updateContact(contactId: UUID, edPublicKey: Option[Array[Byte]] = None, xPublicKey: Option[Array[Byte]] = None, verificationLevel: Option[VerificationLevel] = None): Unit
+  def updateContact(contactId: UUID, verifyKey: Option[Array[Byte]] = None, encKey: Option[Array[Byte]] = None, cipherSuite: Option[CipherSuite] = None, verificationLevel: Option[VerificationLevel] = None): Unit
   def deleteContact(contactId: UUID): Unit
-  /** Item 10 — flags an Ed25519 key into the contact's revokedEdKeys history, out-of-band-
+  /** Item 10 — flags a verify key into the contact's revokedEdKeys history, out-of-band-
     * triggered (the user has some independent reason to believe it was stolen). Defaults to the
-    * contact's *current* edPublicKey when edPublicKey is None. From this point, any signed
-    * rotation notice claiming continuity from that key is refused auto-accept; only a fresh
+    * contact's *current* verifyKey when verifyKey is None. From this point, any signed rotation
+    * notice claiming continuity from that key is refused auto-accept; only a fresh
     * human-verified relink can move the contact forward. Idempotent — a no-op if already flagged.
     */
-  def markKeyCompromised(contactId: UUID, edPublicKey: Option[Array[Byte]] = None): Unit
+  def markKeyCompromised(contactId: UUID, verifyKey: Option[Array[Byte]] = None): Unit

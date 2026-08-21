@@ -30,8 +30,8 @@ trait Identity:
   def isRegistered(): Boolean
   def register(pseudonym: String): Unit
   def pseudonym(): String
-  def edPublicKey(): Array[Byte]
-  def xPublicKey(): Array[Byte]
+  def verifyKey(): Array[Byte]
+  def encKey(): Array[Byte]
   def sign(message: Array[Byte]): Array[Byte]
 
   /** Verifies an Ed25519 `signature` over `message` against `publicKey` (someone else's, not this

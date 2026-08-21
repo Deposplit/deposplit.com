@@ -47,7 +47,7 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
       val result = route(
         app,
         FakeRequest("GET", path).withHeaders(
-          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Verify-Key" -> signer.publicKeyHeader,
           "X-Deposplit-Signature" -> "placeholder"
         )
       ).get
@@ -59,7 +59,7 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
       val result = route(
         app,
         FakeRequest("GET", path).withHeaders(
-          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Verify-Key" -> signer.publicKeyHeader,
           "X-Deposplit-Nonce" -> s"${System.currentTimeMillis()}.abc"
         )
       ).get
@@ -74,7 +74,7 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
       val result = route(
         app,
         FakeRequest("GET", path).withHeaders(
-          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Verify-Key" -> signer.publicKeyHeader,
           "X-Deposplit-Nonce" -> s"$expiredMs.abc",
           "X-Deposplit-Signature" -> "placeholder"
         )
@@ -89,7 +89,7 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
       val result = route(
         app,
         FakeRequest("GET", path).withHeaders(
-          "X-Deposplit-Public-Key" -> signer.publicKeyHeader,
+          "X-Deposplit-Verify-Key" -> signer.publicKeyHeader,
           "X-Deposplit-Nonce" -> s"${System.currentTimeMillis()}.abc",
           "X-Deposplit-Signature" -> wrongSig
         )

@@ -47,8 +47,8 @@
         <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
         <tr id="ESC@contact.id.toString">
           <th scope="row" title="@contact.id.toString">@contact.pseudonym</th>
-          <td>@QrPayload.encodeKey(contact.edPublicKey)</td>
-          <td>@QrPayload.encodeKey(contact.xPublicKey)</td>
+          <td>@QrPayload.encodeKey(contact.verifyKey)</td>
+          <td>@QrPayload.encodeKey(contact.encKey)</td>
           <td>@if(contact.verificationLevel==VerificationLevel.VeryHigh){<span class="text-success">@messages("verificationVeryHigh")</span>}else if(contact.verificationLevel==VerificationLevel.High){<span class="text-primary">@messages("verificationHigh")</span>}else if(contact.verificationLevel==VerificationLevel.Low){<span class="text-warning">@messages("verificationLow")</span>}else{<span class="text-muted">@messages("verificationVeryLow")</span>}</td>
           <td><button class="btn btn-danger" hx-delete="@phon.routes.PhonyPhoneController.deleteContact(contact.id)" hx-include="[name='csrfToken']" hx-target="#ESC@contact.id.toString" hx-swap="delete">@messages("delete")</button></td>
         </tr>

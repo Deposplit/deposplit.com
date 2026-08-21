@@ -26,23 +26,30 @@ package value_objects
 
 import java.util.Base64
 
-/** Base64url-decoded bytes of an Ed25519 signature (64 bytes). */
+/** Base64url-decoded bytes of a signature.
+  *
+  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a
+  * future signing algorithm will not share Ed25519's 64-byte signature size, so only a generous
+  * sanity bound is enforced here.
+  */
 opaque type Signature = Array[Byte]
 
 object Signature:
-  private val SigLength = 64
+  // A sanity bound only, not algorithm-exact — see the type doc above. Not sized for any specific
+  // future algorithm; revisit once one is actually chosen (deposplit.com/CLAUDE.md item 14).
+  private val MaxLength = 128
   private val decoder = Base64.getUrlDecoder
   private val encoder = Base64.getUrlEncoder.withoutPadding
 
   def fromBase64Url(s: String): Either[String, Signature] =
     try
       val bytes = decoder.decode(s)
-      if bytes.length != SigLength then Left(s"Ed25519 signature must be $SigLength bytes")
+      if bytes.isEmpty || bytes.length > MaxLength then Left(s"signature must be 1..$MaxLength bytes")
       else Right(bytes)
     catch case _: IllegalArgumentException => Left(s"invalid base64url: $s")
 
   def fromBytes(bytes: Array[Byte]): Either[String, Signature] =
-    if bytes.length != SigLength then Left(s"Ed25519 signature must be $SigLength bytes")
+    if bytes.isEmpty || bytes.length > MaxLength then Left(s"signature must be 1..$MaxLength bytes")
     else Right(bytes)
 
   extension (sig: Signature)

@@ -77,15 +77,21 @@ object PayloadCanonical:
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
   /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who
-    * becomes `KeyRotation.oldEd25519Key`. Proves continuity of key control — only someone
+    * becomes `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone
     * holding the old private key can produce this signature, which is what lets the recipient
     * auto-verify and auto-accept the rotation without a fresh human re-verification.
+    *
+    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14
+    * field order — and this construction's cross-platform byte-vector test — undisturbed. No
+    * `oldCipherSuite` is signed — the recipient already has it pinned on the existing contact
+    * record.
     */
-  def forRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte]): Array[Byte] =
+  def forRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite): Array[Byte] =
     Seq(
       base64Url.encodeToString(recipientKey),
-      base64Url.encodeToString(newEd25519Key),
-      base64Url.encodeToString(newX25519Key)
+      base64Url.encodeToString(newVerifyKey),
+      base64Url.encodeToString(newEncKey),
+      newCipherSuite.wireValue
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
   /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller

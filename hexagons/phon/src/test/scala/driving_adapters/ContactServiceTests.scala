@@ -25,6 +25,7 @@
 package driving_adapters
 
 import driven_ports.ContactRepository
+import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.VerificationLevel
 
@@ -34,7 +35,7 @@ import java.util.UUID
 private class InMemoryContactRepositoryForContactServiceTest extends ContactRepository:
   private var contacts: List[Contact] = Nil
   override def getAll(): List[Contact] = contacts
-  override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] = contacts.find(_.edPublicKey.sameElements(edPublicKey))
+  override def getByEdKey(verifyKey: Array[Byte]): Option[Contact] = contacts.find(_.verifyKey.sameElements(verifyKey))
   override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
   override def delete(contactId: UUID): Unit = contacts = contacts.filterNot(_.id == contactId)
@@ -46,8 +47,8 @@ class ContactServiceTests extends munit.FunSuite:
   private def makeContact(): Contact = Contact(
     id = UUID.randomUUID(),
     pseudonym = "bob",
-    edPublicKey = Array.fill(32)(0x01.toByte),
-    xPublicKey = Array.fill(32)(0x02.toByte),
+    verifyKey = Array.fill(32)(0x01.toByte),
+    encKey = Array.fill(32)(0x02.toByte),
     verificationLevel = VerificationLevel.VeryHigh,
     verifiedAt = Some(Instant.EPOCH),
     addedAt = Instant.EPOCH
@@ -61,13 +62,13 @@ class ContactServiceTests extends munit.FunSuite:
     val newEd = Array.fill(32)(0x03.toByte)
     val newX = Array.fill(32)(0x04.toByte)
 
-    svc.updateContact(original.id, edPublicKey = Some(newEd), xPublicKey = Some(newX))
+    svc.updateContact(original.id, verifyKey = Some(newEd), encKey = Some(newX))
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
     assertEquals(updated.id, original.id)
     assertEquals(updated.pseudonym, original.pseudonym)
-    assert(updated.edPublicKey.sameElements(newEd))
-    assert(updated.xPublicKey.sameElements(newX))
+    assert(updated.verifyKey.sameElements(newEd))
+    assert(updated.encKey.sameElements(newX))
   }
 
   test("updateContact can change only one key") {
@@ -77,11 +78,11 @@ class ContactServiceTests extends munit.FunSuite:
     repo.save(original)
     val newEd = Array.fill(32)(0x05.toByte)
 
-    svc.updateContact(original.id, edPublicKey = Some(newEd))
+    svc.updateContact(original.id, verifyKey = Some(newEd))
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
-    assert(updated.edPublicKey.sameElements(newEd))
-    assert(updated.xPublicKey.sameElements(original.xPublicKey))
+    assert(updated.verifyKey.sameElements(newEd))
+    assert(updated.encKey.sameElements(original.encKey))
   }
 
   test("updateContact throws for an unknown contactId") {
@@ -89,7 +90,7 @@ class ContactServiceTests extends munit.FunSuite:
     val svc = ContactService(repo)
 
     intercept[IllegalStateException] {
-      svc.updateContact(UUID.randomUUID(), edPublicKey = Some(Array.fill(32)(0x01.toByte)))
+      svc.updateContact(UUID.randomUUID(), verifyKey = Some(Array.fill(32)(0x01.toByte)))
     }
   }
 
@@ -102,10 +103,10 @@ class ContactServiceTests extends munit.FunSuite:
     repo.save(original)
     val newEd = Array.fill(32)(0x06.toByte)
 
-    svc.updateContact(original.id, edPublicKey = Some(newEd), verificationLevel = Some(VerificationLevel.Low))
+    svc.updateContact(original.id, verifyKey = Some(newEd), verificationLevel = Some(VerificationLevel.Low))
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
-    assert(updated.edPublicKey.sameElements(newEd))
+    assert(updated.verifyKey.sameElements(newEd))
     assertEquals(updated.verificationLevel, VerificationLevel.Low)
   }
 
@@ -115,7 +116,7 @@ class ContactServiceTests extends munit.FunSuite:
     val original = makeContact().copy(verificationLevel = VerificationLevel.Low)
     repo.save(original)
 
-    svc.updateContact(original.id, edPublicKey = Some(Array.fill(32)(0x07.toByte)))
+    svc.updateContact(original.id, verifyKey = Some(Array.fill(32)(0x07.toByte)))
 
     assertEquals(repo.getById(original.id).map(_.verificationLevel), Some(VerificationLevel.VeryHigh))
   }
@@ -132,7 +133,7 @@ class ContactServiceTests extends munit.FunSuite:
     svc.updateContact(original.id, verificationLevel = Some(VerificationLevel.High))
     assertEquals(repo.getById(original.id).flatMap(_.keyChangedAt), None)
 
-    svc.updateContact(original.id, edPublicKey = Some(Array.fill(32)(0x08.toByte)))
+    svc.updateContact(original.id, verifyKey = Some(Array.fill(32)(0x08.toByte)))
     assert(repo.getById(original.id).flatMap(_.keyChangedAt).isDefined)
   }
 
@@ -146,14 +147,14 @@ class ContactServiceTests extends munit.FunSuite:
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
     assertEquals(updated.revokedEdKeys.size, 1)
-    assert(updated.revokedEdKeys.head.sameElements(original.edPublicKey))
+    assert(updated.revokedEdKeys.head.sameElements(original.verifyKey))
   }
 
   test("markKeyCompromised is idempotent for an already-flagged key") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
     val svc = ContactService(repo)
     val original = makeContact()
-    repo.save(original.copy(revokedEdKeys = List(original.edPublicKey)))
+    repo.save(original.copy(revokedEdKeys = List(original.verifyKey)))
 
     svc.markKeyCompromised(original.id)
 
@@ -167,10 +168,66 @@ class ContactServiceTests extends munit.FunSuite:
     repo.save(original)
     val oldKey = Array.fill(32)(0x09.toByte)
 
-    svc.markKeyCompromised(original.id, edPublicKey = Some(oldKey))
+    svc.markKeyCompromised(original.id, verifyKey = Some(oldKey))
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
     assertEquals(updated.revokedEdKeys.size, 1)
     assert(updated.revokedEdKeys.head.sameElements(oldKey))
-    assert(!updated.revokedEdKeys.head.sameElements(original.edPublicKey))
+    assert(!updated.revokedEdKeys.head.sameElements(original.verifyKey))
+  }
+
+  // ── Item 14: crypto agility — cipher suite threading + suite-aware length validation ────────
+
+  test("addFromQr stores the asserted cipherSuite") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    svc.addFromQr("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
+
+    assertEquals(repo.getAll().head.cipherSuite, CipherSuite.current)
+  }
+
+  test("addManually defaults to the current cipherSuite") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
+
+    assertEquals(repo.getAll().head.cipherSuite, CipherSuite.current)
+  }
+
+  test("addFromQr rejects a verify key whose length does not match the asserted cipherSuite") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    intercept[IllegalArgumentException] {
+      svc.addFromQr("bob", Array.fill(16)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
+    }
+  }
+
+  test("updateContact rejects a new key whose length does not match the effective cipherSuite") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact()
+    repo.save(original)
+
+    intercept[IllegalArgumentException] {
+      svc.updateContact(original.id, verifyKey = Some(Array.fill(16)(0x01.toByte)))
+    }
+  }
+
+  test("updateContact forces a fresh verification level on a cipherSuite-only change") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact().copy(verificationLevel = VerificationLevel.Low)
+    repo.save(original)
+
+    // No explicit level given, but this hexagon's no-picker-UI default kicks in (same as a key
+    // change) rather than throwing — unlike Android/iOS, which require an explicit level.
+    svc.updateContact(original.id, cipherSuite = Some(CipherSuite.current))
+
+    val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
+    assertEquals(updated.cipherSuite, CipherSuite.current)
+    assertEquals(updated.verificationLevel, VerificationLevel.VeryHigh)
+    assert(updated.keyChangedAt.isDefined)
   }

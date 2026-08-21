@@ -26,30 +26,36 @@ package value_objects
 
 import java.util.Base64
 
-/** Raw bytes of an X25519 public key (32 bytes), base64url-encoded on the wire.
+/** Raw bytes of a key-agreement public key, base64url-encoded on the wire.
   *
-  * The relay never performs key agreement with it — like ciphertext, it only ever routes it as
-  * an opaque 32-byte value (item 9's rotation push, see `KeyRotation`). A dedicated type, rather
-  * than reusing `PublicKey` (which is documented and used for Ed25519 verification), keeps the
-  * two key algorithms from being silently interchangeable at a call site despite sharing a byte
-  * length.
+  * The relay never performs key agreement with it — like ciphertext, it only ever routes it as an
+  * opaque value (item 9's rotation push, see `KeyRotation`). A dedicated type, rather than reusing
+  * `PublicKey` (which is documented and used for signature verification), keeps the two key
+  * algorithms from being silently interchangeable at a call site despite sharing a byte length.
+  *
+  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a
+  * future key-agreement algorithm will not share X25519's 32-byte key size, so only a generous
+  * sanity bound is enforced here. Exact-length validation against a known algorithm happens
+  * wherever a [[CipherSuite]] is actually asserted alongside the key (e.g. `KeyRotationsService`).
   */
 opaque type X25519Key = Array[Byte]
 
 object X25519Key:
-  private val KeyLength = 32
+  // A sanity bound only, not algorithm-exact — see the type doc above. Not sized for any specific
+  // future algorithm; revisit once one is actually chosen (deposplit.com/CLAUDE.md item 14).
+  private val MaxLength = 128
   private val decoder = Base64.getUrlDecoder
   private val encoder = Base64.getUrlEncoder.withoutPadding
 
   def fromBase64Url(s: String): Either[String, X25519Key] =
     try
       val bytes = decoder.decode(s)
-      if bytes.length != KeyLength then Left(s"X25519 public key must be $KeyLength bytes")
+      if bytes.isEmpty || bytes.length > MaxLength then Left(s"key-agreement public key must be 1..$MaxLength bytes")
       else Right(bytes)
     catch case _: IllegalArgumentException => Left(s"invalid base64url: $s")
 
   def fromBytes(bytes: Array[Byte]): Either[String, X25519Key] =
-    if bytes.length != KeyLength then Left(s"X25519 public key must be $KeyLength bytes")
+    if bytes.isEmpty || bytes.length > MaxLength then Left(s"key-agreement public key must be 1..$MaxLength bytes")
     else Right(bytes)
 
   extension (k: X25519Key)

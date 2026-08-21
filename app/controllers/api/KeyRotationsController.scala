@@ -40,7 +40,7 @@ class KeyRotationsController @Inject() (
       ApiSupport:
 
   /** POST /key-rotations — push a signed rotation notice to one contact. The authenticated
-    * caller becomes `oldEd25519Key`.
+    * caller becomes `oldVerifyKey`.
     */
   def pushRotation() = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
@@ -51,20 +51,26 @@ class KeyRotationsController @Inject() (
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "recipientKey is required")))
       recipientKey <- PublicKey.fromBase64Url(rkStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
-      newEdStr <- (json \ "newEd25519Key")
+      newVerifyStr <- (json \ "newVerifyKey")
         .asOpt[String]
-        .toRight(BadRequest(errorJson("missing_field", "newEd25519Key is required")))
-      newEd25519Key <- PublicKey.fromBase64Url(newEdStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
-      newXStr <- (json \ "newX25519Key")
+        .toRight(BadRequest(errorJson("missing_field", "newVerifyKey is required")))
+      newVerifyKey <- PublicKey.fromBase64Url(newVerifyStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
+      newEncStr <- (json \ "newEncKey")
         .asOpt[String]
-        .toRight(BadRequest(errorJson("missing_field", "newX25519Key is required")))
-      newX25519Key <- X25519Key.fromBase64Url(newXStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
+        .toRight(BadRequest(errorJson("missing_field", "newEncKey is required")))
+      newEncKey <- X25519Key.fromBase64Url(newEncStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
+      suiteStr <- (json \ "newCipherSuite")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "newCipherSuite is required")))
+      newCipherSuite <- CipherSuite
+        .fromWire(suiteStr)
+        .toRight(BadRequest(errorJson("invalid_field", s"unknown cipher suite: $suiteStr")))
       sigStr <- (json \ "signature")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "signature is required")))
       signature <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
       rotation <- rotations
-        .pushRotation(callerKey, recipientKey, newEd25519Key, newX25519Key, signature)
+        .pushRotation(callerKey, recipientKey, newVerifyKey, newEncKey, newCipherSuite, signature)
         .left
         .map(domainErrorToResult)
     yield Created(keyRotationJson(rotation))

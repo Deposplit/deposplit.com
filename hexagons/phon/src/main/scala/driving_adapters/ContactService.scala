@@ -27,6 +27,7 @@ package driving_adapters
 import driven_ports.ContactRepository
 import driving_ports.ContactManagement
 import jakarta.inject.Inject
+import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.VerificationLevel
 
@@ -38,67 +39,77 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
   def listContacts(): List[Contact] =
     contactRepository.getAll()
 
-  def addManually(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
+  // No cipherSuite parameter: manual entry has no wire payload to read one from, and only one
+  // suite exists to assume — see ContactManagement.addManually.
+  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
+    val cipherSuite = CipherSuite.current
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
-    require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
-    require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
+    require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
+    require(encKey.length == cipherSuite.encKeyLength, s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite")
     val now = Instant.now()
     contactRepository.save(
       Contact(
         id = UUID.randomUUID(),
         pseudonym = pseudonym.strip(),
-        edPublicKey = edPublicKey,
-        xPublicKey = xPublicKey,
+        verifyKey = verifyKey,
+        encKey = encKey,
         verificationLevel = VerificationLevel.VeryLow,
         verifiedAt = Some(now),
         addedAt = now,
-        relayBaseUrl = relayBaseUrl
+        relayBaseUrl = relayBaseUrl,
+        cipherSuite = cipherSuite
       )
     )
 
-  def addFromQr(pseudonym: String, edPublicKey: Array[Byte], xPublicKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
+  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
-    require(edPublicKey.length == 32, "Ed25519 public key must be 32 bytes")
-    require(xPublicKey.length == 32, "X25519 public key must be 32 bytes")
+    require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
+    require(encKey.length == cipherSuite.encKeyLength, s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite")
     val now = Instant.now()
     contactRepository.save(
       Contact(
         id = UUID.randomUUID(),
         pseudonym = pseudonym.strip(),
-        edPublicKey = edPublicKey,
-        xPublicKey = xPublicKey,
+        verifyKey = verifyKey,
+        encKey = encKey,
         verificationLevel = VerificationLevel.VeryHigh,
         verifiedAt = Some(now),
         addedAt = now,
-        relayBaseUrl = relayBaseUrl
+        relayBaseUrl = relayBaseUrl,
+        cipherSuite = cipherSuite
       )
     )
 
   def updateContact(
       contactId: UUID,
-      edPublicKey: Option[Array[Byte]] = None,
-      xPublicKey: Option[Array[Byte]] = None,
+      verifyKey: Option[Array[Byte]] = None,
+      encKey: Option[Array[Byte]] = None,
+      cipherSuite: Option[CipherSuite] = None,
       verificationLevel: Option[VerificationLevel] = None
   ): Unit =
     val existing = contactRepository
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
-    edPublicKey.foreach(k => require(k.length == 32, "Ed25519 public key must be 32 bytes"))
-    xPublicKey.foreach(k => require(k.length == 32, "X25519 public key must be 32 bytes"))
-    val changingKeys = edPublicKey.isDefined || xPublicKey.isDefined
-    // A key change forces re-choosing the level fresh (item 8/10), never silently carrying the
-    // old one forward. An explicit `verificationLevel` (item 9's rotation downgrade) always
-    // wins; absent one, a key change defaults to the same VeryHigh addFromQr uses for its
-    // analogous re-scan-in-person flow — phon has no picker UI (item 6's narrower scope).
-    val newLevel = verificationLevel.orElse(if changingKeys then Some(VerificationLevel.VeryHigh) else None)
+    val effectiveSuite = cipherSuite.getOrElse(existing.cipherSuite)
+    verifyKey.foreach(k => require(k.length == effectiveSuite.verifyKeyLength, s"Verify key must be ${effectiveSuite.verifyKeyLength} bytes for $effectiveSuite"))
+    encKey.foreach(k => require(k.length == effectiveSuite.encKeyLength, s"Enc key must be ${effectiveSuite.encKeyLength} bytes for $effectiveSuite"))
+    // Item 14 — a cipher-suite-only change (no key-value change) forces the same fresh-level
+    // rule as a key change: it's still continuity of key control, not a fresh personhood check.
+    val changingIdentity = verifyKey.isDefined || encKey.isDefined || cipherSuite.isDefined
+    // A key or cipher-suite change forces re-choosing the level fresh (item 8/10/14), never
+    // silently carrying the old one forward. An explicit `verificationLevel` (item 9's rotation
+    // downgrade) always wins; absent one, a change defaults to the same VeryHigh addFromQr uses
+    // for its analogous re-scan-in-person flow — phon has no picker UI (item 6's narrower scope).
+    val newLevel = verificationLevel.orElse(if changingIdentity then Some(VerificationLevel.VeryHigh) else None)
     contactRepository.save(
       existing.copy(
-        edPublicKey = edPublicKey.getOrElse(existing.edPublicKey),
-        xPublicKey = xPublicKey.getOrElse(existing.xPublicKey),
+        verifyKey = verifyKey.getOrElse(existing.verifyKey),
+        encKey = encKey.getOrElse(existing.encKey),
+        cipherSuite = effectiveSuite,
         verificationLevel = newLevel.getOrElse(existing.verificationLevel),
-        verifiedAt = if changingKeys || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
+        verifiedAt = if changingIdentity || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
         revokedEdKeys = existing.revokedEdKeys,
-        keyChangedAt = if changingKeys then Some(Instant.now()) else existing.keyChangedAt
+        keyChangedAt = if changingIdentity then Some(Instant.now()) else existing.keyChangedAt
       )
     )
 
@@ -106,10 +117,10 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
     contactRepository.delete(contactId)
 
   // Item 10 — idempotent: a no-op if the key is already in revokedEdKeys.
-  def markKeyCompromised(contactId: UUID, edPublicKey: Option[Array[Byte]] = None): Unit =
+  def markKeyCompromised(contactId: UUID, verifyKey: Option[Array[Byte]] = None): Unit =
     val existing = contactRepository
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
-    val keyToFlag = edPublicKey.getOrElse(existing.edPublicKey)
+    val keyToFlag = verifyKey.getOrElse(existing.verifyKey)
     if !existing.revokedEdKeys.exists(_.sameElements(keyToFlag)) then
       contactRepository.save(existing.copy(revokedEdKeys = keyToFlag :: existing.revokedEdKeys))

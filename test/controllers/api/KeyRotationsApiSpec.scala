@@ -36,7 +36,7 @@ import java.util.UUID
   * K_new)` push). Runs in declaration order and shares a single in-memory H2 database via
   * GuiceOneAppPerSuite, same pattern as `ShareRequestsApiSpec`.
   *
-  * `newX25519Key`'s wire value only needs to be a 32-byte base64url string — the relay never
+  * `newEncKey`'s wire value only needs to be a 32-byte base64url string — the relay never
   * performs key agreement with it, so a second `RequestSigner`'s Ed25519 public key doubles as a
   * conveniently-shaped stand-in without needing real X25519 key generation in the test.
   */
@@ -45,19 +45,21 @@ class KeyRotationsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   private val alice = new RequestSigner()
   private val bob = new RequestSigner()
   private val charlie = new RequestSigner()
-  private val newX25519Key = charlie.publicKeyHeader
+  private val newEncKey = charlie.publicKeyHeader
+  private val cipherSuite = "ed25519+x25519-v1"
 
   private def pushBody(
       oldKey: RequestSigner,
       recipient: RequestSigner,
-      newEd25519Key: RequestSigner = charlie,
-      newX25519: String = newX25519Key
+      newVerifyKey: RequestSigner = charlie,
+      newEnc: String = newEncKey
   ): Array[Byte] =
-    val sig = oldKey.signRotation(recipient.publicKeyHeader, newEd25519Key.publicKeyHeader, newX25519)
+    val sig = oldKey.signRotation(recipient.publicKeyHeader, newVerifyKey.publicKeyHeader, newEnc, cipherSuite)
     s"""{
        |  "recipientKey":    "${recipient.publicKeyHeader}",
-       |  "newEd25519Key":   "${newEd25519Key.publicKeyHeader}",
-       |  "newX25519Key":    "$newX25519",
+       |  "newVerifyKey":    "${newVerifyKey.publicKeyHeader}",
+       |  "newEncKey":       "$newEnc",
+       |  "newCipherSuite":  "$cipherSuite",
        |  "signature":       "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
@@ -68,19 +70,29 @@ class KeyRotationsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(result) mustBe CREATED
       val json = contentAsJson(result)
       (json \ "id").as[String] must not be empty
-      (json \ "oldEd25519Key").as[String] mustBe alice.publicKeyHeader
+      (json \ "oldVerifyKey").as[String] mustBe alice.publicKeyHeader
       (json \ "recipientKey").as[String] mustBe bob.publicKeyHeader
-      (json \ "newEd25519Key").as[String] mustBe charlie.publicKeyHeader
-      (json \ "newX25519Key").as[String] mustBe newX25519Key
+      (json \ "newVerifyKey").as[String] mustBe charlie.publicKeyHeader
+      (json \ "newEncKey").as[String] mustBe newEncKey
+      (json \ "newCipherSuite").as[String] mustBe cipherSuite
       (json \ "signature").as[String] must not be empty
       (json \ "createdAt").asOpt[String] must not be empty
     }
 
     "reject a rotation whose signature doesn't verify against the caller" in {
       // Signed as if by bob, but posted (and transport-authenticated) as alice.
-      val sig = bob.signRotation(bob.publicKeyHeader, charlie.publicKeyHeader, newX25519Key)
+      val sig = bob.signRotation(bob.publicKeyHeader, charlie.publicKeyHeader, newEncKey, cipherSuite)
       val body =
-        s"""{"recipientKey":"${bob.publicKeyHeader}","newEd25519Key":"${charlie.publicKeyHeader}","newX25519Key":"$newX25519Key","signature":"$sig"}"""
+        s"""{"recipientKey":"${bob.publicKeyHeader}","newVerifyKey":"${charlie.publicKeyHeader}","newEncKey":"$newEncKey","newCipherSuite":"$cipherSuite","signature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, alice.post("/key-rotations", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    "reject a rotation with an unknown cipher suite" in {
+      val sig = alice.signRotation(bob.publicKeyHeader, charlie.publicKeyHeader, newEncKey, "made-up-suite")
+      val body =
+        s"""{"recipientKey":"${bob.publicKeyHeader}","newVerifyKey":"${charlie.publicKeyHeader}","newEncKey":"$newEncKey","newCipherSuite":"made-up-suite","signature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, alice.post("/key-rotations", body)).get
       status(result) mustBe BAD_REQUEST

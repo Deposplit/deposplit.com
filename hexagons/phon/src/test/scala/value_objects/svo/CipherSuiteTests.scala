@@ -22,30 +22,20 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
-import java.time.Instant
-import java.util.UUID
+class CipherSuiteTests extends munit.FunSuite:
 
-/** A signed key-rotation push (item 9) — a holder's proactive "I am now newVerifyKey, previously
-  * oldVerifyKey" notice, addressed to one contact (`recipientKey`) at a time.
-  *
-  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the
-  * recipient auto-verifies `signature` against `oldVerifyKey` (the trusted key it already knows
-  * this contact by) and, on success, updates its local contact record in place before deleting
-  * this row. See `PayloadCanonical.forRotation` for the exact bytes signed.
-  *
-  * `newCipherSuite` (item 14) is the signing + key-agreement algorithm pairing `newVerifyKey`/
-  * `newEncKey` use. No `oldCipherSuite` field — the recipient already has it pinned on the
-  * existing contact record being rotated away from.
-  */
-case class KeyRotation(
-    id: UUID,
-    oldVerifyKey: PublicKey,
-    recipientKey: PublicKey,
-    newVerifyKey: PublicKey,
-    newEncKey: X25519Key,
-    newCipherSuite: CipherSuite,
-    signature: Signature,
-    createdAt: Instant
-)
+  test("wireValue round-trips through fromWire") {
+    CipherSuite.values.foreach(suite => assertEquals(CipherSuite.fromWire(suite.wireValue), Some(suite)))
+  }
+
+  test("fromWire returns None for an unknown value") {
+    assertEquals(CipherSuite.fromWire("made-up-suite"), None)
+  }
+
+  test("current is the ed25519+x25519-v1 suite with 32-byte keys") {
+    assertEquals(CipherSuite.current.wireValue, "ed25519+x25519-v1")
+    assertEquals(CipherSuite.current.verifyKeyLength, 32)
+    assertEquals(CipherSuite.current.encKeyLength, 32)
+  }

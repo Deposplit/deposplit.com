@@ -40,7 +40,7 @@ import java.util.UUID
 private class InMemoryContactRepositoryForCatalogTest extends ContactRepository:
   private var contacts: List[Contact] = Nil
   override def getAll(): List[Contact] = contacts
-  override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] = contacts.find(_.edPublicKey.sameElements(edPublicKey))
+  override def getByEdKey(verifyKey: Array[Byte]): Option[Contact] = contacts.find(_.verifyKey.sameElements(verifyKey))
   override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
   override def delete(contactId: UUID): Unit = contacts = contacts.filterNot(_.id == contactId)
@@ -62,8 +62,8 @@ class CatalogServiceTests extends munit.FunSuite:
   private def makeContact(name: String): Contact = Contact(
     id = UUID.randomUUID(),
     pseudonym = name,
-    edPublicKey = Array.fill(32)(0x01.toByte),
-    xPublicKey = Array.fill(32)(0x02.toByte),
+    verifyKey = Array.fill(32)(0x01.toByte),
+    encKey = Array.fill(32)(0x02.toByte),
     verificationLevel = VerificationLevel.VeryHigh,
     verifiedAt = Some(Instant.now()),
     addedAt = Instant.now()

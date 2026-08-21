@@ -37,20 +37,24 @@ class KeyRotationsService @Inject() (repository: KeyRotationRepository) extends 
   private def sameKey(a: PublicKey, b: PublicKey): Boolean = a.toBase64Url == b.toBase64Url
 
   override def pushRotation(
-      oldEd25519Key: PublicKey,
+      oldVerifyKey: PublicKey,
       recipientKey: PublicKey,
-      newEd25519Key: PublicKey,
-      newX25519Key: X25519Key,
+      newVerifyKey: PublicKey,
+      newEncKey: X25519Key,
+      newCipherSuite: CipherSuite,
       signature: Signature
   ): Either[Error, KeyRotation] =
-    val canon = PayloadCanonical.forRotation(recipientKey, newEd25519Key, newX25519Key)
-    if !oldEd25519Key.verify(canon, signature) then return Left(Error.BadRequest)
+    if newVerifyKey.toBytes.length != newCipherSuite.verifyKeyLength then return Left(Error.BadRequest)
+    if newEncKey.toBytes.length != newCipherSuite.encKeyLength then return Left(Error.BadRequest)
+    val canon = PayloadCanonical.forRotation(recipientKey, newVerifyKey, newEncKey, newCipherSuite)
+    if !oldVerifyKey.verify(canon, signature) then return Left(Error.BadRequest)
     val rotation = KeyRotation(
       id = UUID.randomUUID(),
-      oldEd25519Key = oldEd25519Key,
+      oldVerifyKey = oldVerifyKey,
       recipientKey = recipientKey,
-      newEd25519Key = newEd25519Key,
-      newX25519Key = newX25519Key,
+      newVerifyKey = newVerifyKey,
+      newEncKey = newEncKey,
+      newCipherSuite = newCipherSuite,
       signature = signature,
       createdAt = Instant.now()
     )

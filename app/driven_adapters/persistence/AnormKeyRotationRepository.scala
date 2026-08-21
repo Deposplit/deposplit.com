@@ -62,21 +62,26 @@ class AnormKeyRotationRepository @Inject() (db: Database) extends KeyRotationRep
   private def parseSignature(bytes: Array[Byte]): Signature =
     Signature.fromBytes(bytes).getOrElse(sys.error(s"corrupt signature in DB (${bytes.length} bytes)"))
 
+  private def parseCipherSuite(s: String): CipherSuite =
+    CipherSuite.fromWire(s).getOrElse(sys.error(s"corrupt cipher suite in DB: $s"))
+
   private val rotationParser: RowParser[KeyRotation] =
     get[UUID]("id") ~
-      get[Array[Byte]]("old_ed25519_key") ~
+      get[Array[Byte]]("old_verify_key") ~
       get[Array[Byte]]("recipient_key") ~
-      get[Array[Byte]]("new_ed25519_key") ~
-      get[Array[Byte]]("new_x25519_key") ~
+      get[Array[Byte]]("new_verify_key") ~
+      get[Array[Byte]]("new_enc_key") ~
+      get[String]("new_cipher_suite") ~
       get[Array[Byte]]("signature") ~
       get[Instant]("created_at") map {
-        case id ~ oldEd ~ rk ~ newEd ~ newX ~ sig ~ createdAt =>
+        case id ~ oldVerify ~ rk ~ newVerify ~ newEnc ~ suite ~ sig ~ createdAt =>
           KeyRotation(
             id = id,
-            oldEd25519Key = parseKey(oldEd),
+            oldVerifyKey = parseKey(oldVerify),
             recipientKey = parseKey(rk),
-            newEd25519Key = parseKey(newEd),
-            newX25519Key = parseX25519Key(newX),
+            newVerifyKey = parseKey(newVerify),
+            newEncKey = parseX25519Key(newEnc),
+            newCipherSuite = parseCipherSuite(suite),
             signature = parseSignature(sig),
             createdAt = createdAt
           )
@@ -86,16 +91,17 @@ class AnormKeyRotationRepository @Inject() (db: Database) extends KeyRotationRep
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO key_rotations
-          (id, old_ed25519_key, recipient_key, new_ed25519_key, new_x25519_key, signature, created_at)
+          (id, old_verify_key, recipient_key, new_verify_key, new_enc_key, new_cipher_suite, signature, created_at)
         VALUES
-          ({id}::uuid, {oldEd}, {rk}, {newEd}, {newX}, {sig}, {createdAt})
+          ({id}::uuid, {oldVerify}, {rk}, {newVerify}, {newEnc}, {suite}, {sig}, {createdAt})
       """)
         .on(
           "id" -> rotation.id.toString,
-          "oldEd" -> rotation.oldEd25519Key.toBytes,
+          "oldVerify" -> rotation.oldVerifyKey.toBytes,
           "rk" -> rotation.recipientKey.toBytes,
-          "newEd" -> rotation.newEd25519Key.toBytes,
-          "newX" -> rotation.newX25519Key.toBytes,
+          "newVerify" -> rotation.newVerifyKey.toBytes,
+          "newEnc" -> rotation.newEncKey.toBytes,
+          "suite" -> rotation.newCipherSuite.wireValue,
           "sig" -> rotation.signature.toBytes,
           "createdAt" -> rotation.createdAt
         )

@@ -32,9 +32,9 @@ package driven_ports
  */
 trait IdentityStore:
   def isRegistered(): Boolean
-  def save(pseudonym: String, edPk: Array[Byte], edSk: Array[Byte], xPk: Array[Byte], xSk: Array[Byte]): Unit
+  def save(pseudonym: String, verifyKey: Array[Byte], signKey: Array[Byte], encKey: Array[Byte], decKey: Array[Byte]): Unit
   def pseudonym(): String
-  def edPublicKey(): Array[Byte]
-  def edPrivateKey(): Array[Byte]
-  def xPublicKey(): Array[Byte]
-  def xPrivateKey(): Array[Byte]
+  def verifyKey(): Array[Byte]
+  def signKey(): Array[Byte]
+  def encKey(): Array[Byte]
+  def decKey(): Array[Byte]

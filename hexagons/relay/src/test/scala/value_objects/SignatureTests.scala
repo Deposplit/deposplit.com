@@ -34,14 +34,23 @@ class SignatureTests extends munit.FunSuite:
     assert(Signature.fromBase64Url("not!!valid@@base64").isLeft)
   }
 
-  test("fewer than 64 bytes is rejected") {
-    val short = encoder.encodeToString(Array.fill(32)(0x01.toByte))
-    assert(Signature.fromBase64Url(short).isLeft)
+  // Item 14 ("variable-length keys") — Signature is no longer pinned to Ed25519's exact 64-byte
+  // size, only a generous sanity bound (1..128 bytes). A shorter or longer signature than today's
+  // is no longer, by itself, a parsing error.
+
+  test("empty is rejected") {
+    val empty = encoder.encodeToString(Array.emptyByteArray)
+    assert(Signature.fromBase64Url(empty).isLeft)
   }
 
-  test("more than 64 bytes is rejected") {
-    val long = encoder.encodeToString(Array.fill(65)(0x01.toByte))
+  test("more than 128 bytes is rejected") {
+    val long = encoder.encodeToString(Array.fill(129)(0x01.toByte))
     assert(Signature.fromBase64Url(long).isLeft)
+  }
+
+  test("a non-64-byte length within the sanity bound is accepted") {
+    val short = encoder.encodeToString(Array.fill(32)(0x01.toByte))
+    assert(Signature.fromBase64Url(short).isRight)
   }
 
   test("exactly 64 bytes is accepted") {

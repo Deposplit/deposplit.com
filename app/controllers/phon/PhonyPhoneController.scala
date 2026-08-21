@@ -78,7 +78,7 @@ class PhonyPhoneController @Inject() (
       Ok(
         views.html.Phon
           .phonyPhone(
-            QrPayload(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey(), Some("http://localhost:9000")),
+            QrPayload(identity.pseudonym(), identity.verifyKey(), identity.encKey(), Some("http://localhost:9000")),
             contactManagement,
             contactForm
           )
@@ -96,7 +96,7 @@ class PhonyPhoneController @Inject() (
     if !identity.isRegistered() then Conflict
     else
       val payload =
-        QrPayload.encode(identity.pseudonym(), identity.edPublicKey(), identity.xPublicKey(), Some("http://localhost:9000"))
+        QrPayload.encode(identity.pseudonym(), identity.verifyKey(), identity.encKey(), Some("http://localhost:9000"))
       val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 256, 256)
       val image = MatrixToImageWriter.toBufferedImage(bitMatrix)
       val baos = java.io.ByteArrayOutputStream()

@@ -85,21 +85,25 @@ CREATE INDEX ON share_requests (secret_id);
 -- populated, so it earns its own small table instead of growing share_requests' NULL-column
 -- sprawl further.
 --
--- old_ed25519_key is the trusted key the recipient already knows this contact by — both the
+-- old_verify_key is the trusted key the recipient already knows this contact by — both the
 -- routing key and the key `signature` must verify against, proving continuity of key control.
--- new_ed25519_key/new_x25519_key are the contact's new identity. signature is an Ed25519
--- signature by old_ed25519_key's private key over (recipientKey || newEd25519Key ||
--- newX25519Key) — see hexagons/relay's PayloadCanonical.forRotation for the exact bytes.
+-- new_verify_key/new_enc_key are the contact's new identity. new_cipher_suite (item 14, crypto
+-- agility) is the signing + key-agreement algorithm pairing that identity uses (one value exists
+-- today, ed25519+x25519-v1). No old_cipher_suite column — the recipient already has it pinned
+-- on the existing contact record being rotated away from. signature is a signature by
+-- old_verify_key's private key over (recipientKey || newVerifyKey || newEncKey ||
+-- newCipherSuite) — see hexagons/relay's PayloadCanonical.forRotation for the exact bytes.
 --
 -- No state machine: like inventory, this is a fire-and-forget push, not a consent request. The
 -- recipient polls, auto-verifies against the old key it already trusts, updates its local
 -- contact record in place, and deletes the row once consumed.
 CREATE TABLE key_rotations (
     id                UUID  DEFAULT gen_random_uuid() PRIMARY KEY,
-    old_ed25519_key   BYTEA NOT NULL,
+    old_verify_key    BYTEA NOT NULL,
     recipient_key     BYTEA NOT NULL,
-    new_ed25519_key   BYTEA NOT NULL,
-    new_x25519_key    BYTEA NOT NULL,
+    new_verify_key    BYTEA NOT NULL,
+    new_enc_key       BYTEA NOT NULL,
+    new_cipher_suite  TEXT  NOT NULL,
     signature         BYTEA NOT NULL,
     created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );

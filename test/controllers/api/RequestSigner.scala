@@ -58,7 +58,7 @@ class RequestSigner:
     val nonce = s"${System.currentTimeMillis()}.${UUID.randomUUID().toString.take(8)}"
     val canon = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(body)}".getBytes("UTF-8")
     Seq(
-      "X-Deposplit-Public-Key" -> publicKeyHeader,
+      "X-Deposplit-Verify-Key" -> publicKeyHeader,
       "X-Deposplit-Nonce" -> nonce,
       "X-Deposplit-Signature" -> b64url.encodeToString(rawSign(canon))
     )
@@ -113,11 +113,12 @@ class RequestSigner:
       .getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
-  /** Signs a `pushRotation` payload (item 9) — mirrors `PayloadCanonical.forRotation`. All three
-    * arguments are base64url public key strings as they appear on the wire.
+  /** Signs a `pushRotation` payload (item 9) — mirrors `PayloadCanonical.forRotation`.
+    * `recipientKey`/`newVerifyKey`/`newEncKey` are base64url public key strings as they appear on
+    * the wire; `newCipherSuite` (item 14) is the wire cipher-suite string, appended last.
     */
-  def signRotation(recipientKey: String, newEd25519Key: String, newX25519Key: String): String =
-    val canon = Seq(recipientKey, newEd25519Key, newX25519Key).mkString("\n").getBytes("UTF-8")
+  def signRotation(recipientKey: String, newVerifyKey: String, newEncKey: String, newCipherSuite: String): String =
+    val canon = Seq(recipientKey, newVerifyKey, newEncKey, newCipherSuite).mkString("\n").getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
   /** Signs a `pushHeartbeat` payload (item 12) — mirrors `PayloadCanonical.forHeartbeat`.

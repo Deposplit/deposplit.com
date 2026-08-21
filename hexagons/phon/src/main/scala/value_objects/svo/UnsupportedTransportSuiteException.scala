@@ -22,30 +22,10 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
-import java.time.Instant
-import java.util.UUID
-
-/** A signed key-rotation push (item 9) — a holder's proactive "I am now newVerifyKey, previously
-  * oldVerifyKey" notice, addressed to one contact (`recipientKey`) at a time.
-  *
-  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the
-  * recipient auto-verifies `signature` against `oldVerifyKey` (the trusted key it already knows
-  * this contact by) and, on success, updates its local contact record in place before deleting
-  * this row. See `PayloadCanonical.forRotation` for the exact bytes signed.
-  *
-  * `newCipherSuite` (item 14) is the signing + key-agreement algorithm pairing `newVerifyKey`/
-  * `newEncKey` use. No `oldCipherSuite` field — the recipient already has it pinned on the
-  * existing contact record being rotated away from.
+/** Thrown by `ShareEncryption.decrypt` when a ciphertext's leading suite-tag byte doesn't match
+  * any [[TransportSuite]] this app version supports — never a silent misparse. See
+  * deposplit.com/CLAUDE.md item 14.
   */
-case class KeyRotation(
-    id: UUID,
-    oldVerifyKey: PublicKey,
-    recipientKey: PublicKey,
-    newVerifyKey: PublicKey,
-    newEncKey: X25519Key,
-    newCipherSuite: CipherSuite,
-    signature: Signature,
-    createdAt: Instant
-)
+final case class UnsupportedTransportSuiteException(message: String) extends Exception(message)

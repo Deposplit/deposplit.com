@@ -22,30 +22,20 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
-import java.time.Instant
-import java.util.UUID
-
-/** A signed key-rotation push (item 9) — a holder's proactive "I am now newVerifyKey, previously
-  * oldVerifyKey" notice, addressed to one contact (`recipientKey`) at a time.
-  *
-  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the
-  * recipient auto-verifies `signature` against `oldVerifyKey` (the trusted key it already knows
-  * this contact by) and, on success, updates its local contact record in place before deleting
-  * this row. See `PayloadCanonical.forRotation` for the exact bytes signed.
-  *
-  * `newCipherSuite` (item 14) is the signing + key-agreement algorithm pairing `newVerifyKey`/
-  * `newEncKey` use. No `oldCipherSuite` field — the recipient already has it pinned on the
-  * existing contact record being rotated away from.
+/** The matched pairing of signing algorithm + key-agreement algorithm an identity currently uses
+  * — see deposplit.com/CLAUDE.md "What is next" item 14 ("crypto agility"). One case exists today;
+  * the point of naming it explicitly is making a future fleet-wide algorithm swap an additive new
+  * case rather than a breaking wire-format migration. Client-side mirror of
+  * `hexagons/relay`'s `CipherSuite` (separate sbt subprojects, no dependency between them) —
+  * byte-for-byte/wire-value-for-wire-value identical; keep both in sync.
   */
-case class KeyRotation(
-    id: UUID,
-    oldVerifyKey: PublicKey,
-    recipientKey: PublicKey,
-    newVerifyKey: PublicKey,
-    newEncKey: X25519Key,
-    newCipherSuite: CipherSuite,
-    signature: Signature,
-    createdAt: Instant
-)
+enum CipherSuite(val wireValue: String, val verifyKeyLength: Int, val encKeyLength: Int):
+  case Ed25519X25519V1 extends CipherSuite("ed25519+x25519-v1", verifyKeyLength = 32, encKeyLength = 32)
+
+object CipherSuite:
+  def fromWire(s: String): Option[CipherSuite] = values.find(_.wireValue == s)
+
+  /** The only suite this codebase's key generation can produce today. */
+  val current: CipherSuite = Ed25519X25519V1

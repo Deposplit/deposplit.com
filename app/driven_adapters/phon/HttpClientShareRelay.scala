@@ -28,6 +28,7 @@ import driven_ports.ShareRelay
 import driving_ports.Identity
 import jakarta.inject.Inject
 import play.api.libs.json.*
+import value_objects.svo.CipherSuite
 import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.Role
@@ -123,11 +124,12 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("POST", s"/share-requests/withdraw$q")
     ()
 
-  override def pushRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte], signature: Array[Byte]): Unit =
+  override def pushRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite, signature: Array[Byte]): Unit =
     val body = Json.obj(
       "recipientKey" -> encodeBase64Url(recipientKey),
-      "newEd25519Key" -> encodeBase64Url(newEd25519Key),
-      "newX25519Key" -> encodeBase64Url(newX25519Key),
+      "newVerifyKey" -> encodeBase64Url(newVerifyKey),
+      "newEncKey" -> encodeBase64Url(newEncKey),
+      "newCipherSuite" -> newCipherSuite.wireValue,
       "signature" -> encodeBase64Url(signature)
     )
     send("POST", "/key-rotations", Some(body))
@@ -165,7 +167,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       .newBuilder()
       .uri(URI.create(s"$baseUrl$path"))
       .header("Accept", "application/json")
-      .header("X-Deposplit-Public-Key", encodeBase64Url(identity.edPublicKey()))
+      .header("X-Deposplit-Verify-Key", encodeBase64Url(identity.verifyKey()))
       .header("X-Deposplit-Nonce", nonce)
       .header("X-Deposplit-Signature", encodeBase64Url(sig))
 
@@ -226,10 +228,13 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
   private def parseKeyRotation(json: JsValue): KeyRotation =
     KeyRotation(
       id = UUID.fromString((json \ "id").as[String]),
-      oldEd25519Key = decodeBase64Url((json \ "oldEd25519Key").as[String]),
+      oldVerifyKey = decodeBase64Url((json \ "oldVerifyKey").as[String]),
       recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
-      newEd25519Key = decodeBase64Url((json \ "newEd25519Key").as[String]),
-      newX25519Key = decodeBase64Url((json \ "newX25519Key").as[String]),
+      newVerifyKey = decodeBase64Url((json \ "newVerifyKey").as[String]),
+      newEncKey = decodeBase64Url((json \ "newEncKey").as[String]),
+      newCipherSuite = CipherSuite
+        .fromWire((json \ "newCipherSuite").as[String])
+        .getOrElse(throw IllegalArgumentException(s"Unknown cipher suite: ${(json \ "newCipherSuite").as[String]}")),
       signature = decodeBase64Url((json \ "signature").as[String]),
       createdAt = Instant.parse((json \ "createdAt").as[String])
     )

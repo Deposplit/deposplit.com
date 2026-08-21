@@ -12,7 +12,7 @@ info:
 
     | Header | Content |
     |---|---|
-    | `X-Deposplit-Public-Key` | Caller's Ed25519 public key (base64url, 32 bytes) |
+    | `X-Deposplit-Verify-Key` | Caller's public verify key (base64url — see `PublicKey` schema) |
     | `X-Deposplit-Nonce` | Per-request unique string in the form `<unix-ms>.<random>` — server rejects requests whose embedded timestamp is more than 5 minutes old |
     | `X-Deposplit-Signature` | Base64url Ed25519 signature (RFC 8032) |
 
@@ -23,7 +23,7 @@ info:
     ```
 
     where `body` is the empty string for requests without a body.
-    The Web app/service verifies the signature against the public key supplied in `X-Deposplit-Public-Key`.
+    The Web app/service verifies the signature against the verify key supplied in `X-Deposplit-Verify-Key`.
     No pre-registration is required — the keypair is the identity.
 
     ## Payload signatures
@@ -61,15 +61,18 @@ info:
     defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
     this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
 
-    `signature` on a `POST /key-rotations` push (item 9) follows the same pattern: an Ed25519
-    signature by the caller (who becomes `oldEd25519Key`) over:
+    `signature` on a `POST /key-rotations` push (item 9) follows the same pattern: a signature
+    by the caller (who becomes `oldVerifyKey`) over:
 
     ```
-    recipientKey(base64url) || "\n" || newEd25519Key(base64url) || "\n" || newX25519Key(base64url)
+    recipientKey(base64url) || "\n" || newVerifyKey(base64url) || "\n" || newEncKey(base64url) || "\n" || newCipherSuite
     ```
 
     proving the caller still controls the old private key — this is what lets the recipient
-    auto-accept the rotation without a fresh human re-verification.
+    auto-accept the rotation without a fresh human re-verification. `newCipherSuite` (item 14 —
+    "crypto agility") is the signing + key-agreement algorithm pairing `newVerifyKey`/`newEncKey`
+    use; there is no `oldCipherSuite` field, since the recipient already has it pinned on the
+    existing contact record being rotated away from.
 
     `signature` on a `POST /custody-heartbeats` push (item 12) follows the same pattern: an
     Ed25519 signature by the caller (who becomes `holderKey`) over:
@@ -89,13 +92,15 @@ info:
 
     Contacts exchange public keys out-of-band (QR code scanned in person, or a link shared
     via a third-party app such as Signal or Threema). The Web app/service never stores or resolves
-    user identities; it routes deposits and consent requests by Ed25519 public key only.
+    user identities; it routes deposits and consent requests by verify key only (see `PublicKey`).
 
-    The QR code / share link carries both keys:
-    - **Ed25519 public key** — used for API authentication and as the routing identity on the server
-    - **X25519 public key** — used by the sender to encrypt shares client-side (X25519+HKDF-SHA-256+ChaCha20-Poly1305)
+    The QR code / share link carries both keys plus the cipher suite they use (see `CipherSuite`):
+    - **Verify key** — used for API authentication and as the routing identity on the server
+      (Ed25519, for the current cipher suite `ed25519+x25519-v1`)
+    - **Encryption key** — used by the sender to encrypt shares client-side
+      (X25519+HKDF-SHA-256+ChaCha20-Poly1305, for the current cipher suite)
 
-    The server never sees X25519 keys.
+    The server never sees encryption keys.
 
     ## Unified consent model
 
@@ -116,7 +121,7 @@ info:
     ## Binary encoding
 
     - **Public key fields** (`senderKey`, `recipientKey`) use **base64url encoding without padding**,
-      matching the `X-Deposplit-Public-Key` auth header.
+      matching the `X-Deposplit-Verify-Key` auth header.
     - **`ciphertext`** uses **standard base64 encoding with padding** (`format: byte`).
 
     ## Notifications
@@ -139,7 +144,7 @@ components:
       in: header
       name: X-Deposplit-Signature
       description: >
-        Must accompany X-Deposplit-Public-Key and X-Deposplit-Nonce headers.
+        Must accompany X-Deposplit-Verify-Key and X-Deposplit-Nonce headers.
         See top-level description for the canonical signing string.
 
   schemas:
@@ -151,7 +156,20 @@ components:
 
     PublicKey:
       type: string
-      description: Base64url-encoded Ed25519 public key (32 bytes, no padding) — used for API authentication and as the routing identity.
+      description: >
+        Base64url-encoded signing-algorithm public key (32 bytes, no padding, for the current
+        cipher suite `ed25519+x25519-v1` — see `CipherSuite`) — used for API authentication and as
+        the routing identity. Not pinned to an exact length; a future cipher suite may use a
+        different key size.
+
+    CipherSuite:
+      type: string
+      enum: [ed25519+x25519-v1]
+      description: >
+        The matched pairing of signing algorithm + key-agreement algorithm an identity currently
+        uses (deposplit.com/CLAUDE.md "What is next" item 14 — "crypto agility"). One value exists
+        today; the type exists so a future fleet-wide algorithm swap is an additive new value
+        rather than a breaking wire-format migration.
 
     ShareTransactionType:
       type: string
@@ -311,54 +329,60 @@ components:
     X25519PublicKey:
       type: string
       description: >
-        Base64url-encoded X25519 public key (32 bytes, no padding), used for share encryption
-        client-side. The Web app/service never performs key agreement with it — it only ever
-        routes it opaquely, same as ciphertext.
+        Base64url-encoded key-agreement public key (32 bytes, no padding, for the current cipher
+        suite `ed25519+x25519-v1` — see `CipherSuite`), used for share encryption client-side. The
+        Web app/service never performs key agreement with it — it only ever routes it opaquely,
+        same as ciphertext. Not pinned to an exact length; a future cipher suite may use a
+        different key size.
 
     KeyRotation:
       description: >
         Item 9's signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now
-        newEd25519Key, previously oldEd25519Key" notice, addressed to one contact
+        newVerifyKey, previously oldVerifyKey" notice, addressed to one contact
         (`recipientKey`) at a time. Deliberately not a `ShareRequest`: it carries no `secretId`
         and has no consent phase — the recipient auto-verifies `signature` against
-        `oldEd25519Key` (the trusted key it already knows this contact by) and, on success,
+        `oldVerifyKey` (the trusted key it already knows this contact by) and, on success,
         updates its local contact record in place before deleting the row.
       type: object
-      required: [id, oldEd25519Key, recipientKey, newEd25519Key, newX25519Key, signature, createdAt]
+      required: [id, oldVerifyKey, recipientKey, newVerifyKey, newEncKey, newCipherSuite, signature, createdAt]
       properties:
         id:
           type: string
           format: uuid
-        oldEd25519Key:
+        oldVerifyKey:
           $ref: '#/components/schemas/PublicKey'
         recipientKey:
           $ref: '#/components/schemas/PublicKey'
-        newEd25519Key:
+        newVerifyKey:
           $ref: '#/components/schemas/PublicKey'
-        newX25519Key:
+        newEncKey:
           $ref: '#/components/schemas/X25519PublicKey'
+        newCipherSuite:
+          $ref: '#/components/schemas/CipherSuite'
         signature:
           type: string
           description: >
-            Base64url Ed25519 signature by oldEd25519Key — see "Payload signatures" above.
+            Base64url signature by oldVerifyKey — see "Payload signatures" above.
         createdAt:
           type: string
           format: date-time
 
     PushRotationBody:
       type: object
-      required: [recipientKey, newEd25519Key, newX25519Key, signature]
+      required: [recipientKey, newVerifyKey, newEncKey, newCipherSuite, signature]
       properties:
         recipientKey:
           $ref: '#/components/schemas/PublicKey'
-        newEd25519Key:
+        newVerifyKey:
           $ref: '#/components/schemas/PublicKey'
-        newX25519Key:
+        newEncKey:
           $ref: '#/components/schemas/X25519PublicKey'
+        newCipherSuite:
+          $ref: '#/components/schemas/CipherSuite'
         signature:
           type: string
           description: >
-            Base64url Ed25519 signature by the caller over this notice's canonical bytes — see
+            Base64url signature by the caller over this notice's canonical bytes — see
             "Payload signatures" above. Returns `400` if it doesn't verify.
 
     CustodyHeartbeat:
@@ -709,7 +733,7 @@ paths:
       operationId: pushRotation
       summary: Push a signed key-rotation notice to one contact (item 9)
       description: >
-        The authenticated caller becomes `oldEd25519Key`. Not consent-gated and no conflict check
+        The authenticated caller becomes `oldVerifyKey`. Not consent-gated and no conflict check
         — a fire-and-forget push, the same shape as `inventory` (see item 8): the recipient
         polls, auto-verifies, and deletes the row once consumed.
       tags: [KeyRotations]

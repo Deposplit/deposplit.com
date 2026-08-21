@@ -27,6 +27,7 @@ package controllers.api
 import play.api.libs.json.*
 import play.api.mvc.BaseController
 import play.api.mvc.Result
+import value_objects.CipherSuite
 import value_objects.CustodyHeartbeat
 import value_objects.Error
 import value_objects.KeyRotation
@@ -79,13 +80,14 @@ trait ApiSupport { self: BaseController =>
 
   protected def keyRotationJson(r: KeyRotation): JsValue =
     Json.obj(
-      "id"            -> r.id.toString,
-      "oldEd25519Key" -> r.oldEd25519Key.toBase64Url,
-      "recipientKey"  -> r.recipientKey.toBase64Url,
-      "newEd25519Key" -> r.newEd25519Key.toBase64Url,
-      "newX25519Key"  -> r.newX25519Key.toBase64Url,
-      "signature"     -> r.signature.toBase64Url,
-      "createdAt"     -> r.createdAt.toString
+      "id"             -> r.id.toString,
+      "oldVerifyKey"   -> r.oldVerifyKey.toBase64Url,
+      "recipientKey"   -> r.recipientKey.toBase64Url,
+      "newVerifyKey"   -> r.newVerifyKey.toBase64Url,
+      "newEncKey"      -> r.newEncKey.toBase64Url,
+      "newCipherSuite" -> r.newCipherSuite.wireValue,
+      "signature"      -> r.signature.toBase64Url,
+      "createdAt"      -> r.createdAt.toString
     )
 
   protected def custodyHeartbeatJson(h: CustodyHeartbeat): JsValue =

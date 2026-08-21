@@ -25,6 +25,8 @@
 package driving_adapters
 
 import driven_ports.ForgettableIdentityStore
+import value_objects.svo.TransportSuite
+import value_objects.svo.UnsupportedTransportSuiteException
 
 /** In-memory ForgettableIdentityStore — no file I/O needed for these tests. */
 class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
@@ -43,10 +45,10 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
     registered = true
 
   override def pseudonym(): String = _pseudonym
-  override def edPublicKey(): Array[Byte] = _edPk
-  override def edPrivateKey(): Array[Byte] = _edSk
-  override def xPublicKey(): Array[Byte] = _xPk
-  override def xPrivateKey(): Array[Byte] = _xSk
+  override def verifyKey(): Array[Byte] = _edPk
+  override def signKey(): Array[Byte] = _edSk
+  override def encKey(): Array[Byte] = _xPk
+  override def decKey(): Array[Byte] = _xSk
   override def forget(): Unit = registered = false
 
 /** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify`
@@ -64,7 +66,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val alice = newIdentity()
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
-    assert(alice.verify(message, sig, alice.edPublicKey()))
+    assert(alice.verify(message, sig, alice.verifyKey()))
   }
 
   test("verify returns false for a tampered message") {
@@ -72,7 +74,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
     val tampered = "hello depospliz".getBytes("UTF-8")
-    assert(!alice.verify(tampered, sig, alice.edPublicKey()))
+    assert(!alice.verify(tampered, sig, alice.verifyKey()))
   }
 
   test("verify returns false when checked against a different key") {
@@ -80,7 +82,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val bob = newIdentity()
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
-    assert(!bob.verify(message, sig, bob.edPublicKey()))
+    assert(!bob.verify(message, sig, bob.verifyKey()))
   }
 
   // ---------------------------------------------------------------------------
@@ -89,32 +91,70 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
   test("generateNewKeyPair does not touch storage") {
     val alice = newIdentity()
-    val originalEdKey = alice.edPublicKey()
-    val originalXKey = alice.xPublicKey()
+    val originalEdKey = alice.verifyKey()
+    val originalXKey = alice.encKey()
     val candidate = alice.generateNewKeyPair()
-    assert(!candidate.edPublicKey.sameElements(originalEdKey))
-    assert(!candidate.xPublicKey.sameElements(originalXKey))
+    assert(!candidate.verifyKey.sameElements(originalEdKey))
+    assert(!candidate.encKey.sameElements(originalXKey))
     // Unpersisted — the live identity hasn't moved.
-    assert(alice.edPublicKey().sameElements(originalEdKey))
-    assert(alice.xPublicKey().sameElements(originalXKey))
+    assert(alice.verifyKey().sameElements(originalEdKey))
+    assert(alice.encKey().sameElements(originalXKey))
   }
 
   test("activateKeyPair persists the new keys and preserves the pseudonym") {
     val alice = newIdentity()
     val candidate = alice.generateNewKeyPair()
     alice.activateKeyPair(candidate)
-    assert(alice.edPublicKey().sameElements(candidate.edPublicKey))
-    assert(alice.xPublicKey().sameElements(candidate.xPublicKey))
+    assert(alice.verifyKey().sameElements(candidate.verifyKey))
+    assert(alice.encKey().sameElements(candidate.encKey))
     assertEquals(alice.pseudonym(), "test")
   }
 
   test("sign after activateKeyPair verifies against the new key not the old") {
     val alice = newIdentity()
-    val oldEdKey = alice.edPublicKey()
+    val oldEdKey = alice.verifyKey()
     val candidate = alice.generateNewKeyPair()
     alice.activateKeyPair(candidate)
     val message = "post-rotation message".getBytes("UTF-8")
     val sig = alice.sign(message)
-    assert(alice.verify(message, sig, candidate.edPublicKey))
+    assert(alice.verify(message, sig, candidate.verifyKey))
     assert(!alice.verify(message, sig, oldEdKey))
+  }
+
+  // ---------------------------------------------------------------------------
+  // encrypt()/decrypt() suite-tag wire format — item 14
+  // ---------------------------------------------------------------------------
+
+  test("encrypt prepends the current TransportSuite tag and decrypt round-trips") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val plaintext = "a share of a secret".getBytes("UTF-8")
+
+    // Alice (sender) encrypts to Bob's public enc key; Bob (recipient) decrypts with his own
+    // private key + Alice's public enc key — the same static-static DH shape ShareService uses.
+    val ciphertext = alice.encrypt(plaintext, bob.encKey())
+
+    assertEquals(ciphertext.head, TransportSuite.current.tag)
+    val decrypted = bob.decrypt(ciphertext, alice.encKey())
+    assert(decrypted.sameElements(plaintext))
+  }
+
+  test("decrypt throws UnsupportedTransportSuiteException for an unrecognized suite tag") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val ciphertext = alice.encrypt("hi".getBytes("UTF-8"), bob.encKey())
+    val tampered = Array(0x7f.toByte) ++ ciphertext.drop(1)
+
+    intercept[UnsupportedTransportSuiteException] {
+      bob.decrypt(tampered, alice.encKey())
+    }
+  }
+
+  test("decrypt throws UnsupportedTransportSuiteException for empty ciphertext") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+
+    intercept[UnsupportedTransportSuiteException] {
+      bob.decrypt(Array.emptyByteArray, alice.encKey())
+    }
   }

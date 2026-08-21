@@ -43,7 +43,7 @@ Key design decisions:
   ```
   nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA-256(body))
   ```
-  where `body` is the empty string for requests without a body. Three request headers carry the authentication material: `X-Deposplit-Public-Key` (caller's Ed25519 public key, base64url), `X-Deposplit-Nonce` (per-request unique string in the form `<unix-ms>.<random>`; server rejects requests whose embedded timestamp is more than 5 minutes old), `X-Deposplit-Signature` (base64url-encoded signature).
+  where `body` is the empty string for requests without a body. Three request headers carry the authentication material: `X-Deposplit-Verify-Key` (caller's Ed25519 public verify key, base64url — renamed from `X-Deposplit-Public-Key`, item 14, to match the `verifyKey`/`signKey`/`encKey`/`decKey` vocabulary: this header carries only the public key used to *verify* the accompanying signature, never a private signing key), `X-Deposplit-Nonce` (per-request unique string in the form `<unix-ms>.<random>`; server rejects requests whose embedded timestamp is more than 5 minutes old), `X-Deposplit-Signature` (base64url-encoded signature).
 - **No federation needed.** Recipients must install Deposplit, so cross-server communication adds no user value. Deposplit operates a single canonical Web app/service at deposplit.com.
 - **No practical client exclusivity.** There is no cryptographically sound way to restrict the API to the two official native apps. Hardcoded secrets are extractable from binaries; certificate pinning proves the connection is not intercepted but not which software is running; Play Integrity / App Attest are bypassable on rooted/jailbroken devices and introduce Google/Apple as gatekeepers. This is not a gap — the security model does not rely on client exclusivity. Because the server is cryptographically blind, a rogue client can only act within the bounds of the keypair it controls; it cannot read other users' shares or impersonate other users. The only realistic abuse vector (spam, resource exhaustion) is addressed by rate limiting and storage quotas, as with any public API. An open, auditable protocol is consistent with Deposplit's trust-minimizing philosophy.
 
@@ -193,7 +193,7 @@ There are four request types exchanged via the deposplit.com Web app/service API
 | `removal` | Sender → recipient | Request: references Deposit ID. Response: ack | **Remove** a share (sender-initiated, requires Bob's approval) |
 | `inventory` | Holder → owner | `secret_id`, `label`, `secret_created_at`, `k`, `n` — no ciphertext | Reports what a holder still guards for a secret whose owner lost her local state (item 8); self-approves at creation, no PATCH phase |
 
-> ⚠ **Status note.** Item 9's **signed rotation push** (`key_rotations`, a dedicated table — not a fifth `ShareTransactionType`) and its **"withdrawn by recipient"** row state are implemented across the relay and all three clients (2026-08-18) — every client's receive-side auto-accept already applies item 10's `min(level, LOW)` downgrade; item 10 itself (the compromised/revoked key flag, conflict-resolution UI, "key changed N days ago" retrieve-approval indicator) is fully implemented on Android, iOS, and phon (2026-08-18) — see item 10 below; item 9's **health-check push**, reshaped and pinned down by item 12, is likewise fully implemented everywhere (2026-08-18) — see item 12 below; item 9's **"regenerate my own identity" trigger** (the UI action that lets a user actually *originate* a rotation) is implemented on Android, iOS, and phon (2026-08-21) — see item 9's "Proactive rotation" note below; and **item 13's retrieve fan-out + reconstruction integrity** is fully implemented on Android, iOS, and phon (2026-08-21) — see item 13 below. This table's protocol is now fully built everywhere.
+> ⚠ **Status note.** Item 9's **signed rotation push** (`key_rotations`, a dedicated table — not a fifth `ShareTransactionType`) and its **"withdrawn by recipient"** row state are implemented across the relay and all three clients (2026-08-18) — every client's receive-side auto-accept already applies item 10's `min(level, LOW)` downgrade; item 10 itself (the compromised/revoked key flag, conflict-resolution UI, "key changed N days ago" retrieve-approval indicator) is fully implemented on Android, iOS, and phon (2026-08-18) — see item 10 below; item 9's **health-check push**, reshaped and pinned down by item 12, is likewise fully implemented everywhere (2026-08-18) — see item 12 below; item 9's **"regenerate my own identity" trigger** (the UI action that lets a user actually *originate* a rotation) is implemented on Android, iOS, and phon (2026-08-21) — see item 9's "Proactive rotation" note below; and **item 13's retrieve fan-out + reconstruction integrity** is fully implemented on Android, iOS, and phon (2026-08-21) — see item 13 below. This table's protocol is now fully built everywhere. **Item 14 (crypto agility — self-describing keys, bundled cipher suites, per-message transport tagging)** is likewise fully implemented on the relay, Android, iOS, and phon (2026-08-21) — see item 14 below. The entire 1–14 roadmap is now shipped.
 
 **Recipient-initiated deletion** is unilateral (no approval needed). The recipient can delete individual shares or all shares from a given sender at any time. *(Revised — see "What is next" item 9: it stays unilateral but is no longer purely silent; the holder's app additionally writes a best-effort "withdrawn by recipient" tombstone so the sender isn't blindsided by silent redundancy erosion.)*
 
@@ -623,7 +623,7 @@ The items below capture *design rationale* — why each decision was made, and w
 
     **Work items:** tracked in `TODO.md` (item 13). Hexagon (Android + iOS); relay untouched. **No migrations** (pre-launch).
 
-14. **Crypto agility — self-describing keys, bundled cipher suites, and per-message transport tagging.** Decided during a second spec walk (Aug 2026), prompted by the relay's `PublicKey`/`X25519Key` opaque types hard-coding 32-byte Ed25519/X25519 assumptions directly into their names and length validation, and `PayloadCanonical`'s signed byte constructions carrying no algorithm/version tag at all. The goal is not a pluggable-cipher marketplace — no evidence of demand for per-user algorithm choice — but making a **future fleet-wide algorithm swap** (the realistic driver: Ed25519/X25519 are not post-quantum-safe, and a long-lived-secrets app is exactly the shape of system exposed to "harvest now, decrypt later") additive rather than a breaking wire-format migration. Pre-launch is the moment to bake this in cheaply — retrofitting it after real contacts have pinned real untagged keys would mean every key in the wild is "legacy untagged format," the exact flag-day mess agility exists to avoid.
+14. ~~**Crypto agility — self-describing keys, bundled cipher suites, and per-message transport tagging.**~~ — **done.** Decided during a second spec walk (Aug 2026), prompted by the relay's `PublicKey`/`X25519Key` opaque types hard-coding 32-byte Ed25519/X25519 assumptions directly into their names and length validation, and `PayloadCanonical`'s signed byte constructions carrying no algorithm/version tag at all. The goal is not a pluggable-cipher marketplace — no evidence of demand for per-user algorithm choice — but making a **future fleet-wide algorithm swap** (the realistic driver: Ed25519/X25519 are not post-quantum-safe, and a long-lived-secrets app is exactly the shape of system exposed to "harvest now, decrypt later") additive rather than a breaking wire-format migration. Pre-launch is the moment to bake this in cheaply — retrofitting it after real contacts have pinned real untagged keys would mean every key in the wild is "legacy untagged format," the exact flag-day mess agility exists to avoid.
 
     **Renaming (`Contact`, `Identity`, `IdentityStore`).** `edPublicKey`/`edPrivateKey` → `verifyKey`/`signKey`; `xPublicKey`/`xPrivateKey` → `encKey`/`decKey`. Names describe *role* (verify a signature / produce a signature; encrypt to a recipient / decrypt as that recipient), not algorithm — so a future signing or agreement algorithm swap never leaves a field lying about what it holds. Applies symmetrically to a device's own identity (the `Identity`/`IdentityStore` ports carry the same four names for the device's own keypairs) and to every contact record — the vocabulary is the same whether the keys are "mine" or "theirs."
 
@@ -643,7 +643,49 @@ The items below capture *design rationale* — why each decision was made, and w
 
     **Explicitly out of scope.** SSS's GF(2⁸) byte format is not a negotiable algorithm in the same sense and is untouched. A related-but-distinct correctness question was noticed in passing and deliberately **not** addressed here: if a holder rotates their agreement key in the window between a sender's deposit (encrypted to the holder's then-current key) and the holder's approval/decrypt, decryption could fail, since the ciphertext was encrypted to a key the holder may no longer hold the private half of. That's about *which key version*, not *which algorithm* — orthogonal to this item — and is parked as a possible future follow-up.
 
-    **Work items:** tracked in `TODO.md` (item 14). Touches the relay (`hexagons/relay` + `1.sql` + `conf/openapi.yaml`), Android, iOS, and (for consistency) phon. **No migrations** — pre-launch, clean-slate reset.
+    **Implemented (2026-08-21)** on the relay, iOS, Android, and (for cross-platform *consistency*,
+    not full parity) phon, in that order — relay first (schema + `PayloadCanonical` +
+    `conf/openapi.yaml`), since it's foundational, then clients. `CipherSuite` (one case today,
+    `"ed25519+x25519-v1"`, carrying `verifyKeyLength`/`encKeyLength = 32/32`) and `TransportSuite`
+    (a 1-byte ciphertext tag, not JSON-facing) are new value objects on every hexagon, mirroring
+    `ShareTransactionType`'s `wireValue`-per-case pattern. `Contact.cipherSuite` defaults to
+    `CipherSuite.current` rather than being required — deliberately, so the rename didn't also
+    become a "thread a new value through every call site" exercise across dozens of existing test
+    fixtures, and the default is correct today (every contact really is on this one suite), not a
+    placeholder; `IdentityStore`/`Identity`/`KeyPairMaterial` deliberately do *not* gain a
+    `cipherSuite` field at all — only one suite exists to produce, so "my own current suite" is
+    referenced as the `CipherSuite.current` constant wherever needed (QR display, rotation push)
+    rather than persisted. `KeyRotation`'s and `KeyConflict`'s own key fields were renamed the same
+    way as `Contact`'s, beyond this item's literal text, for the same "mine or theirs, same
+    vocabulary" reasoning — both directly mirror the rotating-identity concept the rename is about.
+    Variable-length keys landed as two different fixes rather than one: the relay, which has no
+    suite context at most call sites (transport-auth headers, `ShareRequest` keys,
+    `CustodyHeartbeat` keys are all bare bytes), relaxed `PublicKey`/`X25519Key`/`Signature`'s exact
+    `32`/`64`-byte checks to a generous `1..128`-byte sanity bound only; `KeyRotationsService` —
+    the one place the relay *does* get a suite tag alongside a key — gained real suite-driven
+    length validation instead. Client-side, where the resolved `CipherSuite` is always in hand,
+    `ContactService`'s `addManually`/`addFromQr`/`updateContact` validate against it directly.
+    `PublicKey.verify()`'s "algorithm-dispatching" extension point turned out to be exactly as
+    small as advertised: the existing Ed25519 body moved into a private `verifyEd25519`, with
+    `verify()` delegating to it — a seam for a future second branch, not a speculative registry.
+    The QR/link payload bumped `v` from 2 to 3 with a required `cipherSuite` field (no back-compat
+    decode path, matching this project's pre-launch precedent); `ed`/`x`/`relay` field names were
+    kept as-is. One genuine surprise surfaced during the phon pass: phon's `PhonyPhoneController`
+    renders a *real*, camera-scannable QR code (`QRCodeWriter`) for actual Android/iOS devices to
+    scan — "phon has no QR *scanning* UI" (still true; its own contact-add form stays
+    manual-entry-only) does not mean phon has no QR *payload*, so it got the identical `v:3` +
+    `cipherSuite` treatment as the mobile clients, not skipped. iOS's implementation pass also
+    surfaced and fixed a genuine pre-existing bug, unrelated to this item: `ContactService.
+    updateContact`/`markKeyCompromised` were silently dropping a contact's heartbeat preferences
+    (`heartbeatOptedOutAt`/`lastHeartbeatSentAt`/`heartbeatEmissionOptedOut`) on every relink or
+    key-compromise flag, since those call sites were never updated to carry the item-12 fields
+    forward when they were added. Test counts: relay 92→95, iOS hexagon 93→104, Android hexagon
+    98→109, phon hexagon 91→102 — full `sbt test` (relay + phon + root) 256/256, `swift test`
+    104/104 + `xcodebuild build` BUILD SUCCEEDED, `./gradlew clean test` (hexagon + app) all green.
+
+    **Work items:** tracked in `TODO.md` (item 14; see there for full per-platform implementation
+    notes). Touched the relay (`hexagons/relay` + `1.sql` + `conf/openapi.yaml`), Android, iOS, and
+    (for consistency) phon. **No migrations** — pre-launch, clean-slate reset.
 
 ## Build & Test Commands
 

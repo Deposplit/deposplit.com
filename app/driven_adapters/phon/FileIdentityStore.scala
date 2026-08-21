@@ -38,10 +38,10 @@ import driven_ports.ForgettableIdentityStore
 
 case class DevIdentity(
     pseudonym: String,
-    edPrivateKey: Array[Byte],
-    edPublicKey: Array[Byte],
-    xPrivateKey: Array[Byte],
-    xPublicKey: Array[Byte]
+    signKey: Array[Byte],
+    verifyKey: Array[Byte],
+    decKey: Array[Byte],
+    encKey: Array[Byte]
 ) extends Serializable
 
 @Singleton
@@ -59,16 +59,16 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
     optionalIdentity = Option(devIdentity)
   end if
 
-  override def edPrivateKey(): Array[Byte] = optionalIdentity.get.edPrivateKey
+  override def signKey(): Array[Byte] = optionalIdentity.get.signKey
 
-  override def edPublicKey(): Array[Byte] = optionalIdentity.get.edPublicKey
+  override def verifyKey(): Array[Byte] = optionalIdentity.get.verifyKey
 
   override def isRegistered(): Boolean = optionalIdentity.isDefined
 
   override def pseudonym(): String = optionalIdentity.get.pseudonym
 
-  override def save(pseudonym: String, edPk: Array[Byte], edSk: Array[Byte], xPk: Array[Byte], xSk: Array[Byte]): Unit =
-    val devIdentity = DevIdentity(pseudonym, edSk, edPk, xSk, xPk)
+  override def save(pseudonym: String, verifyKey: Array[Byte], signKey: Array[Byte], encKey: Array[Byte], decKey: Array[Byte]): Unit =
+    val devIdentity = DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey)
 
     val createdNewFile = file.createNewFile()
     if createdNewFile then logger.info(s"file $file created") else logger.info(s"file $file not created again")
@@ -78,9 +78,9 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
 
     optionalIdentity = Option(devIdentity)
 
-  override def xPrivateKey(): Array[Byte] = optionalIdentity.get.xPrivateKey
+  override def decKey(): Array[Byte] = optionalIdentity.get.decKey
 
-  override def xPublicKey(): Array[Byte] = optionalIdentity.get.xPublicKey
+  override def encKey(): Array[Byte] = optionalIdentity.get.encKey
 
   override def forget() =
     optionalIdentity = None

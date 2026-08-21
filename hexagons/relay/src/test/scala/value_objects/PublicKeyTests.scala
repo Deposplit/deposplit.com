@@ -60,14 +60,24 @@ class PublicKeyTests extends munit.FunSuite:
     assert(PublicKey.fromBase64Url("not!!valid@@base64").isLeft)
   }
 
-  test("fewer than 32 bytes is rejected") {
-    val short = encoder.encodeToString(Array.fill(16)(0x01.toByte))
-    assert(PublicKey.fromBase64Url(short).isLeft)
+  // Item 14 ("variable-length keys") — PublicKey is no longer pinned to Ed25519's exact 32-byte
+  // size, only a generous sanity bound (1..128 bytes). A shorter or longer key than today's is no
+  // longer, by itself, a parsing error; exact-length validation against a known algorithm happens
+  // wherever a CipherSuite is actually asserted (see KeyRotationsServiceTests).
+
+  test("empty is rejected") {
+    val empty = encoder.encodeToString(Array.emptyByteArray)
+    assert(PublicKey.fromBase64Url(empty).isLeft)
   }
 
-  test("more than 32 bytes is rejected") {
-    val long = encoder.encodeToString(Array.fill(33)(0x01.toByte))
+  test("more than 128 bytes is rejected") {
+    val long = encoder.encodeToString(Array.fill(129)(0x01.toByte))
     assert(PublicKey.fromBase64Url(long).isLeft)
+  }
+
+  test("a non-32-byte length within the sanity bound is accepted") {
+    val short = encoder.encodeToString(Array.fill(16)(0x01.toByte))
+    assert(PublicKey.fromBase64Url(short).isRight)
   }
 
   test("exactly 32 bytes is accepted") {

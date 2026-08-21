@@ -44,15 +44,15 @@ import java.security.MessageDigest
   */
 object AuthHelper extends Results:
 
-  private val PublicKeyHeader = "X-Deposplit-Public-Key"
+  private val VerifyKeyHeader = "X-Deposplit-Verify-Key"
   private val NonceHeader = "X-Deposplit-Nonce"
   private val SignatureHeader = "X-Deposplit-Signature"
 
   def verify(request: RequestHeader, bodyBytes: Array[Byte]): Either[Result, PublicKey] =
     for
       pkStr <- request.headers
-        .get(PublicKeyHeader)
-        .toRight(Unauthorized(err("missing_header", s"$PublicKeyHeader is required")))
+        .get(VerifyKeyHeader)
+        .toRight(Unauthorized(err("missing_header", s"$VerifyKeyHeader is required")))
       nStr <- request.headers
         .get(NonceHeader)
         .toRight(Unauthorized(err("missing_header", s"$NonceHeader is required")))

@@ -1,7 +1,7 @@
 # Deposplit — Implementation TODO
 
 Tracks **implementation state** for the design decisions captured in
-[`deposplit.com/CLAUDE.md`](CLAUDE.md) → *"What is next"* (items 1–13).
+[`deposplit.com/CLAUDE.md`](CLAUDE.md) → *"What is next"* (items 1–14).
 
 **Division of labour:** `CLAUDE.md` holds the *design rationale* (the *why* — long,
 cross-referenced); this file holds *what's left, per platform* (the *what* — terse,
@@ -17,9 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 9, 10, 12, and 13 are fully shipped, including item 9's identity-regen trigger; 14 is
-> design-complete but not yet built** (items 6, 7, 8, and 11 shipped too — see below). `No
-> migrations` throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
+> ⚠ **Items 1–14 are all fully shipped** — item 9's identity-regen trigger and item 14 (crypto
+> agility) both landed 2026-08-21, closing out the entire original roadmap. `No migrations`
+> throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -78,9 +78,11 @@ is better served by one board than three. This file lives in the hub repo
   surplus beyond `k`, and `requestAll`'s fan-out now targets item 12's `Confirmed` freshness bucket
   first, widening to every holder only when fewer than `k` are confirmed. Shipped on Android, iOS,
   and (for consistency, not full parity) phon.
-- **Item 14 (crypto agility) depends on item 7 (done) and extends item 9's rotation mechanism +
-  item 10's downgrade rule (both done)** — no new prerequisite work, safe to start any time.
-- Rough dependency order for what's left: **14** (the only item left on the original 1–13 roadmap).
+- **Item 14 (crypto agility) is done** — shipped 2026-08-21 across the relay, Android, iOS, and phon.
+- The original 1–14 roadmap is now fully shipped. Remaining open items (1–5, see below) are the
+  pre-existing ones that were never part of the crypto/protocol design walk: item 2 (interop
+  testing), item 4's Airtable/Sheets relay-kinds (parked pending adoption), and item 5 (freemium,
+  future).
 
 ---
 
@@ -112,7 +114,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12, 13 done, 14 design-complete but not yet built
+## Planned items (6–14) — all done
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -749,18 +751,166 @@ Client-only; `relay` untouched. Integrity via over-determination **only** (no st
   64 → 85 tests, all passing. `sbt test` (root, 58 tests) and `sbt relay/test` also run clean,
   confirming the relay and root app are unaffected (this item never touches them).
 
-### Item 14 — Crypto agility (self-describing keys, bundled cipher suites, transport tagging) · [CLAUDE.md#14](CLAUDE.md)
+### Item 14 — Crypto agility (self-describing keys, bundled cipher suites, transport tagging) · [CLAUDE.md#14](CLAUDE.md) · *done*
 Touches the relay, Android, iOS, and (for consistency) phon. **No migrations** (pre-launch).
-- [ ] `R` `phon` `A` `I` rename `Contact`/`Identity`/`IdentityStore` fields: `edPublicKey`/`edPrivateKey` → `verifyKey`/`signKey`; `xPublicKey`/`xPrivateKey` → `encKey`/`decKey`
-- [ ] `R` `phon` `A` `I` add `CipherSuite` value object (bundled sign+agreement algorithm pair, `wireValue`-style tag, not a raw ordinal) + `Contact.cipherSuite` field, one entry (`"ed25519+x25519-v1"`) on day one
-- [ ] `R` `phon` `A` `I` `key_rotations` schema: rename `old_ed25519_key`/`new_ed25519_key`/`new_x25519_key` → `old_verify_key`/`new_verify_key`/`new_enc_key`; add `new_cipher_suite` column (no `old_cipher_suite` — implied by the existing pinned `Contact` record); extend `PayloadCanonical.forRotation`'s signed bytes (append-only) + recompute the cross-platform fixed-seed vector
-- [ ] `phon` `A` `I` extend item 10's `min(level, LOW)` downgrade to trigger on a cipher-suite-only change too, no key-value change required
-- [ ] `R` `PublicKey.verify()` becomes algorithm-dispatching (single-branch today; the extension point for a future second signing algorithm)
-- [ ] `R` `phon` `A` `I` drop the hard-coded `KeyLength = 32` check in `PublicKey`/`X25519Key` (and platform equivalents) — variable-length keys/signatures
-- [ ] `phon` `A` `I` new `TransportSuite` value object (KDF+AEAD wire tag) + self-describing ciphertext wire format (`suiteTag || nonce || ciphertext+tag`, replacing `nonce || ciphertext+tag`); encrypt always writes the current suite, decrypt dispatches on the tag, unknown tag → typed user-visible error, not a silent misparse. No `share_requests`/`PayloadCanonical` schema change needed — the `ciphertext` blob is already fully signed
-- [ ] `A` `I` QR/link contact-exchange payload gains a `cipherSuite` field (version bump from `v:2`); decide whether `ed`/`x` field names get renamed alongside it
-- [ ] `doc` update CLAUDE.md's Cryptography/Transport Encryption sections and the Android/iOS `CLAUDE.md` package-layout tables once implemented
+- [x] `R` `phon` `A` `I` rename `Contact`/`Identity`/`IdentityStore` fields: `edPublicKey`/`edPrivateKey` → `verifyKey`/`signKey`; `xPublicKey`/`xPrivateKey` → `encKey`/`decKey`
+- [x] `R` `phon` `A` `I` add `CipherSuite` value object (bundled sign+agreement algorithm pair, `wireValue`-style tag, not a raw ordinal) + `Contact.cipherSuite` field, one entry (`"ed25519+x25519-v1"`) on day one
+- [x] `R` `phon` `A` `I` `key_rotations` schema: rename `old_ed25519_key`/`new_ed25519_key`/`new_x25519_key` → `old_verify_key`/`new_verify_key`/`new_enc_key`; add `new_cipher_suite` column (no `old_cipher_suite` — implied by the existing pinned `Contact` record); extend `PayloadCanonical.forRotation`'s signed bytes (append-only) + recompute the cross-platform fixed-seed vector
+- [x] `phon` `A` `I` extend item 10's `min(level, LOW)` downgrade to trigger on a cipher-suite-only change too, no key-value change required
+- [x] `R` `PublicKey.verify()` becomes algorithm-dispatching (single-branch today; the extension point for a future second signing algorithm)
+- [x] `R` `phon` `A` `I` drop the hard-coded `KeyLength = 32` check in `PublicKey`/`X25519Key` (and platform equivalents) — variable-length keys/signatures
+- [x] `phon` `A` `I` new `TransportSuite` value object (KDF+AEAD wire tag) + self-describing ciphertext wire format (`suiteTag || nonce || ciphertext+tag`, replacing `nonce || ciphertext+tag`); encrypt always writes the current suite, decrypt dispatches on the tag, unknown tag → typed user-visible error, not a silent misparse. No `share_requests`/`PayloadCanonical` schema change needed — the `ciphertext` blob is already fully signed
+- [x] `A` `I` `phon` QR/link contact-exchange payload gains a `cipherSuite` field (version bump from `v:2` → `v:3`); `ed`/`x` field names kept as-is
+- [x] `doc` update `deposplit.com/CLAUDE.md`, `TODO.md`, and the Android/iOS `CLAUDE.md` package-layout tables
 - [ ] *(parked, not this item)* holder-rotates-key-mid-flight decrypt race between deposit and pickup — noticed during this item's design walk, orthogonal (key version, not algorithm), no owner yet
+
+**Implementation notes (2026-08-21).** Order followed: **`R` first (foundational — schema +
+`PayloadCanonical` + `openapi.yaml`), then `I` → `A` → `phon`**, matching item 8/12's precedent for
+relay-touching items.
+
+**Design decisions beyond the checklist's literal text, made consistently across all four
+codebases:**
+- **`KeyRotation`'s and `KeyConflict`'s own fields** (`oldEd25519Key`/`newEd25519Key`/
+  `newX25519Key`) were renamed to `oldVerifyKey`/`newVerifyKey`/`newEncKey` too, even though the
+  checklist only explicitly named `Contact`/`Identity`/`IdentityStore` — both types directly mirror
+  the same rotating-identity concept the rename is about, and `KeyConflict` is populated straight
+  from a `KeyRotation` notice, so leaving them on the old vocabulary would have been an inconsistent
+  seam for no reason. `KeyPairMaterial`'s fields were renamed the same way for the same reason (it
+  represents "my own fresh keypair," the identity-side counterpart of a contact's keys). None of the
+  three gained a `cipherSuite` field — see below.
+- **`IdentityStore`/`Identity`/`KeyPairMaterial` do *not* carry a `cipherSuite` field.** Only one
+  suite exists, and `generateKeyPairMaterial()` on every platform can only ever produce that one, so
+  "my own current suite" is referenced as a `CipherSuite.current` constant wherever needed (QR
+  display, rotation push) rather than persisted. This keeps the identity-storage format untouched,
+  matching the checklist's literal scope (`Contact`/`Identity`/`IdentityStore` *names*, not a new
+  persisted fact).
+- **`Contact.cipherSuite` is defaulted** (`= CipherSuite.current`), not required — deliberately, to
+  keep the large rename from also being a "thread a new value through every call site" exercise
+  across dozens of test fixtures. The default is correct today (every contact really is on this one
+  suite), not a placeholder. `KeyRotation.newCipherSuite` is *not* defaulted — always explicitly
+  known at construction.
+- **`ContactManagement.addManually` gained no new parameter**; `addFromQr` gained a *required*
+  `cipherSuite` parameter. Manual entry has no wire payload to read a suite from (only one suite
+  exists to assume); the QR/link payload is exactly where this self-describing fact originates.
+  `updateContact` gained an optional `cipherSuite`, and its "keys changed → fresh verification level
+  required" gate was widened to `changingIdentity = keys-changed || cipherSuite-changed` — a
+  suite-only change now forces the same fresh-level rule (and, in `processRotations()`, the same
+  `min(level, LOW)` downgrade) as a plain key change, per the "continuity of key control, not a
+  personhood assurance" reasoning CLAUDE.md already applies to rotations.
+- **Variable-length keys split into two different fixes, not one.** The relay has no suite context
+  at most call sites (transport-auth headers, `ShareRequest.senderKey`/`recipientKey`,
+  `CustodyHeartbeat` keys are all bare bytes with nothing riding alongside), so `PublicKey`/
+  `X25519Key`/`Signature`'s exact-`32`/`64`-byte checks became a **generous sanity bound only**
+  (`1..128` bytes, explicitly *not* sized for any specific future algorithm — revisit once one is
+  chosen). The one place the relay *does* get a suite tag alongside a key — `key_rotations`'
+  `new_cipher_suite` — gets real suite-driven length validation in `KeyRotationsService`
+  (`newVerifyKey`/`newEncKey`'s length must match `newCipherSuite.verifyKeyLength`/`encKeyLength`,
+  else `BadRequest`) — the one piece of real validation "self-describing keys" buys that a flat
+  constant couldn't. Client-side (`ContactService.addManually`/`addFromQr`/`updateContact` on all
+  three platforms), the resolved `CipherSuite` is always in hand, so the old hard-coded `== 32`
+  checks became real suite-driven validation, not just relaxation.
+- **`PublicKey.verify()`'s "algorithm-dispatching" extension point** is sized to what actually
+  exists today: the Ed25519-specific body was extracted into a private `verifyEd25519` function,
+  with `verify()` calling it and a comment marking the extension point — the "trivial single-branch
+  dispatch" CLAUDE.md asks for, not a speculative multi-algorithm registry with nothing to register.
+- **QR/link payload**: `v` bumped 2 → 3, `cipherSuite: String` added as a *required* field (unlike
+  `relay`, which stays optional) — no back-compat decode path for a pre-v3 payload, matching every
+  prior item's pre-launch precedent. `ed`/`x`/`relay` field names kept as-is (CLAUDE.md left this an
+  implementation call; renaming them would have been pure wire-format churn with no benefit).
+
+**`R` implementation notes.** `value_objects/CipherSuite.scala` — new, mirrors
+`ShareTransactionType`'s `wireValue`-per-case pattern exactly (`Ed25519X25519V1` →
+`"ed25519+x25519-v1"`, plus `verifyKeyLength`/`encKeyLength = 32/32`). `PublicKey.scala`/
+`X25519Key.scala`/`Signature.scala`: `KeyLength`/`SigLength` → a shared-shape `MaxLength = 128`
+sanity bound; `PublicKey.verify()` now delegates to a private `verifyEd25519`. `key_rotations`
+(`1.sql`): `old_ed25519_key`/`new_ed25519_key`/`new_x25519_key` → `old_verify_key`/`new_verify_key`/
+`new_enc_key`; new `new_cipher_suite TEXT NOT NULL` column; `recipient_key` untouched (routing key
+of the *other* party). Hit the H2 "semicolon inside a `--` line comment" gotcha again while writing
+the new column's prose comment (same failure mode as item 8's `1.sql` edit — a semicolon mid-comment
+made Play Evolutions' statement-splitter treat everything after it as literal SQL); fixed the same
+way, semicolon → period. `KeyRotation.scala`/`driving_ports/KeyRotations.scala`/
+`driving_adapters/KeyRotationsService.scala`/`AnormKeyRotationRepository.scala`/
+`app/controllers/api/KeyRotationsController.scala`/`ApiSupport.keyRotationJson` all renamed in
+lockstep, with `KeyRotationsService.pushRotation` gaining the suite-length validation described
+above. `PayloadCanonical.forRotation` gained a 4th appended line, `newCipherSuite.wireValue` — the
+cross-platform fixed-seed vector (`PayloadCanonicalVectorTests.scala`, seed bytes `0x00..0x1f`,
+fixture keys `0x03`/`0x04`/`0x05`) recomputed to canonical bytes ending in `\ned25519+x25519-v1` and
+signature `EH45bL4chGQALZ6J9IDhfUAtPNovGHmqlJvF6HBKa8sqkF3SU1NhMGWmSTGM87isxdHIxoQCHFITplmzN1zeDg`
+(computed once via `sbt relay/console`, not hand-derived) — Android's and iOS's vectors must match
+this exact value. `conf/openapi.yaml`: new `CipherSuite` schema (sibling of `ShareTransactionType`),
+`PublicKey`/`X25519PublicKey` descriptions generalized ("32 bytes... for the current cipher suite"),
+`KeyRotation`/`PushRotationBody` schemas and the `## Payload signatures` prose updated to the
+4-field shape. `PublicKeyTests.scala`/`SignatureTests.scala` rewritten for the new sanity-bound
+behavior (a 16- or 32-byte key/signature is now *accepted*, not rejected; only empty or >128 bytes
+is rejected) — this is a real behavior change the old tests correctly caught as failures until
+updated. `sbt relay/test`: 92 → **95** (+3: one relaxed-length acceptance case each in
+`PublicKeyTests`/`SignatureTests`, one suite-length-mismatch rejection case in
+`KeyRotationsServiceTests`). Full `sbt test` after the `I`/`A`/`phon` passes: relay 95 + phon 102 +
+root 59 = **256**, all green.
+
+**`I` implementation notes.** Full rename + new `CipherSuite.swift`/`TransportSuite.swift` value
+objects + `Tests/CipherSuiteTests.swift` landed across the hexagon (`Contact`, `KeyRotation`,
+`KeyConflict`, `KeyPairMaterial`, `PayloadCanonical`, `IdentityStore`/`ContactRepository`/
+`ShareRelay` ports, `Identity`/`ContactManagement`/`ShareManagement` ports,
+`IdentityService`/`ContactService`/`ShareService`/`ShareEncryption` adapters) and the app layer
+(`DeposplitApiAdapter`, `KeychainIdentityStore`, `LocalContactRepository`/
+`LocalKeyConflictRepository`, `QrPayload`/`QrDisplayViewModel`/`QrScanView`,
+`RelinkContactView`/`ContactsView`/`ContactsViewModel`/`AddContactViewModel`,
+`RequestsViewModel`). Found and fixed two real bugs incidentally while auditing every call site:
+(1) two test `IdentityStore` fakes had their private backing-storage properties collide in name
+with the newly-renamed public computed properties (`private var verifyKey` shadowing
+`var verifyKey { verifyKey }`) — fixed by prefixing backing storage with `_`; (2) a *pre-existing*
+(not introduced by this item) bug where `updateContact`/`markKeyCompromised` never carried forward
+`heartbeatOptedOutAt`/`lastHeartbeatSentAt`/`heartbeatEmissionOptedOut` — every relink or
+key-compromise flag was silently resetting a contact's heartbeat preferences — fixed incidentally
+since those exact call sites were already being touched for the `cipherSuite` carry-forward.
+Hexagon tests: 93 → **104** (+11: 3 `CipherSuite`, 3 encrypt/decrypt+`TransportSuite`, 2
+`forRotation` vector, 3 `ContactService` suite-validation/downgrade). `swift build` clean,
+`swift test` 104/104, `xcodebuild build` on the app target — BUILD SUCCEEDED (`xcodebuild test` not
+run, matching this project's documented pre-existing code-signing limitation).
+
+**`A` implementation notes.** Same shape as iOS, ported directly: new `CipherSuite.kt`/
+`TransportSuite.kt`/`UnsupportedTransportSuiteException.kt`, full rename across `Contact.kt`,
+`KeyRotation.kt`, `KeyConflict.kt`, `KeyPairMaterial.kt`, `PayloadCanonical.kt`,
+`IdentityStore`/`ContactManagement`/`ShareManagement` ports, `IdentityService`/`ContactService`/
+`ShareService` adapters, and the app layer (`DeposplitApiAdapter`, `AndroidIdentityStore`,
+`LocalContactRepository`/`LocalKeyConflictRepository`, `CatalogCodec` — gained a `cipherSuite` field
+too, for full catalog-backup round-trip fidelity, since `Contact` now has one — `QrPayload.kt` (`v`
+2→3) + `QrScanViewModel`/`QrDisplayViewModel`/`RelinkContactViewModel`, and
+`RequestsViewModel`/`RecipientRequestsTab` (`.edPublicKey` → `.verifyKey` lookups)). Deliberately
+left `ContactRepository.getByEdKey`'s method/param name unchanged on all three platforms — it's a
+repository query method, not a field holding key bytes, and renaming it was judged out of the
+checklist's literal scope. `AddContactViewModel`/`AddContactScreen`'s own UI-state field names
+(`edPublicKey`/`xPublicKey`, used only for manual-entry form binding, called positionally into
+`addManually`) were left as-is — they're UI-layer labels for "the Ed25519 field"/"the X25519 field"
+a user types into by hand, not bound to `Contact`'s renamed fields, and touching them wasn't
+required for correctness. Hexagon tests: 98 → **109** (+11: 3 `CipherSuiteTest`, 3
+`IdentityServiceVerifyTest` encrypt/decrypt+suite-tag, 5 `ContactServiceTest`
+suite-validation/downgrade). `./gradlew :hexagon:clean :hexagon:test` 109/109,
+`./gradlew :app:compileDebugKotlin` BUILD SUCCESSFUL, full `./gradlew clean test` (hexagon + app)
+green.
+
+**`phon` implementation notes.** Same data-model/logic port as Android/iOS for consistency (new
+`CipherSuite.scala`/`TransportSuite.scala`/`UnsupportedTransportSuiteException.scala`; full rename
+across `Contact.scala`, `KeyRotation.scala`, `KeyConflict.scala`, `KeyPairMaterial.scala`,
+`PayloadCanonical.scala`, `IdentityStore`/`ContactManagement`/`ShareManagement`/`ShareRelay` ports,
+`IdentityService`/`ContactService`/`ShareService` adapters). Two genuine surprises, both fixed:
+(1) **phon does have a real, working QR encoder** (`app/controllers/phon/QrPayload.scala` +
+`PhonyPhoneController.readQrCode`, using `QRCodeWriter` to render an actual scannable PNG) —
+"phon has no QR *scanning* UI" (its own contact-add form is manual-entry-only, matching every prior
+item's phon precedent) does *not* mean phon has no QR *payload* at all. Since this payload is what a
+real Android/iOS device scans, it got the identical `v` 2→3 + required `cipherSuite` treatment as
+the mobile clients' `QrPayload`, not skipped — an out-of-date phon QR would otherwise silently fail
+to interop with the very item-14-updated scanners it's meant to test against. (2) `FileIdentityStore`/
+`FileContactRepository` (app-layer, `app/driven_adapters/phon/`) persist via raw Java serialization
+(`ObjectOutputStream`/`.ser` files) rather than JSON — renamed `DevIdentity`'s fields the same way as
+everywhere else, relying on the same "pre-launch, dev databases reset rather than migrate"
+precedent used for every JSON wire DTO. `contactsTable.scala.html` (a Twirl view reading
+`contact.edPublicKey`/`.xPublicKey` directly) was caught only by a full `sbt compile`, not the
+initial grep sweep — same "grep view templates explicitly" lesson item 8's cross-cutting chore
+already recorded. Hexagon tests: 91 → **102** (+11: 3 `CipherSuiteTests`, 3
+`IdentityServiceVerifyTests` encrypt/decrypt+suite-tag, 5 `ContactServiceTests`
+suite-validation/downgrade). Full `sbt test` (relay + phon + root) — **256 tests, all passing**.
 
 ---
 
@@ -800,13 +950,13 @@ Touches the relay, Android, iOS, and (for consistency) phon. **No migrations** (
 
 Items 4–14 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, 9, 10, 11, 12, and 13 have
-since shipped (see `CHANGELOG.md`) — item 9's rotation push and withdraw tombstone landed across
-every platform, its health-check piece shipped separately under item 12's reshape, its
-reconstruct-and-re-split repair-flow UI trigger shipped 2026-08-19 on Android and iOS, and its last
-remaining piece — the "regenerate my own identity" trigger, originally deliberately scoped out as
-its own follow-up rather than pending work — shipped 2026-08-21. Item 14 (crypto agility —
-self-describing keys, bundled cipher suites, per-message transport tagging) was added in a second
-spec walk the same month, alongside a documentation-only review confirming the relay is still one
-bounded context (see `CLAUDE.md` → "How We Got Here" #7 — no TODO items, no code change). Item 14
-is the only implementation above still pending.
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6 through 14 have all since shipped
+(see `CHANGELOG.md`) — item 9's rotation push and withdraw tombstone landed across every platform,
+its health-check piece shipped separately under item 12's reshape, its reconstruct-and-re-split
+repair-flow UI trigger shipped 2026-08-19 on Android and iOS, and its last remaining piece — the
+"regenerate my own identity" trigger, originally deliberately scoped out as its own follow-up
+rather than pending work — shipped 2026-08-21. Item 14 (crypto agility — self-describing keys,
+bundled cipher suites, per-message transport tagging), added in a second spec walk the same month
+alongside a documentation-only review confirming the relay is still one bounded context (see
+`CLAUDE.md` → "How We Got Here" #7 — no TODO items, no code change), shipped the same day as item
+9's regen trigger, closing out the entire original 1–14 roadmap.

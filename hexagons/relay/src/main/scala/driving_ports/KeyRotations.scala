@@ -36,19 +36,21 @@ import java.util.UUID
 trait KeyRotations:
 
   /** Pushes a signed rotation notice to one contact. The authenticated caller becomes
-    * `oldEd25519Key` — `signature` must verify against it over `PayloadCanonical.forRotation`,
+    * `oldVerifyKey` — `signature` must verify against it over `PayloadCanonical.forRotation`,
     * proving the caller still controls the old private key. Returns `BadRequest` if it doesn't
-    * verify.
+    * verify, or if `newVerifyKey`/`newEncKey`'s byte length doesn't match what `newCipherSuite`
+    * declares (item 14).
     *
     * No consent phase and no conflict check — fire-and-forget, the same shape as Inventory
     * (deposplit.com/CLAUDE.md "What is next" item 8): the recipient polls, auto-verifies, and
     * deletes the row once consumed.
     */
   def pushRotation(
-      oldEd25519Key: PublicKey,
+      oldVerifyKey: PublicKey,
       recipientKey: PublicKey,
-      newEd25519Key: PublicKey,
-      newX25519Key: X25519Key,
+      newVerifyKey: PublicKey,
+      newEncKey: X25519Key,
+      newCipherSuite: CipherSuite,
       signature: Signature
   ): Either[Error, KeyRotation]
 

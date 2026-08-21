@@ -27,7 +27,7 @@ package value_objects.svo
 import java.time.Instant
 import java.util.UUID
 
-/** Item 10 — captured the instant a rotation notice's `oldEd25519Key` is found in a contact's
+/** Item 10 — captured the instant a rotation notice's `oldVerifyKey` is found in a contact's
   * `revokedEdKeys`. Durable and local: the relay may lose its state at any time, so this is saved
   * before the corresponding relay notice is deleted, never re-derived from the relay later. Never
   * auto-resolved — the only path forward is a fresh human-verified relink; this record only exists
@@ -36,9 +36,9 @@ import java.util.UUID
 case class KeyConflict(
     id: UUID,
     contactId: UUID,
-    oldEd25519Key: Array[Byte],
-    newEd25519Key: Array[Byte],
-    newX25519Key: Array[Byte],
+    oldVerifyKey: Array[Byte],
+    newVerifyKey: Array[Byte],
+    newEncKey: Array[Byte],
     detectedAt: Instant
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match

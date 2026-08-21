@@ -61,7 +61,8 @@ class KeyRotationsServiceTests extends munit.FunSuite:
     val repo = InMemoryKeyRotationRepository()
     (repo, KeyRotationsService(repo))
 
-  private val newX25519Key: X25519Key = X25519Key.fromBytes(Array.fill(32)(0x09.toByte)).getOrElse(fail("bad fixture key"))
+  private val newEncKey: X25519Key = X25519Key.fromBytes(Array.fill(32)(0x09.toByte)).getOrElse(fail("bad fixture key"))
+  private val cipherSuite = CipherSuite.current
 
   /** Signs and pushes a rotation notice — the signing counterpart of
     * `service.pushRotation`, mirroring `SharesServiceTests.open`.
@@ -70,28 +71,38 @@ class KeyRotationsServiceTests extends munit.FunSuite:
       service: KeyRotationsService,
       oldKey: PublicKey,
       recipient: PublicKey,
-      newEd25519Key: PublicKey = charlie,
-      newX25519: X25519Key = newX25519Key
+      newVerifyKey: PublicKey = charlie,
+      newEnc: X25519Key = newEncKey,
+      suite: CipherSuite = cipherSuite
   ): Either[Error, KeyRotation] =
-    val sig = signerFor(oldKey).sign(PayloadCanonical.forRotation(recipient, newEd25519Key, newX25519))
-    service.pushRotation(oldKey, recipient, newEd25519Key, newX25519, sig)
+    val sig = signerFor(oldKey).sign(PayloadCanonical.forRotation(recipient, newVerifyKey, newEnc, suite))
+    service.pushRotation(oldKey, recipient, newVerifyKey, newEnc, suite, sig)
 
   test("pushRotation with a valid signature succeeds and stores the row") {
     val (repo, service) = newService()
     val result = push(service, alice, bob)
     assert(result.isRight)
     val rotation = result.getOrElse(fail("not right"))
-    assertEquals(rotation.oldEd25519Key.toBase64Url, alice.toBase64Url)
+    assertEquals(rotation.oldVerifyKey.toBase64Url, alice.toBase64Url)
     assertEquals(rotation.recipientKey.toBase64Url, bob.toBase64Url)
-    assertEquals(rotation.newEd25519Key.toBase64Url, charlie.toBase64Url)
+    assertEquals(rotation.newVerifyKey.toBase64Url, charlie.toBase64Url)
+    assertEquals(rotation.newCipherSuite, cipherSuite)
     assert(repo.getRotationById(rotation.id).isDefined)
   }
 
-  test("pushRotation returns BadRequest when the signature doesn't verify against oldEd25519Key") {
+  test("pushRotation returns BadRequest when the signature doesn't verify against oldVerifyKey") {
     val (_, service) = newService()
     // Signed by bob but claiming to be alice's rotation — signature won't verify against alice.
-    val badSig = signerFor(bob).sign(PayloadCanonical.forRotation(bob, charlie, newX25519Key))
-    val result = service.pushRotation(alice, bob, charlie, newX25519Key, badSig)
+    val badSig = signerFor(bob).sign(PayloadCanonical.forRotation(bob, charlie, newEncKey, cipherSuite))
+    val result = service.pushRotation(alice, bob, charlie, newEncKey, cipherSuite, badSig)
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("pushRotation returns BadRequest when newVerifyKey's length doesn't match newCipherSuite") {
+    val (_, service) = newService()
+    val tooShort = PublicKey.fromBytes(Array.fill(16)(0x07.toByte)).getOrElse(fail("bad fixture key"))
+    val sig = signerFor(alice).sign(PayloadCanonical.forRotation(bob, tooShort, newEncKey, cipherSuite))
+    val result = service.pushRotation(alice, bob, tooShort, newEncKey, cipherSuite, sig)
     assertEquals(result, Left(Error.BadRequest))
   }
 
@@ -101,7 +112,7 @@ class KeyRotationsServiceTests extends munit.FunSuite:
     push(service, charlie, alice)
     val forBob = service.listRotations(bob).getOrElse(fail("not right"))
     assertEquals(forBob.size, 1)
-    assertEquals(forBob.head.oldEd25519Key.toBase64Url, alice.toBase64Url)
+    assertEquals(forBob.head.oldVerifyKey.toBase64Url, alice.toBase64Url)
   }
 
   test("deleteRotation as the recipient succeeds and removes the row") {
