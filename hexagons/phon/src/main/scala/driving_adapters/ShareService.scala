@@ -45,6 +45,7 @@ import value_objects.svo.KeyConflict
 import value_objects.svo.PayloadCanonical
 import value_objects.svo.ReconstructionIntegrity
 import value_objects.svo.ReconstructionResult
+import value_objects.svo.RegenerateIdentityResult
 import value_objects.svo.RetainedDepositBlob
 import value_objects.svo.Role
 import value_objects.svo.Secret
@@ -560,6 +561,25 @@ class ShareService @Inject() (
     val canon = PayloadCanonical.forRotation(contact.edPublicKey, newEd25519Key, newX25519Key)
     val signature = identity.sign(canon)
     relayForContact(contact).pushRotation(contact.edPublicKey, newEd25519Key, newX25519Key, signature)
+
+  /** Item 9's identity-regen trigger. Order matters: the drain and the rotation pushes must both
+    * happen before activateKeyPair, since pushRotation (and the drain's own relay calls) sign
+    * with whatever identity is currently persisted — that's what proves continuity from the old
+    * key to each contact. If the app dies partway through, the old identity is still active
+    * (nothing was persisted yet), so a retry simply regenerates and re-pushes from scratch; any
+    * contact who received an orphaned first attempt auto-corrects on the next successful push,
+    * per item 9's existing K_old-signed auto-accept rule.
+    */
+  override def regenerateIdentity(): RegenerateIdentityResult =
+    Try(syncInbox())
+    Try(syncDistributed())
+    val newKeys = identity.generateNewKeyPair()
+    val contacts = contactRepository.getAll()
+    val notified = contacts.count { contact =>
+      Try(pushRotation(contact.id, newKeys.edPublicKey, newKeys.xPublicKey)).isSuccess
+    }
+    identity.activateKeyPair(newKeys)
+    RegenerateIdentityResult(notified, contacts.size)
 
   /** Identity recovery (item 8) — sender/owner side. Consumes pending recoveryMetadata pushes
     * addressed to this device, rebuilding Secret/ShareMetadata records from what each holder

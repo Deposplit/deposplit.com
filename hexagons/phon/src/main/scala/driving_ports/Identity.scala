@@ -24,6 +24,8 @@
 
 package driving_ports
 
+import value_objects.svo.KeyPairMaterial
+
 trait Identity:
   def isRegistered(): Boolean
   def register(pseudonym: String): Unit
@@ -37,3 +39,15 @@ trait Identity:
     * that ride with a `ShareRequest` row — see `PayloadCanonical`.
     */
   def verify(message: Array[Byte], signature: Array[Byte], publicKey: Array[Byte]): Boolean
+
+  /** Item 9 — generates a fresh Ed25519 + X25519 keypair without touching storage. The caller
+    * (see `ShareManagement.regenerateIdentity`) is expected to push a rotation notice signed by
+    * the *current* (soon-to-be-old) identity before calling `activateKeyPair`, proving continuity
+    * of key control to every contact.
+    */
+  def generateNewKeyPair(): KeyPairMaterial
+
+  /** Item 9 — persists `keyPair` as this device's identity, preserving the existing pseudonym.
+    * After this call, `sign`/`edPublicKey`/`xPublicKey` all reflect the new keys.
+    */
+  def activateKeyPair(keyPair: KeyPairMaterial): Unit

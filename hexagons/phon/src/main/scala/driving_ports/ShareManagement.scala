@@ -28,6 +28,7 @@ import value_objects.svo.Contact
 import value_objects.svo.HeldShare
 import value_objects.svo.KeyConflict
 import value_objects.svo.ReconstructionResult
+import value_objects.svo.RegenerateIdentityResult
 import value_objects.svo.Secret
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
@@ -94,3 +95,12 @@ trait ShareManagement:
     * compromised — no confirmation needed.
     */
   def setHeartbeatEmissionOptedOut(contactId: UUID, optedOut: Boolean): Unit
+
+  // ─── Item 9 — the "regenerate my own identity" trigger (proactive rotation while still
+  // holding the device and old keys — distinct from item 8's device-loss recovery) ────────────
+  /** Best-effort drains the inbox/distributed state under the old identity, generates a fresh
+    * keypair, pushes a signed rotation notice (via the existing pushRotation, unchanged) to every
+    * contact while still signing as the old identity, then activates the new keypair locally. A
+    * contact whose push fails is not retried — same one-shot semantics as pushRotation itself.
+    */
+  def regenerateIdentity(): RegenerateIdentityResult

@@ -28,6 +28,7 @@ import driven_ports.ForgettableIdentityStore
 import driving_adapters.ShareEncryption
 import driving_ports.ForgettableIdentity
 import jakarta.inject.Inject
+import value_objects.svo.KeyPairMaterial
 import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
@@ -52,6 +53,15 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   override def isRegistered(): Boolean = identityStore.isRegistered()
 
   override def register(pseudonym: String): Unit =
+    val material = generateKeyPairMaterial()
+    identityStore.save(pseudonym, material.edPublicKey, material.edPrivateKey, material.xPublicKey, material.xPrivateKey)
+
+  override def generateNewKeyPair(): KeyPairMaterial = generateKeyPairMaterial()
+
+  override def activateKeyPair(keyPair: KeyPairMaterial): Unit =
+    identityStore.save(identityStore.pseudonym(), keyPair.edPublicKey, keyPair.edPrivateKey, keyPair.xPublicKey, keyPair.xPrivateKey)
+
+  private def generateKeyPairMaterial(): KeyPairMaterial =
     val random = SecureRandom()
 
     val edGen = Ed25519KeyPairGenerator()
@@ -66,7 +76,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     val xPk = xPair.getPublic.asInstanceOf[X25519PublicKeyParameters].getEncoded
     val xSk = xPair.getPrivate.asInstanceOf[X25519PrivateKeyParameters].getEncoded
 
-    identityStore.save(pseudonym, edPk, edSk, xPk, xSk)
+    KeyPairMaterial(edPk, edSk, xPk, xSk)
 
   override def unregister() = identityStore.forget()
 

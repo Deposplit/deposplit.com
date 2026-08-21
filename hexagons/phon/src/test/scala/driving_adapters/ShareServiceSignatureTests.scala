@@ -130,6 +130,7 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
   var rotationsToReturn: List[KeyRotation] = Nil
   var deletedRotationIds: List[UUID] = Nil
   var throwOnWithdraw: Boolean = false
+  var throwOnPushRotation: Boolean = false
 
   // Item 12
   case class PushedHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte])
@@ -188,7 +189,10 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
       recipientSignature: Array[Byte]
   ): ShareRequest =
     respondCalls :+= requestId
-    val updated = byId(requestId).copy(state = if approved then ShareRequestState.Approved else ShareRequestState.Denied)
+    val updated = byId(requestId).copy(
+      state = if approved then ShareRequestState.Approved else ShareRequestState.Denied,
+      recipientSignature = Some(recipientSignature)
+    )
     byId += requestId -> updated
     updated
 
@@ -200,6 +204,7 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
     if throwOnWithdraw then throw RuntimeException("simulated withdraw failure")
 
   override def pushRotation(recipientKey: Array[Byte], newEd25519Key: Array[Byte], newX25519Key: Array[Byte], signature: Array[Byte]): Unit =
+    if throwOnPushRotation then throw RuntimeException("simulated push failure")
     pushedRotations :+= PushedRotation(recipientKey, newEd25519Key, newX25519Key, signature)
 
   override def listRotations(): List[KeyRotation] =
@@ -1207,4 +1212,103 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val targeted = relay.openedRequests.map(_.recipientKey.toList).toSet
     val expected = Set(optedOutContact.edPublicKey.toList, other.contact.edPublicKey.toList)
     assertEquals(targeted, expected)
+  }
+
+  // ── Identity regeneration (item 9's parked "regenerate my own identity" trigger) ────────────
+
+  test("regenerateIdentity pushes a signed rotation to every contact and activates the new keys") {
+    val relay = FakeShareRelay()
+    val charlieKeys = TestKeyPair.generate()
+    val charlieContact = Contact(
+      id = UUID.randomUUID(),
+      pseudonym = "charlie",
+      edPublicKey = charlieKeys.publicKey,
+      xPublicKey = Array.fill(32)(0x02.toByte),
+      verificationLevel = VerificationLevel.VeryHigh,
+      verifiedAt = None,
+      addedAt = Instant.now()
+    )
+    val (svc, bob, _, _, _, _, _) = newService(relay, List(aliceContact, charlieContact))
+    val oldEdKey = bob.edPublicKey()
+    val oldXKey = bob.xPublicKey()
+
+    val result = svc.regenerateIdentity()
+
+    assertEquals(result.notifiedContacts, 2)
+    assertEquals(result.totalContacts, 2)
+    assertEquals(relay.pushedRotations.size, 2)
+    relay.pushedRotations.foreach { pushed =>
+      val canon = PayloadCanonical.forRotation(pushed.recipientKey, pushed.newEd25519Key, pushed.newX25519Key)
+      // Signed by the OLD identity, proving continuity — not by the key it's rotating to.
+      assert(bob.verify(canon, pushed.signature, oldEdKey))
+      assert(!bob.verify(canon, pushed.signature, pushed.newEd25519Key))
+    }
+    // The new identity is now live.
+    assert(!bob.edPublicKey().sameElements(oldEdKey))
+    assert(!bob.xPublicKey().sameElements(oldXKey))
+  }
+
+  test("regenerateIdentity drains the pending inbox under the old identity before rotating") {
+    val relay = FakeShareRelay()
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
+    val oldEdKey = bob.edPublicKey()
+    val depositId = UUID.randomUUID()
+    val unsigned = depositRow(depositId, aliceKeys.publicKey, bob.edPublicKey(), Array.emptyByteArray)
+    val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
+    relay.pending = List(row)
+    relay.byId += depositId -> row
+
+    svc.regenerateIdentity()
+
+    // The deposit was picked up and its recipientSignature was produced under the OLD identity —
+    // proving the drain ran (and completed) before the keys were swapped.
+    assertEquals(shareRepo.getAll().map(_.id), List(depositId))
+    val approved = relay.byId(depositId)
+    assertEquals(approved.state, ShareRequestState.Approved)
+    val sig = approved.recipientSignature.getOrElse(fail("expected a recipientSignature"))
+    val canon = PayloadCanonical.forRespond(depositId, true, None)
+    assert(bob.verify(canon, sig, oldEdKey))
+  }
+
+  test("regenerateIdentity still activates the new keys when one contact's relay is unreachable") {
+    val byorUrl = "http://byor.example:9000"
+    val charlieKeys = TestKeyPair.generate()
+    val charlieContact = Contact(
+      id = UUID.randomUUID(),
+      pseudonym = "charlie",
+      edPublicKey = charlieKeys.publicKey,
+      xPublicKey = Array.fill(32)(0x02.toByte),
+      verificationLevel = VerificationLevel.VeryHigh,
+      verifiedAt = None,
+      addedAt = Instant.now(),
+      relayBaseUrl = Some(byorUrl)
+    )
+    val defaultRelay = FakeShareRelay()
+    val byorRelay = FakeShareRelay()
+    byorRelay.throwOnPushRotation = true
+    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    bobIdentity.register("bob")
+    val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
+    val svc = ShareService(
+      relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
+      encryption = NoOpShareEncryption,
+      shareRepository = FakeShareRepository(),
+      shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
+      contactRepository = contactRepo,
+      contactManagement = ContactService(contactRepo),
+      keyConflictRepository = FakeKeyConflictRepository(),
+      retainedDepositRepository = FakeRetainedDepositRepository(),
+      identity = bobIdentity
+    )
+    val oldEdKey = bobIdentity.edPublicKey()
+
+    val result = svc.regenerateIdentity()
+
+    assertEquals(result.totalContacts, 2)
+    assertEquals(result.notifiedContacts, 1) // charlie's BYOR relay refused the push
+    assertEquals(defaultRelay.pushedRotations.size, 1)
+    assert(byorRelay.pushedRotations.isEmpty)
+    // The swap still completes even though one contact couldn't be notified.
+    assert(!bobIdentity.edPublicKey().sameElements(oldEdKey))
   }

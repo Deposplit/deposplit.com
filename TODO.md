@@ -17,10 +17,9 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Item 9 is shipped except for its deliberately-parked identity-regen trigger; items 10, 12, and
-> 13 are fully shipped; 14 is design-complete but not yet built** (items 6, 7, 8, and 11
-> shipped too — see below). `No migrations` throughout — Deposplit is pre-launch; test relays and
-> devices reset to a clean slate.
+> ⚠ **Items 9, 10, 12, and 13 are fully shipped, including item 9's identity-regen trigger; 14 is
+> design-complete but not yet built** (items 6, 7, 8, and 11 shipped too — see below). `No
+> migrations` throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
 
 ---
 
@@ -44,19 +43,21 @@ is better served by one board than three. This file lives in the hub repo
   primitives; catalog export/import shipped on Android/iOS with UI, and as a primitive-only
   port on phon. Shipped on the relay, Android, iOS, and (for consistency, not full parity) phon.
   Item 9's rotation push and item 10's revocation both build on this item's `updateContact`.
-- **Item 9's rotation push, withdraw tombstone, and repair-flow UI trigger are done** — the
-  rotation push and withdraw tombstone shipped on the relay (a dedicated `key_rotations` table,
-  `POST /share-requests/withdraw`), Android, iOS, and (for consistency, not full parity) phon, all
+- **Item 9 is fully done**, including its identity-regen trigger (2026-08-21). The rotation push
+  and withdraw tombstone shipped on the relay (a dedicated `key_rotations` table, `POST
+  /share-requests/withdraw`), Android, iOS, and (for consistency, not full parity) phon, all
   landing on the same design independently. Item 10's `min(level, LOW)` downgrade is already baked
   into every client's rotation-receive path, not deferred to item 10 itself. The repair-flow UI
   trigger (2026-08-19, `A`/`I` only) wires a one-tap-ish "Repair" screen — gathering k approved
   retrievals, reconstructing, re-depositing via a prefilled Deposit form, then optionally
   discarding the old distribution — onto the existing `requestAll`/`reconstruct`/`deposit`/
-  `discardSecret` primitives; no new hexagon code either platform. **Not** shipped under item 9:
-  the pull-style health-check (superseded by item 12's heartbeat push before it was ever built)
-  and the "regenerate my own identity" trigger that would let a user actually *originate* a
-  rotation from the UI (deliberately scoped out — see `CLAUDE.md` item 9's "Proactive rotation"
-  bullet) — this is the only piece of item 9 still open, and it's a deliberate parking, not a gap.
+  `discardSecret` primitives; no new hexagon code either platform. The pull-style health-check was
+  superseded by item 12's heartbeat push before it was ever built. The last remaining piece — the
+  "regenerate my own identity" trigger that lets a user actually *originate* a rotation from the
+  UI — is now also shipped: `Identity` gained `generateNewKeyPair()`/`activateKeyPair()` and
+  `ShareManagement` gained `regenerateIdentity()`, reusing the existing `pushRotation` primitive
+  unchanged. Shipped on Android, iOS, and (for consistency, not full parity — no Settings UI)
+  phon.
 - **Item 10 (stolen-key revocation) is done** — 100% client-local, no relay work. The
   `min(level, LOW)` downgrade was already shipped under item 9; item 10 added the local
   "compromised/revoked" key flag (`Contact.revokedEdKeys`), the `KeyConflict` record captured
@@ -79,8 +80,7 @@ is better served by one board than three. This file lives in the hub repo
   and (for consistency, not full parity) phon.
 - **Item 14 (crypto agility) depends on item 7 (done) and extends item 9's rotation mechanism +
   item 10's downgrade rule (both done)** — no new prerequisite work, safe to start any time.
-- Rough dependency order for what's left: **14** (item 9's only remaining piece, the
-  regenerate-identity trigger, is deliberately parked, not a scheduling dependency).
+- Rough dependency order for what's left: **14** (the only item left on the original 1–13 roadmap).
 
 ---
 
@@ -112,7 +112,7 @@ is better served by one board than three. This file lives in the hub repo
 
 ---
 
-## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12, 13 done (9's identity-regen trigger deliberately parked), 14 design-complete but not yet built
+## Planned items (6–14) — items 6, 7, 8, 9, 10, 11, 12, 13 done, 14 design-complete but not yet built
 
 ### Item 6 — Four-level contact verification · [CLAUDE.md#6](CLAUDE.md)
 `VERY_LOW`/`LOW`/`HIGH`/`VERY_HIGH`, ordinal. Old `UNVERIFIED`/`VERIFIED` would map onto
@@ -142,23 +142,22 @@ Pure-social, `k`-of-`n` by construction; recovery returns **metadata only**, nev
 - [x] `A` `I` optional catalog export/import (non-secret catalog: contact pubkeys, pseudonyms, levels, `ShareMetadata`) — native file pickers on both platforms (`.fileExporter`/`ShareLink`/`.fileImporter` on iOS; SAF `CreateDocument`/`OpenDocument` on Android)
 - [x] `phon` same field renames (k/n, RecoveryMetadata type), retrieve/delete re-key, `updateContact` (keys only, no level param — no picker UI per item 6's narrower phon scope), `pushRecoveryMetadata`/`processRecoveryMetadata`, and the `Catalog`/`CatalogManagement`/`CatalogService` primitive — for cross-platform *consistency*, not full parity (no relink/catalog-backup UI; not originally tagged for this item)
 
-### Item 9 — Holder-key-change handling + redundancy monitoring · [CLAUDE.md#9](CLAUDE.md) · *done except the deliberately-parked identity-regen trigger*
+### Item 9 — Holder-key-change handling + redundancy monitoring · [CLAUDE.md#9](CLAUDE.md) · *done*
 NB: the health-check is a **push** — reshaped by item 12, so the originally-sketched pull
 health-check is deliberately **not** being built here; skip straight to item 12 for that piece.
 
 > ⚠ **Scope split agreed 2026-08-18 (Paul + Claude), before iOS work started:** the rotation
 > push's *receiving* side (auto-verify against the trusted old key, `min(level, LOW)` downgrade,
-> `updateContact` in place) and a callable `pushRotation(to:)` primitive are in scope per-platform
-> below. The *trigger* — a user deliberately regenerating their own keypair while still holding
-> the device (distinct from item 8's device-*loss* recovery) — is **not**: it needs a new
-> `IdentityStore` capability ("replace my keypair, keep contacts/shares/secrets") plus a Settings
-> UI action, neither of which exists yet or is specified by any "What is next" item. Deferred as
-> its own follow-up rather than improvised mid-item-9. See `CLAUDE.md` item 9's "Proactive
-> rotation" bullet for the same note.
+> `updateContact` in place) and a callable `pushRotation(to:)` primitive were in scope
+> per-platform first; the *trigger* — a user deliberately regenerating their own keypair while
+> still holding the device (distinct from item 8's device-*loss* recovery) — was deferred as its
+> own follow-up rather than improvised mid-item-9. See `CLAUDE.md` item 9's "Proactive rotation"
+> bullet for the same note. **That follow-up shipped 2026-08-21 — see below.**
 
 - [x] `R` `A` `I` `phon` signed `rotate(K_old→K_new)` push; auto-verify against trusted old key; update contact in place — **done, all four scopes** (receive-side + `pushRotation(to:)` primitive only — see scope-split note above)
 - [x] `A` `I` reconstruct-and-re-split repair flow (shared with item 11) — **done, 2026-08-19.** One screen with internal wizard state (gather → reconstruct → re-deposit → confirm-discard → done) composing the existing `requestAll`/`reconstruct`/`deposit`/`discardSecret` primitives, entered via a "Repair" button on the secret's row shown only at item 12's `.caution`/`.critical` health (not `.lost` — the app's own stated semantics there is unrecoverable, remedy is rotating the underlying secret, not repair). No hexagon changes on either platform — 100% app-layer wiring. Implementation notes below.
 - [x] `R` `A` `I` `phon` "withdrawn by recipient" row state + tombstone-on-delete + `syncDistributed()` handling (row *absence* never a signal) — **done, all four scopes**
+- [x] `A` `I` `phon` the "regenerate my own identity" trigger — **done, 2026-08-21.** See the dedicated implementation-notes section below.
 
   **`R` implementation notes (2026-08-18):** Two independent pieces, both relay-only so far —
   client wiring (Android/iOS/phon) is still open.
@@ -451,6 +450,83 @@ health-check is deliberately **not** being built here; skip straight to item 12 
     every prior UI-only item's precedent (9's rotation/withdraw UI, 10's compromise UI, 12's
     heartbeat toggle).
 
+  **Identity-regen trigger implementation notes (2026-08-21):** the last piece item 9 had left
+  open — a user who still holds the device and old keys but wants a fresh keypair (distinct from
+  item 8's device-*loss* recovery). Relay untouched; uses only the existing poll endpoints (for the
+  drain) and the existing `POST /key-rotations` (via the unchanged `pushRotation` primitive).
+
+  **Investigation finding, not previously documented:** the relay authorizes every
+  `/share-requests` read/write by matching the row's embedded `sender_key`/`recipient_key` against
+  the **caller's currently-authenticating key** (`SharesService.scala`:
+  `getShareRequestsAsSender`/`AsRecipient(callerKey, ...)`, `getShareRequest` requires
+  `sameKey(req.senderKey, callerKey) || sameKey(req.recipientKey, callerKey)`). So the instant a
+  device's identity key changes, any relay row still addressed to/from the *old* key — an
+  unfetched retrieval response, an unpicked-up deposit, a request from someone else still awaiting
+  reply — becomes permanently unreachable through the normal poll (not deleted, just invisible).
+  **Decided with Paul:** mitigate with a best-effort drain (one final `syncInbox()`/
+  `syncDistributed()` pass under the old identity immediately before rotating) plus a documented
+  residual-risk warning in the confirmation UI — no grace-period dual-key polling mechanism. This
+  matches the project's existing "relay is a best-effort mailbox, row absence is never a signal"
+  philosophy (item 12).
+
+  **Design.** `Identity` gained two primitives on all three platforms: `generateNewKeyPair()` —
+  pure key generation (the same BouncyCastle/CryptoKit logic `register()` already had, factored
+  into a shared private helper reused by both), not persisted — and `activateKeyPair(keyPair)`,
+  which persists via the **existing, unchanged** `IdentityStore.save(pseudonym, ...)`, passing
+  through the current pseudonym. No new `IdentityStore` method was needed; `save()` was already
+  general enough to double as "replace." `ShareManagement` gained one orchestrating primitive,
+  `regenerateIdentity(): RegenerateIdentityResult` (`notifiedContacts`, `totalContacts`), living on
+  the same port as `pushRotation`/`processRotations()` since it's their direct proactive
+  counterpart: (1) best-effort drain (`syncInbox()`, `syncDistributed()`) under the **old**
+  identity; (2) generate new keys (not yet persisted); (3) for every contact, `pushRotation` with
+  the new public keys — **unchanged**, since it already signs with whatever identity is currently
+  persisted, which is exactly right before step 4; (4) `activateKeyPair`, completing the swap.
+  Order matters and is load-bearing: if the app dies mid-fan-out, the old identity is still active
+  (nothing was persisted yet), so a retry simply regenerates and re-pushes from scratch, and any
+  contact who received an orphaned first attempt self-corrects on the next successful push, per
+  item 9's existing `K_old`-signed auto-accept rule — no journaling/rollback code needed.
+
+  **UI (Android/iOS only, matching every prior item's precedent — phon has no HTMX UI for this).**
+  A new "Identity" section on the Settings screen: a destructive-styled "Regenerate My Identity"
+  button behind a plain confirmation dialog (not biometric-gated — this is a config-style action
+  like "Mark Key Compromised," not a secret-exposure action like reconstruct) that pre-fetches and
+  states the contact count to be notified and warns that requests pending with someone else at
+  that exact moment may become unreachable afterward. On confirm, shows a loading state then
+  "Notified X of Y contact(s)."
+
+  **`I` implementation notes:** new `value_objects/KeyPairMaterial.swift`,
+  `RegenerateIdentityResult.swift`. `SettingsViewModel` gained `shareManagement`/`contactManagement`
+  dependencies (threaded through from `HomeView`, the only call site) and a `contactCount` computed
+  at init via `contactManagement.listContacts()`. Tests: a pre-existing gap in `FakeShareRelay
+  .respondToShareRequest` was found and fixed — it silently dropped the passed-in
+  `recipientSignature`, carrying forward the original row's (usually `nil`) value instead —
+  exposed by a new test asserting the drain's approval signature verifies against the *old*
+  identity. `IdentityServiceVerifyTests` gained 3 cases; `ShareServiceTests` gained 3 (fan-out +
+  old-key-signature proof, drain-before-swap ordering, partial-failure tolerance via a new
+  `throwOnPushRotation` fixture flag mirroring the existing `throwOnPushHeartbeat`). Hexagon: 87 →
+  93 tests, `swift test` all green; `xcodebuild build` (device SDK) succeeded.
+
+  **`A` implementation notes:** mirrors iOS's design one-for-one. New
+  `value_objects/KeyPairMaterial.kt`, `RegenerateIdentityResult.kt`. `SettingsViewModel` gained the
+  same two dependencies and pre-fetched `contactCount`, plus `isRegeneratingIdentity`/
+  `regenerateResult`/`regenerateError` state; `SettingsScreen` gained an "Identity" section +
+  `AlertDialog`. Same pre-existing `FakeShareRelay.respondToShareRequest` gap found and fixed
+  independently. `IdentityServiceVerifyTest` gained 3 cases (3 → 6); `ShareServiceTest` gained 3
+  (45 → 48). `:app:compileDebugKotlin` BUILD SUCCESSFUL. German strings were **not** backfilled for
+  the new Settings copy — the entire Settings screen already has no German translations at all, a
+  pre-existing gap, not one introduced here (same precedent as item 8's `pick_up` German-string
+  gap, noted but not backfilled).
+
+  **`phon` implementation notes:** consistency, not parity — full `Identity`/`ShareManagement`
+  domain logic, no HTMX UI (no Settings-equivalent screen exists at all). New
+  `value_objects/svo/KeyPairMaterial.scala`, `RegenerateIdentityResult.scala`. `generateNewKeyPair`/
+  `activateKeyPair` added directly to the base `Identity` trait, so `ForgettableIdentity` (phon's
+  own extension, adding `unregister()` for repeated manual test runs) inherits them automatically.
+  Same pre-existing `FakeShareRelay.respondToShareRequest` gap found and fixed independently, plus
+  a new `throwOnPushRotation` fixture flag. `IdentityServiceVerifyTests` gained 3 cases (3 → 6);
+  `ShareServiceSignatureTests` gained 3 (44 → 47). Full phon suite: 85 → 91 tests, all passing.
+  Relay (92) and root (58) confirmed unaffected — this item never touches them.
+
 ### Item 10 — Malicious key substitution + stolen-key revocation · [CLAUDE.md#10](CLAUDE.md) · *done*
 - [x] `A` `I` `K_old`-signed rotation auto-accept with `min(level, LOW)` downgrade — **already shipped under item 9** (see item 9's note above); no new work needed here.
 - [x] `A` `I` `phon` local "compromised/revoked" key flag → disables auto-accept of that key's rotations
@@ -724,12 +800,13 @@ Touches the relay, Android, iOS, and (for consistency) phon. **No migrations** (
 
 Items 4–14 and the C4/C5 sub-decisions were settled at the specification level this
 month; see `CLAUDE.md` → "What is next" for the reasoning and the commit trail. Tier C is
-cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, 9, 10, 11, and 12 have since
-shipped (see `CHANGELOG.md`) — item 9's rotation push and withdraw tombstone landed across every
-platform, its health-check piece shipped separately under item 12's reshape, and its
-reconstruct-and-re-split repair-flow UI trigger shipped 2026-08-19 on Android and iOS. Item 9's
-one remaining piece, the "regenerate my own identity" trigger, was deliberately scoped out, not
-merely pending. Item 14 (crypto agility — self-describing keys, bundled cipher suites, per-message
-transport tagging) was added in a second spec walk the same month, alongside a documentation-only
-review confirming the relay is still one bounded context (see `CLAUDE.md` → "How We Got Here" #7 —
-no TODO items, no code change). All other implementation above is pending.
+cleared (item 12 resolved #5; #3 relay-kinds parked). Items 6, 7, 8, 9, 10, 11, 12, and 13 have
+since shipped (see `CHANGELOG.md`) — item 9's rotation push and withdraw tombstone landed across
+every platform, its health-check piece shipped separately under item 12's reshape, its
+reconstruct-and-re-split repair-flow UI trigger shipped 2026-08-19 on Android and iOS, and its last
+remaining piece — the "regenerate my own identity" trigger, originally deliberately scoped out as
+its own follow-up rather than pending work — shipped 2026-08-21. Item 14 (crypto agility —
+self-describing keys, bundled cipher suites, per-message transport tagging) was added in a second
+spec walk the same month, alongside a documentation-only review confirming the relay is still one
+bounded context (see `CLAUDE.md` → "How We Got Here" #7 — no TODO items, no code change). Item 14
+is the only implementation above still pending.
