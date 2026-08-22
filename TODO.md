@@ -111,6 +111,7 @@ is better served by one board than three. This file lives in the hub repo
 - [ ] `I` StoreKit 2 adapter · [ ] `A` Google Play Billing adapter
 - [ ] `A` `I` paywall screen (on free-cap hit, or free user configuring a sender-side relay override)
 - [ ] free cap counts **`ACTIVE`** secrets only (see item 11) — enforce against `Secret` state
+- [ ] `A` `I` debug-only fake-Premium `PurchaseRepository` for testing the now-gated default-relay override, mirroring Android's existing `SKIP_BIOMETRIC` `local.properties`/`BuildConfig` dev-bypass pattern — needed once this item gates the Settings screen's relay editor, since `RelayDefaults`/`RelaySettings` (see the Aug 2026 relay-default consistency cleanup, both READMEs) assume that editor is always available for local-relay testing
 
 ---
 
