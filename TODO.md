@@ -1,7 +1,7 @@
 # Deposplit — Implementation TODO
 
 Tracks **implementation state** for the design decisions captured in
-[`deposplit.com/CLAUDE.md`](CLAUDE.md) → *"What is next"* (items 1–14).
+[`deposplit.com/CLAUDE.md`](CLAUDE.md) → *"What is next"* (items 1–16).
 
 **Division of labour:** `CLAUDE.md` holds the *design rationale* (the *why* — long,
 cross-referenced); this file holds *what's left, per platform* (the *what* — terse,
@@ -18,8 +18,10 @@ is better served by one board than three. This file lives in the hub repo
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
 > ⚠ **Items 1–14 are all fully shipped** — item 9's identity-regen trigger and item 14 (crypto
-> agility) both landed 2026-08-21, closing out the entire original roadmap. `No migrations`
-> throughout — Deposplit is pre-launch; test relays and devices reset to a clean slate.
+> agility) both landed 2026-08-21, closing out the entire original roadmap. **Items 15 (local
+> contact nicknames) and 16 (persist the secret's MIME type), both added 2026-08-22, are new and
+> not yet started.** `No migrations` throughout — Deposplit is pre-launch; test relays and devices
+> reset to a clean slate.
 
 ---
 
@@ -83,6 +85,12 @@ is better served by one board than three. This file lives in the hub repo
   pre-existing ones that were never part of the crypto/protocol design walk: item 2 (interop
   testing), item 4's Airtable/Sheets relay-kinds (parked pending adoption), and item 5 (freemium,
   future).
+- **Items 15 (local contact nicknames) and 16 (persist the secret's MIME type) are new** — both
+  added 2026-08-22 during a follow-up design session, neither started on any platform. Item 15 is
+  purely local and independent of every other item; item 16 touches the relay (a new `mime_type`
+  column + an appended `PayloadCanonical.forOpen` field) and reuses item 8's `k`/`n` end-to-end
+  journey (`Secret` → deposit payload → `HeldShare` → `inventory` recovery push) for the new field.
+  See "New items (15+)" below.
 
 ---
 
@@ -912,6 +920,69 @@ initial grep sweep — same "grep view templates explicitly" lesson item 8's cro
 already recorded. Hexagon tests: 91 → **102** (+11: 3 `CipherSuiteTests`, 3
 `IdentityServiceVerifyTests` encrypt/decrypt+suite-tag, 5 `ContactServiceTests`
 suite-validation/downgrade). Full `sbt test` (relay + phon + root) — **256 tests, all passing**.
+
+---
+
+## New items (15+)
+
+### Item 15 — Local contact nicknames · [CLAUDE.md#15](CLAUDE.md)
+Purely local disambiguation for same-`pseudonym` contacts (e.g. two different "Paul"s that both
+end up in the same device's contact list). No relay/DB involvement — `Contact` is already 100%
+client-local storage on every platform. Independent of every other item — no dependency on 1–14's
+crypto/relay work.
+- [ ] `A` `I` `phon` `Contact` gains `nickname: String?` (Kotlin/Swift) / `Option[String] = None`
+  (Scala) — trim + blank→absent, same normalization as `pseudonym`; never transmitted (not in the
+  QR/link payload, any relay row, or any rotation/heartbeat/inventory push)
+- [ ] `A` `I` `phon` new `ContactManagement.renameContact(contactId, nickname)` primitive —
+  deliberately kept separate from `updateContact(contactId, newKeys?, newLevel?)`, whose entire
+  shape is about key rotation (including items 6/8/9/10's forced verification-level re-choice on
+  any key change); a nickname edit must never trip that logic, and must stay available regardless
+  of verification state or an open key conflict
+- [ ] `A` `I` `phon` `addManually`/`addFromQr` gain an optional trailing `nickname` param, so a
+  nickname can be set at add-time, not only via a later edit
+- [ ] `A` `I` display precedence applied everywhere a contact is rendered (contacts list,
+  deposit-recipient picker, sent/pending request lists, key-conflict UI, heartbeat/health surfaces,
+  the "key changed N days ago" indicator): nickname as the primary label when set, `pseudonym`
+  always shown as a secondary/subtitle line underneath
+- [ ] `A` Contacts screen: nickname display line + a rename action (e.g. tap-to-edit, or a new icon
+  button alongside the existing Relink/heartbeat-toggle/Mark-Compromised/Delete row); add-contact
+  flow gains an optional nickname text field
+- [ ] `I` Contacts screen: nickname display line + a rename action in the existing `.contextMenu`
+  alongside Relink/Mark-Compromised/Pause-Heartbeats; add-contact flow gains an optional nickname
+  field
+- [ ] `phon` field + primitive parity only, for cross-platform *consistency* — no dedicated rename
+  UI required (an optional nickname column in `contactsTable.scala.html` is a trivial addition if
+  wanted, matching every prior item's phon precedent of skipping UI polish)
+- [-] `R` not applicable — the relay never stores contacts
+
+### Item 16 — Persist the secret's MIME type · [CLAUDE.md#16](CLAUDE.md)
+Free MIME string on `Secret` (default `"text/plain"`), threaded through the exact same
+sender → wire → holder → recovery-push journey item 8 already built for `k`/`n`. No sniffing/
+validation against actual bytes — sender-supplied, best-effort, same trust level as `label`.
+- [ ] `R` new `mime_type` column on `share_requests` (edit `1.sql` in place, no new evolution
+  file, per precedent)
+- [ ] `R` `PayloadCanonical.forOpen` gains `mimeType` **appended at the tail** of the signed byte
+  sequence (append-only, per the item 8/14 precedent — do not disturb the existing fixed-seed
+  vector tests' earlier fields)
+- [ ] `R` `ShareRequestsService`/Anorm repository carry `mimeType` through; `conf/openapi.yaml`
+  gains it on `ShareRequest`/`OpenShareRequestBody` + the "Payload signatures" prose section
+- [ ] `R` `phon` `A` `I` cross-platform `forOpen` signature vector updated (same fixed-seed
+  pattern as every prior appended field)
+- [ ] `phon` `A` `I` `Secret` gains `mimeType`; `deposit()` gains an optional trailing
+  `mimeType` param defaulting to `"text/plain"` (no call-site changes required)
+- [ ] `phon` `A` `I` `HeldShare` gains `mimeType` alongside its existing `k`/`n`
+- [ ] `phon` `A` `I` `inventory` recovery push payload gains `mimeType` alongside
+  `secretId`/`label`/`secretCreatedAt`/`k`/`n`, so item 8's recovery restores it too
+- [ ] `A` `I` reconstruct render fork: `text/*` → existing text view (unchanged); `image/*` →
+  image view via the platform's normal safe/sandboxed decoder only; anything else or a decode
+  failure → generic "binary data" view with export/copy-as-file, never a crash — this also gives
+  **Android** a safe fallback matching iOS's existing base64 fallback (a pre-existing gap: Android
+  currently has no fallback at all and would mangle a binary secret today)
+- [ ] `phon` field/primitive parity only, for cross-platform *consistency* — no rendering UI
+  required (phon doesn't render reconstructed secrets specially today either)
+- [ ] `doc` note in the render-fork code that a mismatched/malicious `mimeType` is a
+  rendering-only risk (never a new confidentiality one) and must always fail safe onto the
+  generic binary view
 
 ---
 

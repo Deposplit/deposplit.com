@@ -688,6 +688,102 @@ The items below capture *design rationale* — why each decision was made, and w
     notes). Touched the relay (`hexagons/relay` + `1.sql` + `conf/openapi.yaml`), Android, iOS, and
     (for consistency) phon. **No migrations** — pre-launch, clean-slate reset.
 
+15. **Local contact nicknames (disambiguating same-pseudonym contacts).** `Contact.pseudonym` is
+    the only human-readable field on a contact record, and it is entirely sender-asserted — chosen
+    by the contact themself, carried once over the QR/link payload at add-time, and never renamable
+    afterward (`updateContact`/its per-platform equivalents only ever touch keys/cipher-suite/
+    verification-level, never `pseudonym`). Nothing stops two different contacts from choosing the
+    same pseudonym ("Paul"), and the device owner has no local way to tell them apart once both are
+    in the contact list.
+
+    **Design.** A new, purely local, optional `nickname` field on `Contact` — never transmitted
+    (not in the QR/link payload, any relay row, or any rotation/heartbeat/inventory push), with the
+    same trim-then-blank-becomes-absent normalization already applied to `pseudonym`, except that
+    unlike `pseudonym` (which must be non-blank), an absent nickname is the normal, expected
+    default. **Display precedence, applied everywhere a contact is rendered** (contacts list,
+    deposit-recipient picker, sent/pending request lists, key-conflict UI, heartbeat/health
+    surfaces, the "key changed N days ago" indicator): nickname shown as the primary label when
+    set, with `pseudonym` always shown as a secondary/subtitle line underneath — `pseudonym` stays
+    visible because it is the only name value that ever left the counterparty's device, i.e. the
+    one thing that could actually be cross-checked ("what does your app say your name is?").
+
+    A single optional short field was chosen over a richer free-text note or a tags/labels system:
+    it matches the stated problem exactly (disambiguating a colliding display name) without taking
+    on a broader "organize/categorize my contacts" problem nobody asked for.
+
+    Renaming gets its own dedicated port method, `renameContact(contactId, nickname)`, rather than
+    folding into the existing `updateContact(contactId, newKeys?, newLevel?)` — that method's
+    entire shape exists to handle key rotation, including items 6/8/9/10's rule that any
+    key/cipher-suite change forces a fresh verification-level choice, and a nickname edit must
+    never trip that logic. `renameContact` stays available at all times, independent of
+    verification state or an open key conflict. It is also settable at add-time — an optional
+    trailing param on `addManually`/`addFromQr` — so the common case (scanning a QR while already
+    knowing "this is my coworker Paul") doesn't need an immediate second edit step. No uniqueness
+    is enforced on nicknames; collisions are the user's own problem to avoid by picking better
+    labels, consistent with this project's general precedent of not adding validation beyond what's
+    structurally required.
+
+    **No relay, database, or wire-format change anywhere** — `Contact` is already 100%
+    client-local storage on every platform, so this is hexagon + UI only, on Android, iOS, and
+    (for consistency, not full parity) phon.
+
+    **Work items:** tracked in `TODO.md` (item 15).
+
+16. **Persist the secret's MIME type (`Secret.mimeType`).** `Secret`/`ShareMetadata`/
+    `HeldShare`/the deposit wire payload all treat the secret as a fully opaque byte
+    array with zero semantic tagging — the only "what is this" hint anywhere is the
+    free-text `label`. Every platform's `reconstruct()` flow currently force-decodes
+    the result as UTF-8 text (iOS falls back to base64 if invalid UTF-8; Android has no
+    fallback at all — a pre-existing gap that would visibly mangle a binary/file secret
+    today). Meanwhile the "Secret Input Methods" table above already plans file upload,
+    QR-scan-of-a-secret, photo capture, and document-scan+OCR — none of which are
+    meaningfully renderable as plain text on reconstruction without knowing what they
+    are.
+
+    **Design.** A free MIME string, `mimeType: String`, on `Secret`, defaulting to
+    `"text/plain"` — chosen over a closed enum because an OS file picker/share
+    extension already hands you a MIME/UTType at the input boundary for free, and a
+    free string never needs a spec/wire-format bump for a future content category, the
+    same reasoning already applied to algorithm agility in item 14. `deposit()` gains
+    it as an optional trailing param, so every existing (text) call site is unaffected.
+
+    **Field placement mirrors item 8's `k`/`n` journey exactly** — sender records it
+    locally, the wire carries it to holders, holders store it, holders report it back
+    on recovery: `Secret` (sender-side, persisted locally); the deposit wire payload /
+    `share_requests` row (a new column, alongside `label`/`k`/`n`);
+    `PayloadCanonical.forOpen`'s signed byte sequence (**appended at the tail**,
+    append-only per the item 8/14 precedent) — its authenticity matters because the
+    value becomes a *rendering hint* the recipient's UI acts on, not just descriptive
+    metadata; `HeldShare` (holder-side receipt, alongside its existing `k`/`n`); and the
+    `inventory` recovery push payload, so item 8's holder-driven metadata
+    reconstitution restores it too. No sniffing or validation against the actual bytes
+    — sender-supplied, best-effort, the same trust level `label` already has.
+
+    **Rendering on reconstruct is a baseline fork only**, matching the concrete case
+    that motivated this item (images), not a full input-method build-out: `text/*`
+    renders as today; `image/*` renders via the platform's normal safe/sandboxed image
+    decoder only, never a custom parser; anything else, or a decode failure, falls back
+    to a generic "binary data" view offering export/copy-as-file rather than a crash —
+    which also finally gives Android a safe fallback matching iOS's existing base64
+    one. A mismatched or malicious `mimeType` (e.g. claiming `image/png` for
+    adversarial bytes) is a *rendering-only* risk, not a new confidentiality one — it
+    can only affect what UI the recipient's own app shows for a secret already
+    legitimately received via deposit/reconstruct — but the render path must still fail
+    safe onto the generic binary view rather than trusting the tag blindly.
+
+    **Explicitly out of scope:** actually building the file-upload / QR-of-a-secret /
+    photo-capture / document-scanner input methods themselves — those remain
+    unimplemented "Secret Input Methods" table entries; this item only makes the data
+    model and rendering ready to receive whatever `mimeType` those future input methods
+    will eventually supply.
+
+    **No relay-schema surprise, but not relay-untouched either** — unlike item 15, this
+    item does touch the relay (`hexagons/relay` + `1.sql` + `conf/openapi.yaml`),
+    Android, iOS, and (for consistency, not full parity — no rendering UI) phon. **No
+    migrations** — pre-launch, clean-slate reset.
+
+    **Work items:** tracked in `TODO.md` (item 16).
+
 ## Build & Test Commands
 
 ### deposplit.com/ (Scala + Play + sbt)
