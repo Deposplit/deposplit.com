@@ -31,11 +31,14 @@ import value_objects.svo.VerificationLevel
 
 trait ContactManagement:
   def listContacts(): List[Contact]
-  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit
+  // nickname (item 15) lets a nickname be set at add-time rather than only via a later
+  // renameContact call; it is purely local and never transmitted anywhere.
+  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit
   // cipherSuite (item 14) is required here (unlike addManually) because the QR/link payload is
   // exactly where this self-describing fact comes from — manual entry has no wire payload to read
-  // one from, so addManually assumes today's one suite instead.
-  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None): Unit
+  // one from, so addManually assumes today's one suite instead. nickname (item 15) is likewise
+  // not sourced from the QR payload — it is purely local — so it defaults to None here too.
+  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit
   /** Updates an existing contact in place, preserving contactId — never delete-and-re-add, which
     * would mint a fresh id and orphan any HeldShare/ShareMetadata rows anchored to it. See
     * deposplit.com/CLAUDE.md "What is next" item 8.
@@ -48,6 +51,11 @@ trait ContactManagement:
     * never default to the same `VeryHigh` a human re-scan would earn).
     */
   def updateContact(contactId: UUID, verifyKey: Option[Array[Byte]] = None, encKey: Option[Array[Byte]] = None, cipherSuite: Option[CipherSuite] = None, verificationLevel: Option[VerificationLevel] = None): Unit
+  /** Item 15 — deliberately separate from `updateContact`: a rename is not an identity change,
+    * so it must never trigger `updateContact`'s fresh-verification-level requirement. Pass `None`
+    * to clear an existing nickname.
+    */
+  def renameContact(contactId: UUID, nickname: Option[String]): Unit
   def deleteContact(contactId: UUID): Unit
   /** Item 10 — flags a verify key into the contact's revokedEdKeys history, out-of-band-
     * triggered (the user has some independent reason to believe it was stolen). Defaults to the

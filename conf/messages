@@ -47,6 +47,7 @@ generateQrCode = Generate QR code
 keySignature = Signature key
 keyTransmission = Transmission key
 mySecrets = My secrets
+nickname = Nickname
 pendingRequests = Pending requests
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyms must not be empty (but need not be unique).

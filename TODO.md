@@ -17,11 +17,11 @@ is better served by one board than three. This file lives in the hub repo
 **Scope tags:** `R` deposplit.com relay/backend · `phon` deposplit.com phone emulator ·
 `A` Android · `I` iOS · `doc` CLAUDE.md/README/CHANGELOG
 
-> ⚠ **Items 1–14 are all fully shipped** — item 9's identity-regen trigger and item 14 (crypto
-> agility) both landed 2026-08-21, closing out the entire original roadmap. **Items 15 (local
-> contact nicknames) and 16 (persist the secret's MIME type), both added 2026-08-22, are new and
-> not yet started.** `No migrations` throughout — Deposplit is pre-launch; test relays and devices
-> reset to a clean slate.
+> ⚠ **Items 1–15 are all fully shipped** — item 9's identity-regen trigger and item 14 (crypto
+> agility) both landed 2026-08-21, closing out the entire original roadmap, and item 15 (local
+> contact nicknames) landed 2026-08-22. **Item 16 (persist the secret's MIME type), also added
+> 2026-08-22, is new and not yet started.** `No migrations` throughout — Deposplit is pre-launch;
+> test relays and devices reset to a clean slate.
 
 ---
 
@@ -85,11 +85,12 @@ is better served by one board than three. This file lives in the hub repo
   pre-existing ones that were never part of the crypto/protocol design walk: item 2 (interop
   testing), item 4's Airtable/Sheets relay-kinds (parked pending adoption), and item 5 (freemium,
   future).
-- **Items 15 (local contact nicknames) and 16 (persist the secret's MIME type) are new** — both
-  added 2026-08-22 during a follow-up design session, neither started on any platform. Item 15 is
-  purely local and independent of every other item; item 16 touches the relay (a new `mime_type`
-  column + an appended `PayloadCanonical.forOpen` field) and reuses item 8's `k`/`n` end-to-end
-  journey (`Secret` → deposit payload → `HeldShare` → `inventory` recovery push) for the new field.
+- **Item 15 (local contact nicknames) is done** — shipped 2026-08-22 on Android, iOS, and (for
+  consistency, not full parity) phon, purely client-local with no relay involvement.
+- **Item 16 (persist the secret's MIME type) is new** — added 2026-08-22 during the same follow-up
+  design session, not yet started on any platform. It touches the relay (a new `mime_type` column +
+  an appended `PayloadCanonical.forOpen` field) and reuses item 8's `k`/`n` end-to-end journey
+  (`Secret` → deposit payload → `HeldShare` → `inventory` recovery push) for the new field.
   See "New items (15+)" below.
 
 ---
@@ -925,35 +926,129 @@ suite-validation/downgrade). Full `sbt test` (relay + phon + root) — **256 tes
 
 ## New items (15+)
 
-### Item 15 — Local contact nicknames · [CLAUDE.md#15](CLAUDE.md)
+### Item 15 — Local contact nicknames · [CLAUDE.md#15](CLAUDE.md) · *done*
 Purely local disambiguation for same-`pseudonym` contacts (e.g. two different "Paul"s that both
 end up in the same device's contact list). No relay/DB involvement — `Contact` is already 100%
 client-local storage on every platform. Independent of every other item — no dependency on 1–14's
 crypto/relay work.
-- [ ] `A` `I` `phon` `Contact` gains `nickname: String?` (Kotlin/Swift) / `Option[String] = None`
+- [x] `A` `I` `phon` `Contact` gains `nickname: String?` (Kotlin/Swift) / `Option[String] = None`
   (Scala) — trim + blank→absent, same normalization as `pseudonym`; never transmitted (not in the
   QR/link payload, any relay row, or any rotation/heartbeat/inventory push)
-- [ ] `A` `I` `phon` new `ContactManagement.renameContact(contactId, nickname)` primitive —
+- [x] `A` `I` `phon` new `ContactManagement.renameContact(contactId, nickname)` primitive —
   deliberately kept separate from `updateContact(contactId, newKeys?, newLevel?)`, whose entire
   shape is about key rotation (including items 6/8/9/10's forced verification-level re-choice on
   any key change); a nickname edit must never trip that logic, and must stay available regardless
   of verification state or an open key conflict
-- [ ] `A` `I` `phon` `addManually`/`addFromQr` gain an optional trailing `nickname` param, so a
+- [x] `A` `I` `phon` `addManually`/`addFromQr` gain an optional trailing `nickname` param, so a
   nickname can be set at add-time, not only via a later edit
-- [ ] `A` `I` display precedence applied everywhere a contact is rendered (contacts list,
+- [x] `A` `I` display precedence applied everywhere a contact is rendered (contacts list,
   deposit-recipient picker, sent/pending request lists, key-conflict UI, heartbeat/health surfaces,
   the "key changed N days ago" indicator): nickname as the primary label when set, `pseudonym`
   always shown as a secondary/subtitle line underneath
-- [ ] `A` Contacts screen: nickname display line + a rename action (e.g. tap-to-edit, or a new icon
+- [x] `A` Contacts screen: nickname display line + a rename action (e.g. tap-to-edit, or a new icon
   button alongside the existing Relink/heartbeat-toggle/Mark-Compromised/Delete row); add-contact
   flow gains an optional nickname text field
-- [ ] `I` Contacts screen: nickname display line + a rename action in the existing `.contextMenu`
+- [x] `I` Contacts screen: nickname display line + a rename action in the existing `.contextMenu`
   alongside Relink/Mark-Compromised/Pause-Heartbeats; add-contact flow gains an optional nickname
   field
-- [ ] `phon` field + primitive parity only, for cross-platform *consistency* — no dedicated rename
+- [x] `phon` field + primitive parity only, for cross-platform *consistency* — no dedicated rename
   UI required (an optional nickname column in `contactsTable.scala.html` is a trivial addition if
   wanted, matching every prior item's phon precedent of skipping UI polish)
 - [-] `R` not applicable — the relay never stores contacts
+
+**Implementation notes (2026-08-22).** Order followed: hexagon first on each platform, then the
+app/UI layer — Android → iOS → phon, no relay work at all.
+
+- **Normalization lives in `ContactService`** (`normalizeNickname`: trim, then blank → absent),
+  not the UI layer, on all three platforms — mirrors how `pseudonym`'s own trim already happens
+  service-side, so every caller (UI, tests, a future relink flow) gets consistent behavior.
+- **`Contact.displayName`** (`nickname ?: pseudonym` / `nickname ?? pseudonym`) was added as a
+  computed property/extension directly on the domain object (Android, iOS only — phon has no UI
+  consumer) rather than re-deriving the fallback at each of the ~8–10 render call sites per
+  platform.
+- **Two real "silent data loss" bugs were found and fixed while wiring this up**, both matching
+  the exact pattern item 14 warned about for its own renamed fields: **iOS's `updateContact` and
+  `markKeyCompromised`, plus all three heartbeat-related contact mutations in `ShareService.swift`
+  (`emitHeartbeats`, `processHeartbeats`, `setHeartbeatEmissionOptedOut`), reconstruct `Contact` via
+  a full memberwise initializer call (Swift structs have no `.copy`)** — every one of those six call
+  sites had to be given an explicit `nickname: existing.nickname` line, or a rename would have been
+  silently wiped the next time any contact's heartbeat fired. **Android and phon were unaffected**
+  by construction: Kotlin's `.copy()` and Scala's `.copy()` both carry forward any field not
+  explicitly overridden, so their equivalent call sites needed no change at all — confirmed by
+  grepping both codebases for direct (non-`.copy`) `Contact(...)` constructions outside
+  `ContactService`/`addManually`/`addFromQr` and finding none.
+- **`renameContact(contactId, nickname)` takes no default** on any platform — every call must
+  state the new value explicitly (`null`/`nil`/`None` clears it) — and on iOS specifically,
+  `addManually`/`addFromQr` also gained no default for their new `nickname` parameter, since Swift
+  protocol requirements can't carry default argument values through an existential
+  (`any ContactManagement`); both call sites (`AddContactViewModel.save()`, `QrScanView.swift`)
+  were updated to pass it explicitly. Android and phon's ports *could* default it (Kotlin/Scala
+  interfaces support default args), and do.
+- **`addFromQr`'s call site always passes `nickname: nil`/`null`/`None`** — no QR-flow entry step
+  was added, matching this item's literal scope (only the *manual* add-contact flow gained a field);
+  a QR-added contact can be named afterward via the new Rename action.
+- **iOS's catalog export/import needed no code change at all** — unlike Android's `CatalogCodec.kt`
+  (which has its own hand-written `ContactWire` JSON DTO in the app layer and did need a `nickname`
+  field added for round-trip fidelity, mirroring item 14's `cipherSuite` precedent there), iOS's
+  `CatalogService` (in the hexagon) encodes/decodes the domain `Catalog`/`Contact` types directly
+  via `Codable`, so adding `nickname: String?` to `Contact` already gave full round-trip fidelity
+  for free.
+- **`DepositView.swift`'s recipient picker needed real restructuring**, not just a name swap — it
+  used the `Toggle(String, isOn:)` convenience initializer, which only accepts a single-line label,
+  so it was rewritten to the `Toggle(isOn:label:)` form with a two-line `VStack` label to show the
+  nickname/pseudonym pair like every other list surface.
+- **Android:** `hexagon/.../value_objects/Contact.kt` (`nickname` field + `Contact.displayName`
+  extension property), `ContactManagement.kt`/`ContactService.kt` (`renameContact`,
+  `normalizeNickname`, threaded `nickname` param on `addManually`/`addFromQr`),
+  `LocalContactRepository.kt` + `CatalogCodec.kt` (`ContactWire.nickname`, defaulted for smooth
+  decode of pre-existing local `contacts.json` files). UI: `AddContactViewModel`/`AddContactScreen`
+  gained a "Nickname (optional)" field; `ContactsScreen`/`ContactsViewModel` gained a nickname
+  subtitle line, a 5th row `IconButton` (Edit) opening an `AlertDialog` with a text field, and a
+  `rename(contactId, nickname)` ViewModel method; `HolderStatus`/`HeldShareDisplay` gained
+  `recipientSubtitle`/`senderSubtitle` fields (and `ShareItem`/`HolderRow`/`RequestCard` a matching
+  render branch) so the freshness/held/pending-request rows show the pseudonym subtitle too;
+  `RequestsViewModel.contactName`, `RelinkContactScreen`'s title/message, and the
+  `ReconstructionAdvisory` `contactName` lambdas in `ShareDetailScreen`/`RepairScreen` switched to
+  `.displayName`; `RepairViewModel.HolderRetrievalStatus` gained a `subtitle` field rendered in
+  `RepairScreen`'s holder list. New strings added to `values/strings.xml` and `values-de/strings.xml`
+  (nickname field label, rename description/dialog). Tests: `ContactServiceTest.kt` gained a new
+  "Item 15" block (6 cases: set/trim-blank/clear/unknown-id/addManually+addFromQr passthrough).
+  `:hexagon:clean :hexagon:test`: 109 → **115**, 0 failures. `:app:compileDebugKotlin` BUILD
+  SUCCESSFUL; full `./gradlew clean test`'s `:app:test` step remains blocked by the pre-existing
+  unrelated jlink toolchain issue noted since item 8, not investigated further.
+- **iOS:** `hexagon/Sources/value_objects/Contact.swift` (`nickname` field + `displayName` computed
+  property), `ContactManagement.swift`/`ContactService.swift` (`renameContact`, `normalizeNickname`,
+  threaded `nickname` param on `addManually`/`addFromQr`, plus the two silent-data-loss fixes noted
+  above), `ShareService.swift` (the three heartbeat-mutation fixes noted above),
+  `LocalContactRepository.swift` (`ContactJSON.nickname`, free `Codable`-optional decode, no shim
+  needed). UI: `AddContactViewModel`/`AddContactView` gained a "Nickname (optional)" section;
+  `QrScanView`'s `addFromQr` call site passes `nickname: nil`; `ContactsView`/`ContactsViewModel`
+  gained a nickname subtitle line, a "Rename" `.contextMenu` entry, a `renameTarget`-driven `.alert`
+  with a bound `TextField`, and a `rename(_:nickname:)` ViewModel method; `DistributedTab`/`HeldTab`
+  gained `contactSubtitle`/`senderSubtitle` helpers rendered alongside their existing name
+  resolution; `RequestsViewModel` gained `senderSubtitle(for:)`, rendered in
+  `RecipientRequestsTab`'s `RequestCard`; `ShareDetailViewModel.recipientName`/`contactName(_:)` and
+  `RepairViewModel.contactName(_:)` switched to `.displayName`; `RepairViewModel
+  .HolderRetrievalStatus` gained a `subtitle` field rendered in `RepairView`'s holder list;
+  `RelinkContactView`'s title/message switched to `.displayName`; `DepositView`'s recipient
+  `Toggle` was restructured (noted above) to show the nickname/pseudonym pair. Tests:
+  `ContactServiceTests.swift` gained a new "Item 15" section (6 cases, same coverage shape as
+  Android) plus two pre-existing `addFromQr` call sites updated for the new required `nickname:`
+  parameter. Hexagon: 104 → **110**, `swift test` all passing; `xcodebuild build` (device SDK) — 
+  BUILD SUCCEEDED.
+- **phon:** `hexagons/phon/.../value_objects/svo/Contact.scala` (`nickname` field, no `displayName`
+  helper — no UI consumer), `ContactManagement.scala`/`ContactService.scala` (`renameContact`,
+  `normalizeNickname`, threaded `nickname` param on `addManually`/`addFromQr` — Scala trait methods
+  support default args natively, so no existing call site needed updating).
+  **`FileContactRepository.scala` needed no change** — it Java-serializes the `Contact` case class
+  directly with no intermediate wire DTO, so the new default-valued field round-trips automatically
+  (confirmed via the existing `.devDBs/*.ser` reset-not-migrate precedent). `app/views/Phon
+  /contactsTable.scala.html` gained one read-only `nickname` column (a new `nickname` key added to
+  `conf/messages`/`conf/messages.de`); no add-time field or rename action, matching this item's
+  explicit phon scope. Tests: `ContactServiceTests.scala` gained a new "Item 15" block (6 cases,
+  same coverage shape as Android/iOS). `phon/test`: 102 → **108**, 0 failures. Full `sbt test`
+  (relay 95 + phon 108 + root 59 = **262**) also run clean, confirming the relay and root app are
+  fully unaffected — this item never touches them.
 
 ### Item 16 — Persist the secret's MIME type · [CLAUDE.md#16](CLAUDE.md)
 Free MIME string on `Secret` (default `"text/plain"`), threaded through the exact same

@@ -84,7 +84,13 @@ case class Contact(
       * "thread a new value through every call site" exercise; the default is correct today (every
       * contact really is on this one suite), not a placeholder.
       */
-    cipherSuite: CipherSuite = CipherSuite.current
+    cipherSuite: CipherSuite = CipherSuite.current,
+    /** Item 15 — a purely local, optional label to disambiguate contacts who share the same
+      * sender-asserted pseudonym (e.g. two different "Paul"s). Never transmitted anywhere — not
+      * in the QR/link payload, any relay row, or any rotation/heartbeat/inventory push. Trimmed
+      * and blank-collapsed-to-None by `ContactService` before it ever reaches this field.
+      */
+    nickname: Option[String] = None
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case c: Contact => id == c.id

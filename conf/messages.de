@@ -48,6 +48,7 @@ generateQrCode = QR-Code generieren
 keySignature = Unterschriftsschlüssel
 keyTransmission = Übertragungsschlüssel
 mySecrets = Meine Geheimnisse
+nickname = Spitzname
 pendingRequests = Hängige Anfragen
 pseudonym = Pseudonym
 pseudonymHelp = Pseudonyme dürfen nicht leer (aber müssen nicht eindeutig) sein.

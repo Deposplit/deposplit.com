@@ -41,7 +41,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
 
   // No cipherSuite parameter: manual entry has no wire payload to read one from, and only one
   // suite exists to assume — see ContactManagement.addManually.
-  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None): Unit =
+  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit =
     val cipherSuite = CipherSuite.current
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
     require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
@@ -57,11 +57,12 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl,
-        cipherSuite = cipherSuite
+        cipherSuite = cipherSuite,
+        nickname = normalizeNickname(nickname)
       )
     )
 
-  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None): Unit =
+  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
     require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
     require(encKey.length == cipherSuite.encKeyLength, s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite")
@@ -76,7 +77,8 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl,
-        cipherSuite = cipherSuite
+        cipherSuite = cipherSuite,
+        nickname = normalizeNickname(nickname)
       )
     )
 
@@ -113,6 +115,14 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       )
     )
 
+  // Item 15 — deliberately separate from updateContact: never touches keys, cipherSuite,
+  // verificationLevel, verifiedAt, or keyChangedAt. Pass None to clear an existing nickname.
+  def renameContact(contactId: UUID, nickname: Option[String]): Unit =
+    val existing = contactRepository
+      .getById(contactId)
+      .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
+    contactRepository.save(existing.copy(nickname = normalizeNickname(nickname)))
+
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)
 
@@ -124,3 +134,8 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
     val keyToFlag = verifyKey.getOrElse(existing.verifyKey)
     if !existing.revokedEdKeys.exists(_.sameElements(keyToFlag)) then
       contactRepository.save(existing.copy(revokedEdKeys = keyToFlag :: existing.revokedEdKeys))
+
+  // Item 15 — trim, then collapse blank to None. Lives here (not the UI layer) so every
+  // caller — UI, tests, a future relink flow — gets consistent normalization for free.
+  private def normalizeNickname(nickname: Option[String]): Option[String] =
+    nickname.map(_.strip()).filter(_.nonEmpty)

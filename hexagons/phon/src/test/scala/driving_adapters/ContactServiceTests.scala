@@ -231,3 +231,77 @@ class ContactServiceTests extends munit.FunSuite:
     assertEquals(updated.verificationLevel, VerificationLevel.VeryHigh)
     assert(updated.keyChangedAt.isDefined)
   }
+
+  // ── Item 15: local contact nicknames ──────────────────────────────────────
+
+  test("renameContact sets a nickname without touching keys, level, or keyChangedAt") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact()
+    repo.save(original)
+
+    svc.renameContact(original.id, Some("Coworker Paul"))
+
+    val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
+    assertEquals(updated.nickname, Some("Coworker Paul"))
+    assertEquals(updated.pseudonym, original.pseudonym)
+    assert(updated.verifyKey.sameElements(original.verifyKey))
+    assert(updated.encKey.sameElements(original.encKey))
+    assertEquals(updated.verificationLevel, original.verificationLevel)
+    assertEquals(updated.verifiedAt, original.verifiedAt)
+    assertEquals(updated.keyChangedAt, None)
+  }
+
+  test("renameContact trims and collapses a blank nickname to None") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact()
+    repo.save(original)
+
+    svc.renameContact(original.id, Some("  Paul  "))
+    assertEquals(repo.getById(original.id).flatMap(_.nickname), Some("Paul"))
+
+    svc.renameContact(original.id, Some("   "))
+    assertEquals(repo.getById(original.id).flatMap(_.nickname), None)
+  }
+
+  test("renameContact can clear an existing nickname") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+    val original = makeContact().copy(nickname = Some("Paul"))
+    repo.save(original)
+
+    svc.renameContact(original.id, None)
+
+    assertEquals(repo.getById(original.id).flatMap(_.nickname), None)
+  }
+
+  test("renameContact throws for an unknown contactId") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    intercept[IllegalStateException] {
+      svc.renameContact(UUID.randomUUID(), Some("Paul"))
+    }
+  }
+
+  test("addManually and addFromQr trim and normalize the nickname") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), nickname = Some("  Bobby  "))
+    svc.addFromQr("carol", Array.fill(32)(0x03.toByte), Array.fill(32)(0x04.toByte), CipherSuite.current, nickname = Some("   "))
+
+    val contacts = repo.getAll()
+    assertEquals(contacts.find(_.pseudonym == "bob").flatMap(_.nickname), Some("Bobby"))
+    assertEquals(contacts.find(_.pseudonym == "carol").flatMap(_.nickname), None)
+  }
+
+  test("addManually and addFromQr default the nickname to None when omitted") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(repo)
+
+    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
+
+    assertEquals(repo.getAll().head.nickname, None)
+  }

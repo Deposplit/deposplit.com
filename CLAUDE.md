@@ -688,7 +688,8 @@ The items below capture *design rationale* — why each decision was made, and w
     notes). Touched the relay (`hexagons/relay` + `1.sql` + `conf/openapi.yaml`), Android, iOS, and
     (for consistency) phon. **No migrations** — pre-launch, clean-slate reset.
 
-15. **Local contact nicknames (disambiguating same-pseudonym contacts).** `Contact.pseudonym` is
+15. ~~**Local contact nicknames (disambiguating same-pseudonym contacts).**~~ — **done.**
+    `Contact.pseudonym` is
     the only human-readable field on a contact record, and it is entirely sender-asserted — chosen
     by the contact themself, carried once over the QR/link payload at add-time, and never renamable
     afterward (`updateContact`/its per-platform equivalents only ever touch keys/cipher-suite/
@@ -726,6 +727,36 @@ The items below capture *design rationale* — why each decision was made, and w
     **No relay, database, or wire-format change anywhere** — `Contact` is already 100%
     client-local storage on every platform, so this is hexagon + UI only, on Android, iOS, and
     (for consistency, not full parity) phon.
+
+    **Implemented (2026-08-22)** on Android `:hexagon`/`:app`, iOS `hexagon`/`Deposplit`, and (for
+    cross-platform *consistency*, not full parity) `deposplit.com/hexagons/phon`. Normalization
+    (trim, then blank→absent) lives in `ContactService` on every platform, not the UI layer — the
+    same reasoning `pseudonym`'s own service-side trim already established, so every caller (UI,
+    tests, a future relink flow) gets consistent behavior for free. `Contact.displayName`
+    (`nickname ?: pseudonym`) was added as a computed property/extension directly on the domain
+    object on Android and iOS (phon has no UI consumer, so it was skipped there), reused at every
+    render site instead of re-deriving the fallback ad hoc. Wiring this up surfaced two genuine
+    silent-data-loss bugs on iOS specifically — `ContactService.updateContact`/`markKeyCompromised`
+    and all three heartbeat-mutation call sites in `ShareService.swift` reconstruct `Contact` via a
+    full memberwise initializer (Swift structs have no `.copy`), so each needed an explicit
+    `nickname: existing.nickname` line or a rename would have been silently wiped on the contact's
+    next heartbeat cycle — the exact pattern item 14 had already found and fixed once for its own
+    renamed fields. Android and phon were unaffected by construction, since Kotlin's and Scala's
+    `.copy()` both carry forward any field not explicitly overridden. `addFromQr`'s call site always
+    passes an absent nickname on every platform — no QR-flow entry step was added, matching this
+    item's literal scope of only the manual add-contact flow gaining a field; a QR-added contact can
+    be named afterward via the new Rename action. iOS's catalog export/import needed no code change
+    at all (unlike Android's `CatalogCodec.kt`, which has its own hand-written wire DTO and did need
+    the field added, mirroring item 14's `cipherSuite` precedent there) since it `Codable`-encodes
+    the domain `Contact` type directly. Android and iOS both gained a nickname display line plus a
+    Rename action (a 5th Contacts-screen row icon + `AlertDialog` on Android; a `.contextMenu` entry
+    + text-entry `.alert` on iOS) and an optional nickname field on the manual Add Contact flow;
+    `DepositView.swift`'s recipient picker needed real restructuring (from the single-line `Toggle`
+    convenience initializer to a custom two-line label) to show the nickname/pseudonym pair like
+    every other list surface. phon got the field, `renameContact`, and `addManually`/`addFromQr`
+    threading, plus one trivial read-only nickname column in `contactsTable.scala.html` — no add-time
+    field or rename action. Test counts: Android hexagon 109 → 115, iOS hexagon 104 → 110, phon
+    102 → 108; relay (95) and root (59) untouched — this item never touches them.
 
     **Work items:** tracked in `TODO.md` (item 15).
 
