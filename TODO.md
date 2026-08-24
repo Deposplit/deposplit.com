@@ -1083,11 +1083,54 @@ validation against actual bytes — sender-supplied, best-effort, same trust lev
 
 ## Cross-cutting implementation chores (not tied to one item)
 
-- [ ] `R` rename `SharesService.scala` → `ShareRequestsService.scala` (+ tests) to match the class name
-- [~] `R` sync `conf/openapi.yaml` with the Play routes as items 8/9/12 add message types (recovery-metadata-return, rotation push, custodial-heartbeat, opt-out, "withdrawn" row state) — item 8's `inventory` type + `k`/`n` fields done; items 9/12's message types still pending
-- [~] `R` sync `conf/evolutions/default/1.sql` for any new row states/types; keep the production-PostgreSQL partial-index note (one-pending-request-per-type enforced in `ShareRequestsService`) — item 8's `inventory` enum value + `k`/`n` columns done; items 9/12's row states still pending
-- [ ] `doc` propagate items 6–13 into `Android/CLAUDE.md`, `iOS/CLAUDE.md`, and each repo's `README.md`/`CHANGELOG.md` as they land
-- [ ] `doc` refresh `MEMORY.md` stale notes when touched (e.g. iOS package layout under `driving_adapters/`, `ShareRequestsService` name mismatch)
+- [x] `R` rename `SharesService.scala` → `ShareRequestsService.scala` (+ tests) to match the class
+  name — **done, 2026-08-24.** Pure filename/test-class rename via `git mv`; the class itself was
+  already named `ShareRequestsService` (only the file lagged). `SharesServiceTests.scala` →
+  `ShareRequestsServiceTests.scala`, its class renamed to match; two comment-only cross-references
+  in `KeyRotationsServiceTests.scala`/`CustodyHeartbeatsServiceTests.scala` updated to the new name
+  (Scala has no filename/classname coupling, so nothing else needed touching). Historical mentions
+  of the old filename in `CHANGELOG.md` and this file's own item-9 implementation notes above were
+  deliberately left as-is — they're point-in-time records of what the file was called then, not
+  live references. `sbt relay/test`: 95/95 passing (includes the renamed suite, still 50 cases).
+- [x] `R` sync `conf/openapi.yaml` with the Play routes as items 8/9/12 add message types
+  (recovery-metadata-return, rotation push, custodial-heartbeat, opt-out, "withdrawn" row state) —
+  **turned out to already be done**; this checkbox was just never ticked off. Verified 2026-08-24:
+  `openapi.yaml` already documents the `withdrawn` state, `POST /share-requests/withdraw`,
+  `KeyRotation`/`CustodyHeartbeat` schemas, and the `/key-rotations`/`/custody-heartbeats` paths —
+  items 9 and 12's own `R` implementation notes above describe doing this work at the time, the
+  cross-cutting tracker here just wasn't updated to match.
+- [x] `R` sync `conf/evolutions/default/1.sql` for any new row states/types; keep the
+  production-PostgreSQL partial-index note (one-pending-request-per-type enforced in
+  `ShareRequestsService`) — **also already done**, same story: `1.sql` already has the `withdrawn`
+  enum value, `key_rotations`, and `custody_heartbeats` tables (added when items 9/12 shipped);
+  verified 2026-08-24 and the checkbox corrected to match reality.
+- [ ] `doc` propagate items 6–13 into `Android/CLAUDE.md`, `iOS/CLAUDE.md`, and each repo's
+  `README.md`/`CHANGELOG.md` as they land — **investigated 2026-08-24, deliberately deferred as its
+  own follow-up task** (bigger than a quick pass): `Android/CLAUDE.md` and `iOS/CLAUDE.md` are
+  already current (both reference items 5, 7–15 throughout, kept in sync item-by-item as work
+  shipped — no action needed there). The gap is real elsewhere: **`Android/` and `iOS/` have no
+  `CHANGELOG.md` at all** (only `deposplit.com/CHANGELOG.md` exists, and even that one is missing
+  items 14/15); each repo's `README.md` only mentions items 8 and 11, missing 6, 7, 9, 10, 12–15.
+  Closing this properly means writing a from-scratch historical changelog for two repos plus
+  substantial README expansion — real content work, not a doc-sync chore. Picking this up later:
+  start from `deposplit.com/CHANGELOG.md`'s existing entries and this file's per-item
+  implementation-notes sections as source material (not re-derived from code), same approach used
+  to backfill `deposplit.com/CHANGELOG.md` itself for items 9/10/12 (see item 9's implementation
+  notes above).
+- [x] `doc` refresh `MEMORY.md` stale notes when touched (e.g. iOS package layout under
+  `driving_adapters/`, `ShareRequestsService` name mismatch) — **done, 2026-08-24.** Claude's own
+  auto-memory (`project_backend_status.md`) was 5 days stale, still saying items 6–12 shipped/13
+  design-complete-but-unbuilt and flagging the `SharesService.scala` rename as an open chore;
+  refreshed to reflect 1–15 shipped, 16 open, and the rename now done. The iOS package-layout
+  example named in this bullet turned out to be real and current, not already-fixed: `iOS/CLAUDE.md`'s
+  canonical "Project structure" tree (and 6 more mentions buried in older step-by-step "DONE:"
+  refactor-instruction sections) labeled the directory holding `IdentityService.swift`/
+  `ShareEncryption.swift`/`ShareService.swift`/`ContactService.swift`/`CatalogService.swift` as
+  `services/`, but the actual directory on disk (confirmed via `ls`) is `driving_adapters/` — the
+  same name Android's and phon's docs/code already use for the equivalent layer. All 7 occurrences
+  corrected to `driving_adapters/`. No code changed, doc-only; `swift build`/`swift test` untouched
+  by this fix (not re-run for a doc-only change, but nothing in the corrected text referenced
+  actual Swift source paths incorrectly enough to affect anything beyond documentation accuracy).
 - [x] `R` `A` `I` `phon` **`ShareTransactionType` rename + wire-representation cleanup** (flagged Aug 2026, naming finalized in a follow-up design discussion, loosely tied to item 8) — **done, all four scopes**:
   1. **Rename `ShareRequestType` → `ShareTransactionType`.** Not every case is a consent-gated "request" — the fourth is a self-approving, holder-initiated push — so "Transaction" is the honest umbrella term. "Share," not "Secret": every row is scoped to one share held by one holder, never the secret as a whole. Not bare `TransactionType`: item 5's (parked) freemium IAP will eventually want its own purchase-transaction concept, and a bare name risks colliding with it later. **Scope is deliberately narrow** — only the type, its four cases, and the `requestType`→`transactionType` field/property rename. `ShareRequest` (the row/case class), the `share_requests` DB table, `ShareRequestsController`/`ShareRequestsService`, and the `Shares`/`ShareRequests` port are **unchanged**: a row is still meaningfully "a request" for 3 of the 4 transaction kinds.
   2. **Rename the four cases to transaction nouns, one consistent vault register**, replacing the earlier "verbs from Alice's POV" idea — that broke down because the *actor* genuinely alternates: Alice always opens `pick_up`/`retrieve`/`delete`, but the *holder* opens the fourth type (holder → owner), so no single named person's viewpoint stays accurate across all four. A neutral transaction noun sidesteps that, and a safe-*deposit*-box supplies the register:

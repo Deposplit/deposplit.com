@@ -47,7 +47,7 @@ class InMemoryCustodyHeartbeatRepository extends CustodyHeartbeatRepository:
     heartbeats.filter(h => sameKey(h.ownerKey, ownerKey))
 
 // ---------------------------------------------------------------------------
-// Tests — reuses SharesServiceTests's Fixtures (same package) for keypairs.
+// Tests — reuses ShareRequestsServiceTests's Fixtures (same package) for keypairs.
 // ---------------------------------------------------------------------------
 class CustodyHeartbeatsServiceTests extends munit.FunSuite:
 

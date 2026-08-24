@@ -30,7 +30,7 @@ import value_objects.*
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
-// In-memory test double — same shape as InMemoryShareRepository (SharesServiceTests.scala).
+// In-memory test double — same shape as InMemoryShareRepository (ShareRequestsServiceTests.scala).
 // ---------------------------------------------------------------------------
 class InMemoryKeyRotationRepository extends KeyRotationRepository:
 
@@ -51,7 +51,7 @@ class InMemoryKeyRotationRepository extends KeyRotationRepository:
     rotations = rotations.filterNot(_.id == id)
 
 // ---------------------------------------------------------------------------
-// Tests — reuses SharesServiceTests's Fixtures (same package) for keypairs.
+// Tests — reuses ShareRequestsServiceTests's Fixtures (same package) for keypairs.
 // ---------------------------------------------------------------------------
 class KeyRotationsServiceTests extends munit.FunSuite:
 
@@ -65,7 +65,7 @@ class KeyRotationsServiceTests extends munit.FunSuite:
   private val cipherSuite = CipherSuite.current
 
   /** Signs and pushes a rotation notice — the signing counterpart of
-    * `service.pushRotation`, mirroring `SharesServiceTests.open`.
+    * `service.pushRotation`, mirroring `ShareRequestsServiceTests.open`.
     */
   private def push(
       service: KeyRotationsService,

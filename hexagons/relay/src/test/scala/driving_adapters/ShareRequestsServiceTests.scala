@@ -184,7 +184,7 @@ object Fixtures:
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-class SharesServiceTests extends munit.FunSuite:
+class ShareRequestsServiceTests extends munit.FunSuite:
 
   import Fixtures.*
 
