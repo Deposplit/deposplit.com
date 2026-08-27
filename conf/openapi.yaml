@@ -61,7 +61,7 @@ info:
     defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
     this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
 
-    `signature` on a `POST /key-rotations` push (item 9) follows the same pattern: a signature
+    `signature` on a `POST /key-rotations` push follows the same pattern: a signature
     by the caller (who becomes `oldVerifyKey`) over:
 
     ```
@@ -69,12 +69,12 @@ info:
     ```
 
     proving the caller still controls the old private key — this is what lets the recipient
-    auto-accept the rotation without a fresh human re-verification. `newCipherSuite` (item 14 —
+    auto-accept the rotation without a fresh human re-verification. `newCipherSuite` is the
     "crypto agility") is the signing + key-agreement algorithm pairing `newVerifyKey`/`newEncKey`
     use; there is no `oldCipherSuite` field, since the recipient already has it pinned on the
     existing contact record being rotated away from.
 
-    `signature` on a `POST /custody-heartbeats` push (item 12) follows the same pattern: an
+    `signature` on a `POST /custody-heartbeats` push follows the same pattern: an
     Ed25519 signature by the caller (who becomes `holderKey`) over:
 
     ```
@@ -167,7 +167,7 @@ components:
       enum: [ed25519+x25519-v1]
       description: >
         The matched pairing of signing algorithm + key-agreement algorithm an identity currently
-        uses (deposplit.com/CLAUDE.md "What is next" item 14 — "crypto agility"). One value exists
+        uses. One value exists
         today; the type exists so a future fleet-wide algorithm swap is an additive new value
         rather than a breaking wire-format migration.
 
@@ -180,8 +180,8 @@ components:
         `removal`   — sender wants the recipient to delete their local copy (requires approval).
         `inventory` — a holder pushes a metadata-only report about a share of theirs back
         to its owner, so a recovering owner (fresh device, empty local state) can rebuild their
-        records after losing their old identity's key. See deposplit.com/CLAUDE.md "What is next"
-        item 8. Unlike the other three, this is **not** consent-gated: it self-approves at
+        records after losing their old identity's key.
+        Unlike the other three, this is **not** consent-gated: it self-approves at
         creation (no `pending` phase), never carries `ciphertext`, and requires `k`/`n`. The
         recipient polls for it and deletes the row once consumed.
 
@@ -189,7 +189,7 @@ components:
       type: string
       enum: [pending, approved, denied, withdrawn]
       description: >
-        `withdrawn` (item 9) applies only to `deposit` rows: set via `POST /share-requests/withdraw`
+        `withdrawn` applies only to `deposit` rows: set via `POST /share-requests/withdraw`
         when a holder unilaterally stops holding a share, instead of the row being hard-deleted, so
         the sender's next poll can observe the tombstone. Best-effort and fire-and-forget — the
         relay may still garbage-collect the row at any time, so its absence must never be read as a
@@ -263,13 +263,13 @@ components:
           nullable: true
           description: >
             SSS threshold. Populated for `deposit` and `inventory` (required, `2 <= k <= n
-            <= 255`); `null` for `retrieval`/`removal`. See "What is next" items 8 and 11.
+            <= 255`); `null` for `retrieval`/`removal`.
         n:
           type: integer
           nullable: true
           description: >
             SSS share count. Populated for `deposit` and `inventory` (required, `2 <= k <=
-            n <= 255`); `null` for `retrieval`/`removal`. See "What is next" items 8 and 11.
+            n <= 255`); `null` for `retrieval`/`removal`.
         senderSignature:
           type: string
           description: >
@@ -337,7 +337,7 @@ components:
 
     KeyRotation:
       description: >
-        Item 9's signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now
+        The signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now
         newVerifyKey, previously oldVerifyKey" notice, addressed to one contact
         (`recipientKey`) at a time. Deliberately not a `ShareRequest`: it carries no `secretId`
         and has no consent phase — the recipient auto-verifies `signature` against
@@ -387,7 +387,7 @@ components:
 
     CustodyHeartbeat:
       description: >
-        Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding
+        The signed custodial-heartbeat push — a holder's proactive "still guarding
         {secretIds} for you" notice (or, when optedOut is true, a signed "my silence from here on
         is not a loss signal" notice), addressed to one owner at a time. Deliberately not a
         `ShareRequest`/`KeyRotation`: no singular `secretId`, no consent phase, and — unlike
@@ -562,7 +562,7 @@ paths:
   /share-requests/withdraw:
     post:
       operationId: withdrawShareRequests
-      summary: Recipient-initiated unilateral withdrawal (item 9)
+      summary: Recipient-initiated unilateral withdrawal
       description: >
         Flips matching `approved` `deposit` rows where the authenticated caller is the recipient
         to `withdrawn`, instead of deleting them — a best-effort, fire-and-forget tombstone so the
@@ -731,10 +731,10 @@ paths:
   /key-rotations:
     post:
       operationId: pushRotation
-      summary: Push a signed key-rotation notice to one contact (item 9)
+      summary: Push a signed key-rotation notice to one contact
       description: >
         The authenticated caller becomes `oldVerifyKey`. Not consent-gated and no conflict check
-        — a fire-and-forget push, the same shape as `inventory` (see item 8): the recipient
+        — a fire-and-forget push, the same shape as `inventory`: the recipient
         polls, auto-verifies, and deletes the row once consumed.
       tags: [KeyRotations]
       requestBody:
@@ -805,7 +805,7 @@ paths:
   /custody-heartbeats:
     post:
       operationId: pushHeartbeat
-      summary: Push (upsert) a signed custodial-heartbeat for one owner (item 12)
+      summary: Push (upsert) a signed custodial-heartbeat for one owner
       description: >
         The authenticated caller becomes `holderKey`. Not consent-gated and no conflict check —
         a fire-and-forget push, the same shape as `inventory`/`key-rotations`. Unlike those,

@@ -12,12 +12,12 @@ DELETE  /share-requests/:requestId       controllers.api.ShareRequestsController
 DELETE  /share-requests                  controllers.api.ShareRequestsController.deleteShareRequests()
 POST    /share-requests/withdraw         controllers.api.ShareRequestsController.withdrawShareRequests()
 
-# Item 9's signed rotate(K_old -> K_new) push — not a share request, see KeyRotationsController
+# Signed rotate(K_old -> K_new) push — not a share request, see KeyRotationsController
 POST    /key-rotations                   controllers.api.KeyRotationsController.pushRotation()
 GET     /key-rotations                   controllers.api.KeyRotationsController.listRotations()
 DELETE  /key-rotations/:id               controllers.api.KeyRotationsController.deleteRotation(id: String)
 
-# Item 12's signed custodial-heartbeat push — see CustodyHeartbeatsController
+# Signed custodial-heartbeat push — see CustodyHeartbeatsController
 POST    /custody-heartbeats              controllers.api.CustodyHeartbeatsController.pushHeartbeat()
 GET     /custody-heartbeats              controllers.api.CustodyHeartbeatsController.listHeartbeats()
 

@@ -16,24 +16,24 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 -- removal:    Alice asks Bob to delete his local copy. No ciphertext involved.
 -- inventory:  Bob (a holder) pushes a metadata-only report about a share of his back to its
 --             owner, so a recovering Alice (fresh device, empty local state) can rebuild her
---             records — see deposplit.com/CLAUDE.md "What is next" item 8. No ciphertext
+--             records — see docs/trust-model.md. No ciphertext
 --             (never carries share bytes) but k/n are required. Not consent-gated: created
 --             directly in 'approved' state (no pending phase), and the recipient polls for it and
 --             deletes the row once consumed.
 --
--- The 'withdrawn' state (item 9) applies only to deposit rows: when a holder unilaterally stops
+-- The 'withdrawn' state applies only to deposit rows: when a holder unilaterally stops
 -- holding a share, the relay flips that row to 'withdrawn' instead of hard-deleting it, so the
 -- sender's next poll can observe the tombstone. It is a best-effort, fire-and-forget courtesy,
 -- not authoritative — the relay may still garbage-collect the row at any time, so its absence
 -- must never be read as a signal, only an explicitly observed 'withdrawn' row counts. See
--- ShareRequests.withdrawShareRequests and deposplit.com/CLAUDE.md "What is next" item 9.
+-- ShareRequests.withdrawShareRequests and docs/protocol.md.
 --
 -- share_id is NULL for deposit and inventory rows (both are roots). For retrieval and removal
 -- rows it carries the id of the originating deposit request, supplied by the client. The relay
 -- stores it opaquely without enforcing a foreign key (stateless relay design).
 --
 -- k and n are the SSS threshold/share-count populated for deposit and inventory only (NULL for
--- retrieval/removal) — added by item 8, reported by holders during recovery as a cross-holder
+-- retrieval/removal), reported by holders during recovery as a cross-holder
 -- consistency check. Signed as part of sender_signature.
 --
 -- sender_key and recipient_key are Ed25519 public keys (32 bytes).
@@ -79,7 +79,7 @@ CREATE INDEX ON share_requests (sender_key);
 CREATE INDEX ON share_requests (recipient_key);
 CREATE INDEX ON share_requests (secret_id);
 
--- Item 9's signed rotate(K_old -> K_new) push: a holder's proactive "I am now K_new, previously
+-- The signed rotate(K_old -> K_new) push: a holder's proactive "I am now K_new, previously
 -- K_old" notice, addressed to one contact at a time. Deliberately not a share_requests row: it
 -- has no secret_id, no consent phase, and none of the share-specific columns above would ever be
 -- populated, so it earns its own small table instead of growing share_requests' NULL-column
@@ -87,7 +87,7 @@ CREATE INDEX ON share_requests (secret_id);
 --
 -- old_verify_key is the trusted key the recipient already knows this contact by — both the
 -- routing key and the key `signature` must verify against, proving continuity of key control.
--- new_verify_key/new_enc_key are the contact's new identity. new_cipher_suite (item 14, crypto
+-- new_verify_key/new_enc_key are the contact's new identity. new_cipher_suite (crypto
 -- agility) is the signing + key-agreement algorithm pairing that identity uses (one value exists
 -- today, ed25519+x25519-v1). No old_cipher_suite column — the recipient already has it pinned
 -- on the existing contact record being rotated away from. signature is a signature by
@@ -110,7 +110,7 @@ CREATE TABLE key_rotations (
 
 CREATE INDEX ON key_rotations (recipient_key);
 
--- Item 12's signed custodial-heartbeat push: a holder's proactive "still guarding {secretIds}
+-- The signed custodial-heartbeat push: a holder's proactive "still guarding {secretIds}
 -- for you" notice (or, when opted_out is true, a signed "my silence from here on is not a loss
 -- signal" notice), addressed to one owner at a time. Deliberately not a share_requests row (no
 -- secret_id singular, no consent phase) and, unlike key_rotations/inventory, deliberately NOT
@@ -119,7 +119,7 @@ CREATE INDEX ON key_rotations (recipient_key);
 -- one-shot delivery. The owner's durable freshness/opt-out state lives on the owner's own
 -- device, refreshed each time it observes this row — this table may be GC'd or pruned by
 -- operators at any time without consequence (see hexagons/relay's CustodyHeartbeat and
--- deposplit.com/CLAUDE.md "What is next" item 12).
+-- docs/protocol.md).
 --
 -- secret_ids is a comma-joined list of UUID strings — opaque to the relay, which only stores and
 -- forwards it. Kept as TEXT rather than a native array column for portability (H2/Postgres) and
