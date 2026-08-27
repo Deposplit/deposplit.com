@@ -83,7 +83,7 @@ The sibling repositories, for reference:
 
 ```bash
 # from Android/
-./gradlew test                    # JVM unit tests, no device needed (115 in :hexagon)
+./gradlew test                    # JVM unit tests, no device needed (115 :hexagon, 20 :app)
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 

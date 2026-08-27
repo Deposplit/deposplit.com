@@ -96,7 +96,7 @@ sbt dist                                    # production distribution zip
 Tests need no external services: `conf/test.conf` runs against in-memory H2.
 
 For the apps, see each repository's own README. In short: `./gradlew test` in `Android/`
-(115 hexagon tests) and `swift test` in `iOS/hexagon/` (110).
+(115 in `:hexagon`, 20 in `:app`) and `swift test` in `iOS/hexagon/` (110).
 
 ## Continuous integration
 
