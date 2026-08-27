@@ -79,7 +79,6 @@ for the sender's choice would be backwards.
 
 - [ ] `R` `phon` `A` `I` **strip work-item numbers from code comments.** 578 references of the form `(item 9)` survive from the old roadmap and now resolve to nothing. Rewrite each to say what it means. Android 196 · iOS 177 · phon 132 · relay 37 · tests 32 · `conf/` 22.
 - [ ] `phon` `A` `I` rename `Contact.revokedEdKeys` to `revokedVerifyKeys`, matching the `verifyKey`/`encKey` vocabulary everywhere else
-- [ ] `R` delete `test/controllers/api/SharesApiSpec.scala` — an empty stub left from the single-table redesign
 - [ ] `R` `A` `I` align the pinned CI action SHAs; they have drifted between repositories
 - [ ] `A` add real tests to `:app`, or delete the two Android Studio scaffold stubs
 - [ ] `doc` `C4SystemContextView.drawio` and `C4ContainerView.drawio` are kept. The Mermaid views in [docs/architecture.md](docs/architecture.md) are the ones that render on GitHub and are kept current; the `.drawio` files predate Bring Your Own Relay and have no component views. Still to decide: bring them up to date, or keep them as an editable snapshot and say so in the architecture doc.
