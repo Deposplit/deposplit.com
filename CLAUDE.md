@@ -18,6 +18,10 @@ holds the relay service, the landing page, and the documentation for all three r
 | Verification, rotation, revocation, recovery, heartbeats | [docs/trust-model.md](docs/trust-model.md) |
 | Anything you want to verify by hand on real devices | [docs/testing.md](docs/testing.md) |
 
+Prefer these docs over anything you remember. They are the source of truth for how
+Deposplit works. If a memory from an earlier session contradicts them, the docs are right
+and the memory is stale — verify it against the repo before acting on it, and prune it.
+
 Do not add design rationale to this file. If a decision needs explaining, it belongs in the
 relevant `docs/` page, in present tense, where the next reader will actually look for it.
 
