@@ -84,7 +84,8 @@ for the sender's choice would be backwards.
 - [ ] `R` delete `test/controllers/api/SharesApiSpec.scala` — an empty stub left from the single-table redesign
 - [ ] `R` `A` `I` align the pinned CI action SHAs; they have drifted between repositories
 - [ ] `A` add real tests to `:app`, or delete the two Android Studio scaffold stubs
-- [ ] `doc` decide what happens to `C4SystemContextView.drawio` and `C4ContainerView.drawio`. The C4 views in [docs/architecture.md](docs/architecture.md) were authored fresh as Mermaid and are now the ones that render and stay current; keeping the `.drawio` files makes two sources of truth for the same diagrams, and they already predate Bring Your Own Relay.
+- [ ] `doc` `C4SystemContextView.drawio` and `C4ContainerView.drawio` are kept. The Mermaid views in [docs/architecture.md](docs/architecture.md) are the ones that render on GitHub and are kept current; the `.drawio` files predate Bring Your Own Relay and have no component views. Still to decide: bring them up to date, or keep them as an editable snapshot and say so in the architecture doc.
+- [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Parked
 
