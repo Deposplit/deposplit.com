@@ -1,0 +1,14 @@
+# Development-only router, selected by conf/localhost.conf.
+#
+# The production router (conf/routes) deliberately does NOT mount the phon
+# emulator: phon is a teaching and manual-testing tool, its Guice bindings live
+# in PhonModule, and PhonModule is enabled only in conf/localhost.conf. Keeping
+# it out of the production router means there is no route, no controller and no
+# binding to expose - rather than a route that something has to remember to
+# block.
+
+# Order matters: conf/routes ends in a catch-all that hands any unmatched path to
+# MarkdownController, so mounting it first would swallow /phonyPhone before the phon
+# router is ever consulted.
+->      /phonyPhone                      phon.Routes
+->      /                                router.Routes

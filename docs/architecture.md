@@ -112,10 +112,11 @@ and nothing in the shipping system depends on it. It lives in its own sbt subpro
 precisely so it cannot accidentally become a dependency of anything else. If you are
 reading this to understand Deposplit, skip it.
 
-> phon is *intended* to be unreachable outside development: `PhonModule` is enabled only
-> in `conf/localhost.conf`, and `PhonyPhonesFilter` is meant to reject its paths outside
-> `Mode.Dev`. That filter currently guards `/phonyPhones` while `conf/routes` mounts the
-> emulator at `/phonyPhone`, so it never matches. Tracked in [../TODO.md](../TODO.md).
+phon is unreachable outside development **by construction**, not by a guard. It is mounted
+only by the development router (`conf/dev.routes`, selected in `conf/localhost.conf`), and
+its Guice bindings live in `PhonModule`, which only that same config enables. The
+production router has no phon route, so there is no controller to construct and nothing to
+block. `PhonRoutingSpec` asserts this from both directions.
 
 ## Components — Web app
 

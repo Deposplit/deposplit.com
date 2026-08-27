@@ -21,9 +21,6 @@ DELETE  /key-rotations/:id               controllers.api.KeyRotationsController.
 POST    /custody-heartbeats              controllers.api.CustodyHeartbeatsController.pushHeartbeat()
 GET     /custody-heartbeats              controllers.api.CustodyHeartbeatsController.listHeartbeats()
 
-# … but also for the Web-based emulator/simulator
-->      /phonyPhone                      phon.Routes
-
 # Static assets
 GET     /assets/*file                    controllers.Assets.versioned(path="/public", file: Asset)
 

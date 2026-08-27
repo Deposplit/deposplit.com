@@ -71,7 +71,7 @@ domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (262: relay 95, phon 108, root 59)
+sbt test                                    # all tests (276: relay 95, phon 108, root 73)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
@@ -109,7 +109,7 @@ swift build
 | `app/controllers/gui/` | Landing page and Markdown rendering |
 | `app/driven_adapters/persistence/` | Anorm repositories — the only code that knows SQL |
 | `app/views/` | Twirl templates |
-| `conf/` | `routes`, `openapi.yaml`, `evolutions/`, `messages` + `messages.de` |
+| `conf/` | `routes` (production) and `dev.routes` (adds phon), `openapi.yaml`, `evolutions/`, `messages` + `messages.de` |
 | `public/markdowns/` | Landing page copy, English and German |
 
 Landing page copy is Markdown loaded over HTMX, not inline in the Twirl templates. Both

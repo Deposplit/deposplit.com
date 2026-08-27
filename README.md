@@ -87,7 +87,7 @@ document store.
 ```bash
 sbt run                                     # dev server, auto-reloads on change
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against the local H2 database
-sbt test                                    # all tests (262)
+sbt test                                    # all tests (276)
 sbt relay/test                              # the relay hexagon only (95)
 sbt compile
 sbt dist                                    # production distribution zip
