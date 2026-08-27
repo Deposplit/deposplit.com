@@ -110,7 +110,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         cipherSuite = effectiveSuite,
         verificationLevel = newLevel.getOrElse(existing.verificationLevel),
         verifiedAt = if changingIdentity || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
-        revokedEdKeys = existing.revokedEdKeys,
+        revokedVerifyKeys = existing.revokedVerifyKeys,
         keyChangedAt = if changingIdentity then Some(Instant.now()) else existing.keyChangedAt
       )
     )
@@ -126,14 +126,14 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)
 
-  // Item 10 — idempotent: a no-op if the key is already in revokedEdKeys.
+  // Item 10 — idempotent: a no-op if the key is already in revokedVerifyKeys.
   def markKeyCompromised(contactId: UUID, verifyKey: Option[Array[Byte]] = None): Unit =
     val existing = contactRepository
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
     val keyToFlag = verifyKey.getOrElse(existing.verifyKey)
-    if !existing.revokedEdKeys.exists(_.sameElements(keyToFlag)) then
-      contactRepository.save(existing.copy(revokedEdKeys = keyToFlag :: existing.revokedEdKeys))
+    if !existing.revokedVerifyKeys.exists(_.sameElements(keyToFlag)) then
+      contactRepository.save(existing.copy(revokedVerifyKeys = keyToFlag :: existing.revokedVerifyKeys))
 
   // Item 15 — trim, then collapse blank to None. Lives here (not the UI layer) so every
   // caller — UI, tests, a future relink flow — gets consistent normalization for free.

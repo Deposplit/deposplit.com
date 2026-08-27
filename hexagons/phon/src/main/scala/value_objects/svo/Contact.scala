@@ -48,14 +48,14 @@ case class Contact(
       * at contact-add time, not a live pointer, same TOFU trust model as the public keys.
       */
     relayBaseUrl: Option[String] = None,
-    /** Item 10 — historical Ed25519 keys locally flagged compromised via
+    /** Item 10 — historical verify keys locally flagged compromised via
       * `ContactManagement.markKeyCompromised`, out-of-band. A signed rotation notice claiming
       * continuity from any key in this set is refused auto-accept (see `ShareService`'s
       * rotation-processing) — revocation is socially anchored, so only a fresh human-verified
       * relink can move the contact forward once a key lands here. Never cleared automatically.
       */
-    revokedEdKeys: List[Array[Byte]] = Nil,
-    /** Item 10 — when edPublicKey (or xPublicKey) last changed via updateContact, whether through
+    revokedVerifyKeys: List[Array[Byte]] = Nil,
+    /** Item 10 — when verifyKey (or encKey) last changed via updateContact, whether through
       * a human-verified relink (item 8) or an auto-accepted rotation (item 9). None until the
       * first key change. Surfaced on the retrieve-approval screen as "this requester's key
       * changed N days ago" — the attack signature item 10 hardens against is key change followed

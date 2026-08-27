@@ -98,7 +98,6 @@ for the sender's choice would be backwards.
 ## Chores
 
 - [ ] `R` `phon` `A` `I` **strip work-item numbers from code comments.** 578 references of the form `(item 9)` survive from the old roadmap and now resolve to nothing. Rewrite each to say what it means. Android 196 · iOS 177 · phon 132 · relay 37 · tests 32 · `conf/` 22.
-- [ ] `phon` `A` `I` rename `Contact.revokedEdKeys` to `revokedVerifyKeys`, matching the `verifyKey`/`encKey` vocabulary everywhere else
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Parked

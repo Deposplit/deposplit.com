@@ -769,7 +769,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   test("syncInbox refuses auto-accept and captures a key conflict when the old key is revoked") {
     val relay = FakeShareRelay()
-    val revokedAliceContact = aliceContact.copy(revokedEdKeys = List(aliceKeys.publicKey))
+    val revokedAliceContact = aliceContact.copy(revokedVerifyKeys = List(aliceKeys.publicKey))
     val (svc, bob, _, contactRepo, _, conflictRepo, _) = newService(relay, contacts = List(revokedAliceContact))
     val newEd = Array.fill(32)(0x0e.toByte)
     val newX = Array.fill(32)(0x0f.toByte)
@@ -795,7 +795,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   test("syncInbox still auto-accepts a non-revoked rotation") {
     val relay = FakeShareRelay()
     // Some unrelated historical key, not the one this notice claims continuity from.
-    val contactWithUnrelatedRevocation = aliceContact.copy(revokedEdKeys = List(Array.fill(32)(0x99.toByte)))
+    val contactWithUnrelatedRevocation = aliceContact.copy(revokedVerifyKeys = List(Array.fill(32)(0x99.toByte)))
     val (svc, bob, _, contactRepo, _, conflictRepo, _) = newService(relay, contacts = List(contactWithUnrelatedRevocation))
     val newEd = Array.fill(32)(0x10.toByte)
     val notice = signedRotation(aliceKeys.publicKey, bob.verifyKey(), aliceKeys, newEd)

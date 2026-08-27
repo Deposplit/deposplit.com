@@ -74,7 +74,7 @@ problem Deposplit exists to solve.
 
 So revocation is anchored in people:
 
-- A contact carries a growing set of **revoked keys** (`revokedEdKeys`), set out of band
+- A contact carries a growing set of **revoked keys** (`revokedVerifyKeys`), set out of band
   when someone tells you their key is compromised. It is a historical set rather than a
   single flag, so a later legitimate relink is never blocked by an old entry.
 - A revoked key **cannot auto-accept a rotation**. An attacker's rotation push signed with

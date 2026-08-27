@@ -57,7 +57,7 @@ trait ContactManagement:
     */
   def renameContact(contactId: UUID, nickname: Option[String]): Unit
   def deleteContact(contactId: UUID): Unit
-  /** Item 10 — flags a verify key into the contact's revokedEdKeys history, out-of-band-
+  /** Item 10 — flags a verify key into the contact's revokedVerifyKeys history, out-of-band-
     * triggered (the user has some independent reason to believe it was stolen). Defaults to the
     * contact's *current* verifyKey when verifyKey is None. From this point, any signed rotation
     * notice claiming continuity from that key is refused auto-accept; only a fresh

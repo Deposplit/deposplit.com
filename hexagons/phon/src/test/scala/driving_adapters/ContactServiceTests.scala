@@ -146,19 +146,19 @@ class ContactServiceTests extends munit.FunSuite:
     svc.markKeyCompromised(original.id)
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
-    assertEquals(updated.revokedEdKeys.size, 1)
-    assert(updated.revokedEdKeys.head.sameElements(original.verifyKey))
+    assertEquals(updated.revokedVerifyKeys.size, 1)
+    assert(updated.revokedVerifyKeys.head.sameElements(original.verifyKey))
   }
 
   test("markKeyCompromised is idempotent for an already-flagged key") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
     val svc = ContactService(repo)
     val original = makeContact()
-    repo.save(original.copy(revokedEdKeys = List(original.verifyKey)))
+    repo.save(original.copy(revokedVerifyKeys = List(original.verifyKey)))
 
     svc.markKeyCompromised(original.id)
 
-    assertEquals(repo.getById(original.id).map(_.revokedEdKeys.size), Some(1))
+    assertEquals(repo.getById(original.id).map(_.revokedVerifyKeys.size), Some(1))
   }
 
   test("markKeyCompromised can flag an explicit key other than the current one") {
@@ -171,9 +171,9 @@ class ContactServiceTests extends munit.FunSuite:
     svc.markKeyCompromised(original.id, verifyKey = Some(oldKey))
 
     val updated = repo.getById(original.id).getOrElse(fail("contact missing"))
-    assertEquals(updated.revokedEdKeys.size, 1)
-    assert(updated.revokedEdKeys.head.sameElements(oldKey))
-    assert(!updated.revokedEdKeys.head.sameElements(original.verifyKey))
+    assertEquals(updated.revokedVerifyKeys.size, 1)
+    assert(updated.revokedVerifyKeys.head.sameElements(oldKey))
+    assert(!updated.revokedVerifyKeys.head.sameElements(original.verifyKey))
   }
 
   // ── Item 14: crypto agility — cipher suite threading + suite-aware length validation ────────
