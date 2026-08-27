@@ -78,7 +78,6 @@ for the sender's choice would be backwards.
 ## Chores
 
 - [ ] `R` `phon` `A` `I` **strip work-item numbers from code comments.** 578 references of the form `(item 9)` survive from the old roadmap and now resolve to nothing. Rewrite each to say what it means. Android 196 · iOS 177 · phon 132 · relay 37 · tests 32 · `conf/` 22.
-- [ ] `R` rename `hexagons/relay/.../driving_ports/Shares.scala` to match the `ShareRequests` trait it declares
 - [ ] `phon` `A` `I` rename `Contact.revokedEdKeys` to `revokedVerifyKeys`, matching the `verifyKey`/`encKey` vocabulary everywhere else
 - [ ] `R` delete `test/controllers/api/SharesApiSpec.scala` — an empty stub left from the single-table redesign
 - [ ] `R` `A` `I` align the pinned CI action SHAs; they have drifted between repositories
