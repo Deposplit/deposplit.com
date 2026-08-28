@@ -25,7 +25,7 @@
 package value_objects
 
 enum ShareRequestState:
-  /** Deposit-only (item 9): the recipient unilaterally stopped holding the share. A best-effort
-    * tombstone, not authoritative — see ShareRequests.withdrawShareRequests.
+  /** Deposit-only (item 9): the recipient unilaterally stopped holding the share. A best-effort tombstone, not
+    * authoritative — see ShareRequests.withdrawShareRequests.
     */
   case Pending, Approved, Denied, Withdrawn

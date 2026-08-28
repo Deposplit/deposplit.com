@@ -54,49 +54,51 @@ trait ApiSupport { self: BaseController =>
 
   protected def shareRequestJson(req: ShareRequest): JsValue =
     val base = Json.obj(
-      "id"               -> req.id.toString,
-      "secretId"         -> req.secretId.value.toString,
-      "senderKey"        -> req.senderKey.toBase64Url,
-      "recipientKey"     -> req.recipientKey.toBase64Url,
-      "label"            -> req.label.value,
-      "secretCreatedAt"  -> req.secretCreatedAt.toString,
-      "transactionType"  -> req.transactionType.wireValue,
-      "state"            -> (req.state match
+      "id" -> req.id.toString,
+      "secretId" -> req.secretId.value.toString,
+      "senderKey" -> req.senderKey.toBase64Url,
+      "recipientKey" -> req.recipientKey.toBase64Url,
+      "label" -> req.label.value,
+      "secretCreatedAt" -> req.secretCreatedAt.toString,
+      "transactionType" -> req.transactionType.wireValue,
+      "state" -> (req.state match
         case ShareRequestState.Pending   => "pending"
         case ShareRequestState.Approved  => "approved"
         case ShareRequestState.Denied    => "denied"
         case ShareRequestState.Withdrawn => "withdrawn"),
-      "shareId"          -> req.shareId.map(_.toString),
-      "requestedAt"      -> req.requestedAt.toString,
-      "respondedAt"      -> req.respondedAt.map(_.toString),
-      "senderSignature"  -> req.senderSignature.toBase64Url
+      "shareId" -> req.shareId.map(_.toString),
+      "requestedAt" -> req.requestedAt.toString,
+      "respondedAt" -> req.respondedAt.map(_.toString),
+      "senderSignature" -> req.senderSignature.toBase64Url
     )
     val withRecipientSig =
       req.recipientSignature.fold(base)(sig => base + ("recipientSignature" -> JsString(sig.toBase64Url)))
     val withCiphertext =
-      req.ciphertext.fold(withRecipientSig)(ct => withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct))))
+      req.ciphertext.fold(withRecipientSig)(ct =>
+        withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct)))
+      )
     val withK = req.k.fold(withCiphertext)(k => withCiphertext + ("k" -> JsNumber(k)))
     req.n.fold(withK)(n => withK + ("n" -> JsNumber(n)))
 
   protected def keyRotationJson(r: KeyRotation): JsValue =
     Json.obj(
-      "id"             -> r.id.toString,
-      "oldVerifyKey"   -> r.oldVerifyKey.toBase64Url,
-      "recipientKey"   -> r.recipientKey.toBase64Url,
-      "newVerifyKey"   -> r.newVerifyKey.toBase64Url,
-      "newEncKey"      -> r.newEncKey.toBase64Url,
+      "id" -> r.id.toString,
+      "oldVerifyKey" -> r.oldVerifyKey.toBase64Url,
+      "recipientKey" -> r.recipientKey.toBase64Url,
+      "newVerifyKey" -> r.newVerifyKey.toBase64Url,
+      "newEncKey" -> r.newEncKey.toBase64Url,
       "newCipherSuite" -> r.newCipherSuite.wireValue,
-      "signature"      -> r.signature.toBase64Url,
-      "createdAt"      -> r.createdAt.toString
+      "signature" -> r.signature.toBase64Url,
+      "createdAt" -> r.createdAt.toString
     )
 
   protected def custodyHeartbeatJson(h: CustodyHeartbeat): JsValue =
     Json.obj(
-      "id"        -> h.id.toString,
+      "id" -> h.id.toString,
       "holderKey" -> h.holderKey.toBase64Url,
-      "ownerKey"  -> h.ownerKey.toBase64Url,
+      "ownerKey" -> h.ownerKey.toBase64Url,
       "secretIds" -> h.secretIds.map(_.toString),
-      "optedOut"  -> h.optedOut,
+      "optedOut" -> h.optedOut,
       "signature" -> h.signature.toBase64Url,
       "createdAt" -> h.createdAt.toString
     )

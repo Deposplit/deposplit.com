@@ -26,18 +26,16 @@ package driving_ports
 
 import value_objects.*
 
-/** Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds}
-  * for you" notice (or signed opt-out), addressed to one owner at a time. Deliberately separate
-  * from `ShareRequests`/`KeyRotations`: it carries no `secretId` singular (a heartbeat covers a
-  * whole *list* of secrets in one coalesced push) and has no consent phase or per-row consumption
-  * — see `value_objects.CustodyHeartbeat` for why it is upserted, not deleted.
+/** Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds} for you" notice (or
+  * signed opt-out), addressed to one owner at a time. Deliberately separate from `ShareRequests`/`KeyRotations`: it
+  * carries no `secretId` singular (a heartbeat covers a whole *list* of secrets in one coalesced push) and has no
+  * consent phase or per-row consumption — see `value_objects.CustodyHeartbeat` for why it is upserted, not deleted.
   */
 trait CustodyHeartbeats:
 
-  /** Pushes (upserts) a signed heartbeat for one owner, replacing any previous heartbeat from the
-    * same holder to the same owner. The authenticated caller becomes `holderKey` — `signature`
-    * must verify against it over `PayloadCanonical.forHeartbeat`. Returns `BadRequest` if it
-    * doesn't verify.
+  /** Pushes (upserts) a signed heartbeat for one owner, replacing any previous heartbeat from the same holder to the
+    * same owner. The authenticated caller becomes `holderKey` — `signature` must verify against it over
+    * `PayloadCanonical.forHeartbeat`. Returns `BadRequest` if it doesn't verify.
     */
   def pushHeartbeat(
       holderKey: PublicKey,

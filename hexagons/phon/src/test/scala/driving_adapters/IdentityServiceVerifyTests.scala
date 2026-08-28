@@ -51,8 +51,8 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
   override def decKey(): Array[Byte] = _xSk
   override def forget(): Unit = registered = false
 
-/** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify`
-  * — the phon-side counterpart of the server's `PublicKey.verify`, used to independently re-verify
+/** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify` — the phon-side
+  * counterpart of the server's `PublicKey.verify`, used to independently re-verify
   * `senderSignature`/`recipientSignature` (see `PayloadCanonical`).
   */
 class IdentityServiceVerifyTests extends munit.FunSuite:

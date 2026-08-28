@@ -37,8 +37,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   private def sameKey(a: PublicKey, b: PublicKey): Boolean =
     a.toBase64Url == b.toBase64Url
 
-  /** `2 <= k <= n <= 255` — the same hard bound `split()`/`combine()` enforce client-side
-    * (item 11); re-checked here since Deposit/Inventory rows now carry k/n on the wire.
+  /** `2 <= k <= n <= 255` — the same hard bound `split()`/`combine()` enforce client-side (item 11); re-checked here
+    * since Deposit/Inventory rows now carry k/n on the wire.
     */
   private def validKN(k: Option[Int], n: Option[Int]): Boolean = (k, n) match
     case (Some(kk), Some(nn)) => kk >= 2 && kk <= nn && nn <= 255
@@ -58,7 +58,17 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       senderSignature: Signature
   ): Either[Error, ShareRequest] =
     val canon =
-      PayloadCanonical.forOpen(secretId, transactionType, recipientKey, label, secretCreatedAt, shareId, ciphertext, k, n)
+      PayloadCanonical.forOpen(
+        secretId,
+        transactionType,
+        recipientKey,
+        label,
+        secretCreatedAt,
+        shareId,
+        ciphertext,
+        k,
+        n
+      )
     if !senderKey.verify(canon, senderSignature) then return Left(Error.BadRequest)
     val isRoot = transactionType == ShareTransactionType.Deposit || transactionType == ShareTransactionType.Inventory
     transactionType match
@@ -72,7 +82,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       // Fire-and-forget push (see ShareRequest's doc) — no conflict check, self-approved below.
       case _ =>
         if ciphertext.isDefined || k.isDefined || n.isDefined then return Left(Error.BadRequest)
-        if repository.hasPendingRequest(secretId, senderKey, recipientKey, transactionType) then return Left(Error.Conflict)
+        if repository.hasPendingRequest(secretId, senderKey, recipientKey, transactionType) then
+          return Left(Error.Conflict)
     val now = Instant.now()
     val selfApproved = transactionType == ShareTransactionType.Inventory
     val request = ShareRequest(
@@ -136,7 +147,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         val newState = if approved then ShareRequestState.Approved else ShareRequestState.Denied
         // For Deposit approval: return stored ciphertext to Bob and clear it from relay.
         // For Retrieval approval: store Bob's ciphertext for Alice to collect later.
-        val returnedCt = if approved && req.transactionType == ShareTransactionType.Deposit then req.ciphertext else None
+        val returnedCt =
+          if approved && req.transactionType == ShareTransactionType.Deposit then req.ciphertext else None
         val storedCt = if approved && req.transactionType == ShareTransactionType.Retrieval then ciphertext else None
         repository.updateShareRequest(requestId, newState, now, storedCt, recipientSignature)
         if approved && req.transactionType == ShareTransactionType.Removal then

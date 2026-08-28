@@ -24,9 +24,8 @@
 
 package value_objects.svo
 
-/** Thrown by explicit user-initiated flows (`respond`) when a `senderSignature`/
-  * `recipientSignature` fails to verify against the sender/recipient's known public key.
-  * Background/fan-out flows (`syncInbox`, `listPendingRequests`) silently drop unverified rows
-  * instead of throwing — see `deposplit.com/CLAUDE.md`'s BYOR section.
+/** Thrown by explicit user-initiated flows (`respond`) when a `senderSignature`/ `recipientSignature` fails to verify
+  * against the sender/recipient's known public key. Background/fan-out flows (`syncInbox`, `listPendingRequests`)
+  * silently drop unverified rows instead of throwing — see `deposplit.com/CLAUDE.md`'s BYOR section.
   */
 final case class SignatureVerificationException(message: String) extends Exception(message)

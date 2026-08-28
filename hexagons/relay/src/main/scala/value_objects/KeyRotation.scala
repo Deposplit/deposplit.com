@@ -27,17 +27,16 @@ package value_objects
 import java.time.Instant
 import java.util.UUID
 
-/** A signed key-rotation push (item 9) — a holder's proactive "I am now newVerifyKey, previously
-  * oldVerifyKey" notice, addressed to one contact (`recipientKey`) at a time.
+/** A signed key-rotation push (item 9) — a holder's proactive "I am now newVerifyKey, previously oldVerifyKey" notice,
+  * addressed to one contact (`recipientKey`) at a time.
   *
-  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the
-  * recipient auto-verifies `signature` against `oldVerifyKey` (the trusted key it already knows
-  * this contact by) and, on success, updates its local contact record in place before deleting
-  * this row. See `PayloadCanonical.forRotation` for the exact bytes signed.
+  * Deliberately not a `ShareRequest`: it carries no `secretId` and has no consent phase — the recipient auto-verifies
+  * `signature` against `oldVerifyKey` (the trusted key it already knows this contact by) and, on success, updates its
+  * local contact record in place before deleting this row. See `PayloadCanonical.forRotation` for the exact bytes
+  * signed.
   *
-  * `newCipherSuite` (item 14) is the signing + key-agreement algorithm pairing `newVerifyKey`/
-  * `newEncKey` use. No `oldCipherSuite` field — the recipient already has it pinned on the
-  * existing contact record being rotated away from.
+  * `newCipherSuite` (item 14) is the signing + key-agreement algorithm pairing `newVerifyKey`/ `newEncKey` use. No
+  * `oldCipherSuite` field — the recipient already has it pinned on the existing contact record being rotated away from.
   */
 case class KeyRotation(
     id: UUID,

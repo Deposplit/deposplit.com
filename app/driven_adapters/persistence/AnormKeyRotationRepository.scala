@@ -73,18 +73,17 @@ class AnormKeyRotationRepository @Inject() (db: Database) extends KeyRotationRep
       get[Array[Byte]]("new_enc_key") ~
       get[String]("new_cipher_suite") ~
       get[Array[Byte]]("signature") ~
-      get[Instant]("created_at") map {
-        case id ~ oldVerify ~ rk ~ newVerify ~ newEnc ~ suite ~ sig ~ createdAt =>
-          KeyRotation(
-            id = id,
-            oldVerifyKey = parseKey(oldVerify),
-            recipientKey = parseKey(rk),
-            newVerifyKey = parseKey(newVerify),
-            newEncKey = parseX25519Key(newEnc),
-            newCipherSuite = parseCipherSuite(suite),
-            signature = parseSignature(sig),
-            createdAt = createdAt
-          )
+      get[Instant]("created_at") map { case id ~ oldVerify ~ rk ~ newVerify ~ newEnc ~ suite ~ sig ~ createdAt =>
+        KeyRotation(
+          id = id,
+          oldVerifyKey = parseKey(oldVerify),
+          recipientKey = parseKey(rk),
+          newVerifyKey = parseKey(newVerify),
+          newEncKey = parseX25519Key(newEnc),
+          newCipherSuite = parseCipherSuite(suite),
+          signature = parseSignature(sig),
+          createdAt = createdAt
+        )
       }
 
   override def saveRotation(rotation: KeyRotation): Unit =

@@ -32,13 +32,13 @@ import play.api.test.Helpers.*
 
 import java.util.UUID
 
-/** Integration tests for POST/GET/DELETE /key-rotations (item 9's signed `rotate(K_old ->
-  * K_new)` push). Runs in declaration order and shares a single in-memory H2 database via
-  * GuiceOneAppPerSuite, same pattern as `ShareRequestsApiSpec`.
+/** Integration tests for POST/GET/DELETE /key-rotations (item 9's signed `rotate(K_old -> K_new)` push). Runs in
+  * declaration order and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as
+  * `ShareRequestsApiSpec`.
   *
-  * `newEncKey`'s wire value only needs to be a 32-byte base64url string — the relay never
-  * performs key agreement with it, so a second `RequestSigner`'s Ed25519 public key doubles as a
-  * conveniently-shaped stand-in without needing real X25519 key generation in the test.
+  * `newEncKey`'s wire value only needs to be a 32-byte base64url string — the relay never performs key agreement with
+  * it, so a second `RequestSigner`'s Ed25519 public key doubles as a conveniently-shaped stand-in without needing real
+  * X25519 key generation in the test.
   */
 class KeyRotationsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 

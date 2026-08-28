@@ -63,6 +63,7 @@ val secretSharingForm = Form(
     "secret" -> nonEmptyText,
     "label" -> nonEmptyText,
     "k" -> number(min = 2),
-    "contacts" -> seq(text).verifying("blank UUIDs",_.forall(!_.isBlank))
-  )(SecretSharingRecord.apply)(SecretSharingRecord.unapply).verifying("k too large and/or too few contacts", ssr => ssr.contacts.size >= ssr.k)
+    "contacts" -> seq(text).verifying("blank UUIDs", _.forall(!_.isBlank))
+  )(SecretSharingRecord.apply)(SecretSharingRecord.unapply)
+    .verifying("k too large and/or too few contacts", ssr => ssr.contacts.size >= ssr.k)
 )

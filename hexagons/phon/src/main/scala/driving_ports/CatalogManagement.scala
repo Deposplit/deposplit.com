@@ -32,9 +32,8 @@ import value_objects.svo.Catalog
 trait CatalogManagement:
   def exportCatalog(): Catalog
 
-  /** Merges contacts/secrets/shareMetadata from catalog into local storage — upsert-if-absent
-    * only, by id; an existing local record is never overwritten by an imported one, since a
-    * stale backup could otherwise clobber more-current local state. Returns the number of newly
-    * added contacts.
+  /** Merges contacts/secrets/shareMetadata from catalog into local storage — upsert-if-absent only, by id; an existing
+    * local record is never overwritten by an imported one, since a stale backup could otherwise clobber more-current
+    * local state. Returns the number of newly added contacts.
     */
   def importCatalog(catalog: Catalog): Int

@@ -89,8 +89,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             recipientKey = parseKey(rk),
             label = Label(lbl),
             secretCreatedAt = sca,
-            transactionType =
-              ShareTransactionType.fromWire(tt).getOrElse(sys.error(s"unknown transaction_type: $tt")),
+            transactionType = ShareTransactionType.fromWire(tt).getOrElse(sys.error(s"unknown transaction_type: $tt")),
             state = st match
               case "pending"   => ShareRequestState.Pending
               case "approved"  => ShareRequestState.Approved

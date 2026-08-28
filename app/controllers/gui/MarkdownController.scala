@@ -94,21 +94,22 @@ class MarkdownController @Inject() (val controllerComponents: ControllerComponen
     .headOption
     .getOrElse("Markdown")
 
-  def get(markdownFilePath: MarkdownFilePath, embedded: Boolean = true) = Action { implicit request: Request[AnyContent] =>
-    val language = request.lang.language
-    val sanitizedMarkdownFilePath = markdownFilePath.sanitized
-    Option(env.classLoader.getResourceAsStream(s"public/markdowns/$language/$sanitizedMarkdownFilePath.md"))
-      .orElse(Option(env.classLoader.getResourceAsStream(s"public/markdowns/$sanitizedMarkdownFilePath.md")))
-      .flatMap(is =>
-        parser
-          .parse(
-            Source.fromInputStream(is)(Codec.UTF8).mkString
-          ) // or use java.nio.Files, cf. Scala for the Impatient (§9.2) and https://horstmann.com/unblog/2023-04-09/index.html
-          .flatMap(doc => renderer.render(doc).map((getDocTitle(doc), _)))
-          .toOption
-      )
-      .map(titledHtml => Ok(views.html.markdown(titledHtml._1, titledHtml._2, embedded)))
-      .getOrElse(NotFound)
+  def get(markdownFilePath: MarkdownFilePath, embedded: Boolean = true) = Action {
+    implicit request: Request[AnyContent] =>
+      val language = request.lang.language
+      val sanitizedMarkdownFilePath = markdownFilePath.sanitized
+      Option(env.classLoader.getResourceAsStream(s"public/markdowns/$language/$sanitizedMarkdownFilePath.md"))
+        .orElse(Option(env.classLoader.getResourceAsStream(s"public/markdowns/$sanitizedMarkdownFilePath.md")))
+        .flatMap(is =>
+          parser
+            .parse(
+              Source.fromInputStream(is)(Codec.UTF8).mkString
+            ) // or use java.nio.Files, cf. Scala for the Impatient (§9.2) and https://horstmann.com/unblog/2023-04-09/index.html
+            .flatMap(doc => renderer.render(doc).map((getDocTitle(doc), _)))
+            .toOption
+        )
+        .map(titledHtml => Ok(views.html.markdown(titledHtml._1, titledHtml._2, embedded)))
+        .getOrElse(NotFound)
   }
 
   /*

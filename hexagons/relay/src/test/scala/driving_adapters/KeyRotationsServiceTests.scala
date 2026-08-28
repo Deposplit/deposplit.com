@@ -64,8 +64,8 @@ class KeyRotationsServiceTests extends munit.FunSuite:
   private val newEncKey: X25519Key = X25519Key.fromBytes(Array.fill(32)(0x09.toByte)).getOrElse(fail("bad fixture key"))
   private val cipherSuite = CipherSuite.current
 
-  /** Signs and pushes a rotation notice — the signing counterpart of
-    * `service.pushRotation`, mirroring `ShareRequestsServiceTests.open`.
+  /** Signs and pushes a rotation notice — the signing counterpart of `service.pushRotation`, mirroring
+    * `ShareRequestsServiceTests.open`.
     */
   private def push(
       service: KeyRotationsService,

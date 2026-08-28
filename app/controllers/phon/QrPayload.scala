@@ -30,22 +30,26 @@ import value_objects.svo.CipherSuite
 
 import java.util.Base64
 
-/** `relay` carries the *displaying* device's currently-configured relay — the out-of-band
-  * exchange mechanism BYOR uses (deposplit.com/CLAUDE.md "BYOR"). `None`/absent means "use the
-  * scanning device's own default relay". `cipherSuite` (item 14 — "crypto agility") is required,
-  * not optional like `relay`: every contact-exchange has exactly one cipher suite in effect. This
-  * payload is rendered into a real scannable QR code (`readQrCode`) that the Android/iOS apps
-  * read, so its shape must stay byte-for-byte compatible with their own `QrPayload`. Field names
-  * spelled out in full (`verifyKey`/`encKey`, not `ed`/`x`), matching the vocabulary used
-  * everywhere else in the codebase.
+/** `relay` carries the *displaying* device's currently-configured relay — the out-of-band exchange mechanism BYOR uses
+  * (deposplit.com/CLAUDE.md "BYOR"). `None`/absent means "use the scanning device's own default relay". `cipherSuite`
+  * (item 14 — "crypto agility") is required, not optional like `relay`: every contact-exchange has exactly one cipher
+  * suite in effect. This payload is rendered into a real scannable QR code (`readQrCode`) that the Android/iOS apps
+  * read, so its shape must stay byte-for-byte compatible with their own `QrPayload`. Field names spelled out in full
+  * (`verifyKey`/`encKey`, not `ed`/`x`), matching the vocabulary used everywhere else in the codebase.
   *
-  * `v` stays at 1 permanently — Deposplit is pre-launch and never supports decoding an old shape,
-  * so a version number never actually gates anything: a payload missing a newly-required field
-  * (like `cipherSuite` here) already fails to decode on its own, regardless of what `v` says.
-  * Bumping `v` on every field addition would be version-tracking ceremony with no compatibility
-  * matrix behind it to justify it.
+  * `v` stays at 1 permanently — Deposplit is pre-launch and never supports decoding an old shape, so a version number
+  * never actually gates anything: a payload missing a newly-required field (like `cipherSuite` here) already fails to
+  * decode on its own, regardless of what `v` says. Bumping `v` on every field addition would be version-tracking
+  * ceremony with no compatibility matrix behind it to justify it.
   */
-final case class QrPayload(v: Int, pseudonym: String, verifyKey: String, encKey: String, relay: Option[String] = None, cipherSuite: String)
+final case class QrPayload(
+    v: Int,
+    pseudonym: String,
+    verifyKey: String,
+    encKey: String,
+    relay: Option[String] = None,
+    cipherSuite: String
+)
 
 object QrPayload:
 
@@ -54,7 +58,13 @@ object QrPayload:
   private val encoder = Base64.getUrlEncoder.withoutPadding()
   private val decoder = Base64.getUrlDecoder()
 
-  def apply(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String], cipherSuite: CipherSuite): QrPayload =
+  def apply(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      encKey: Array[Byte],
+      relayBaseUrl: Option[String],
+      cipherSuite: CipherSuite
+  ): QrPayload =
     QrPayload(
       v = 1,
       pseudonym = pseudonym,
@@ -72,7 +82,13 @@ object QrPayload:
   def encode(qrPayload: QrPayload): String =
     Json.toJson(qrPayload).toString
 
-  def encode(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String], cipherSuite: CipherSuite): String =
+  def encode(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      encKey: Array[Byte],
+      relayBaseUrl: Option[String],
+      cipherSuite: CipherSuite
+  ): String =
     encode(apply(pseudonym, verifyKey, encKey, relayBaseUrl, cipherSuite))
 
   def encode(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String]): String =

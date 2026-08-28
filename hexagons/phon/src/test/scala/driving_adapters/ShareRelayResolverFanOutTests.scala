@@ -31,16 +31,15 @@ import value_objects.svo.*
 import java.time.Instant
 import java.util.UUID
 
-/** BYOR proof-of-architecture: a device's contacts may point at different relays, and fan-out
-  * methods (`syncInbox` etc.) must poll every distinct one, merge results, and not let one
-  * unreachable relay blank out results from the others. See deposplit.com/CLAUDE.md's BYOR
-  * section and `ShareService.allRelays`.
+/** BYOR proof-of-architecture: a device's contacts may point at different relays, and fan-out methods (`syncInbox`
+  * etc.) must poll every distinct one, merge results, and not let one unreachable relay blank out results from the
+  * others. See deposplit.com/CLAUDE.md's BYOR section and `ShareService.allRelays`.
   */
 private class TwoRelayResolver(default: ShareRelay, byorUrl: String, byor: ShareRelay) extends ShareRelayResolver:
   override def resolve(relayBaseUrl: Option[String]): ShareRelay = relayBaseUrl match
-    case None                  => default
+    case None                    => default
     case Some(u) if u == byorUrl => byor
-    case Some(other)           => throw IllegalArgumentException(s"no fixture relay for $other")
+    case Some(other)             => throw IllegalArgumentException(s"no fixture relay for $other")
 
 class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
@@ -70,7 +69,17 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val label = "fan-out test"
     val createdAt = Instant.now()
     val ciphertext = Array[Byte](9, 9, 9)
-    val canon = PayloadCanonical.forOpen(secretId, ShareTransactionType.Deposit, recipientKey, label, createdAt, None, Some(ciphertext), Some(2), Some(3))
+    val canon = PayloadCanonical.forOpen(
+      secretId,
+      ShareTransactionType.Deposit,
+      recipientKey,
+      label,
+      createdAt,
+      None,
+      Some(ciphertext),
+      Some(2),
+      Some(3)
+    )
     ShareRequest(
       id = id,
       secretId = secretId,

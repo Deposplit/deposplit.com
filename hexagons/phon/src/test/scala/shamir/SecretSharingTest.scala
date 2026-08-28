@@ -82,7 +82,7 @@ class SecretSharingTest extends FunSuite:
     // f(x) = 0x00 + 0x01·x  →  f(1) = 0x01, f(2) = 0x02
     val shares = List(
       Array[Byte](0x01, 0x01), // y = 0x01, x = 0x01
-      Array[Byte](0x02, 0x02), // y = 0x02, x = 0x02
+      Array[Byte](0x02, 0x02) // y = 0x02, x = 0x02
     )
     assertBytesEqual(SecretSharing.combine(shares), Array[Byte](0x00))
 
@@ -91,7 +91,7 @@ class SecretSharingTest extends FunSuite:
     // f(x) = 0x41 + 0x01·x  →  f(1) = 0x40, f(2) = 0x43
     val shares = List(
       Array[Byte](0x40, 0x01), // y = 0x40, x = 0x01
-      Array[Byte](0x43, 0x02), // y = 0x43, x = 0x02
+      Array[Byte](0x43, 0x02) // y = 0x43, x = 0x02
     )
     assertBytesEqual(SecretSharing.combine(shares), Array[Byte](0x41))
 
@@ -101,7 +101,7 @@ class SecretSharingTest extends FunSuite:
     // Byte 1: f(x) = 0x41 + 0x01·x  →  f(1) = 0x40, f(2) = 0x43
     val shares = List(
       Array[Byte](0x01, 0x40, 0x01), // [y₀, y₁, x] for x = 0x01
-      Array[Byte](0x02, 0x43, 0x02), // [y₀, y₁, x] for x = 0x02
+      Array[Byte](0x02, 0x43, 0x02) // [y₀, y₁, x] for x = 0x02
     )
     assertBytesEqual(SecretSharing.combine(shares), Array[Byte](0x00, 0x41))
 
@@ -162,8 +162,7 @@ class SecretSharingTest extends FunSuite:
   // tampered/forged/bit-flipped holder response — wrong as a whole, not selectively per-byte.
   private def tamper(share: Array[Byte]): Array[Byte] =
     val tampered = share.clone()
-    for i <- 0 until tampered.length - 1 do
-      tampered(i) = (tampered(i) + 1).toByte
+    for i <- 0 until tampered.length - 1 do tampered(i) = (tampered(i) + 1).toByte
     tampered
 
   test("combineWithIntegrity at exactly threshold has no margin"):
@@ -226,4 +225,7 @@ class SecretSharingTest extends FunSuite:
     intercept[IllegalArgumentException]:
       SecretSharing.combineWithIntegrity(List(Array[Byte](0x01, 0x02), Array[Byte](0x01, 0x02, 0x03)), 2)
     intercept[IllegalArgumentException]:
-      SecretSharing.combineWithIntegrity(List(Array[Byte](0x01, 0x05), Array[Byte](0x02, 0x05), Array[Byte](0x03, 0x05)), 2)
+      SecretSharing.combineWithIntegrity(
+        List(Array[Byte](0x01, 0x05), Array[Byte](0x02, 0x05), Array[Byte](0x03, 0x05)),
+        2
+      )

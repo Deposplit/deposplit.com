@@ -106,7 +106,8 @@ class CatalogServiceTests extends munit.FunSuite:
 
     val localContact = makeContact("locally-edited-name")
     contactRepo.save(localContact)
-    val staleImportedVersion = localContact.copy(pseudonym = "stale-backup-name", verificationLevel = VerificationLevel.VeryLow)
+    val staleImportedVersion =
+      localContact.copy(pseudonym = "stale-backup-name", verificationLevel = VerificationLevel.VeryLow)
     val catalog = Catalog(contacts = List(staleImportedVersion), secrets = Nil, shareMetadata = Nil)
 
     val added = svc.importCatalog(catalog)

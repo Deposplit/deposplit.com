@@ -124,7 +124,13 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("POST", s"/share-requests/withdraw$q")
     ()
 
-  override def pushRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite, signature: Array[Byte]): Unit =
+  override def pushRotation(
+      recipientKey: Array[Byte],
+      newVerifyKey: Array[Byte],
+      newEncKey: Array[Byte],
+      newCipherSuite: CipherSuite,
+      signature: Array[Byte]
+  ): Unit =
     val body = Json.obj(
       "recipientKey" -> encodeBase64Url(recipientKey),
       "newVerifyKey" -> encodeBase64Url(newVerifyKey),
@@ -142,11 +148,16 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("DELETE", s"/key-rotations/$id")
     ()
 
-  override def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit =
+  override def pushHeartbeat(
+      ownerKey: Array[Byte],
+      secretIds: Seq[UUID],
+      optedOut: Boolean,
+      signature: Array[Byte]
+  ): Unit =
     val body = Json.obj(
-      "ownerKey"  -> encodeBase64Url(ownerKey),
+      "ownerKey" -> encodeBase64Url(ownerKey),
       "secretIds" -> secretIds.map(_.toString),
-      "optedOut"  -> optedOut,
+      "optedOut" -> optedOut,
       "signature" -> encodeBase64Url(signature)
     )
     send("POST", "/custody-heartbeats", Some(body))
@@ -208,7 +219,9 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
       transactionType = ShareTransactionType
         .fromWire((json \ "transactionType").as[String])
-        .getOrElse(throw IllegalArgumentException(s"Unknown transactionType: ${(json \ "transactionType").as[String]}")),
+        .getOrElse(
+          throw IllegalArgumentException(s"Unknown transactionType: ${(json \ "transactionType").as[String]}")
+        ),
       state = (json \ "state").as[String] match
         case "pending"   => ShareRequestState.Pending
         case "approved"  => ShareRequestState.Approved

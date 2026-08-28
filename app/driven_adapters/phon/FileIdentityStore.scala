@@ -67,7 +67,13 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
 
   override def pseudonym(): String = optionalIdentity.get.pseudonym
 
-  override def save(pseudonym: String, verifyKey: Array[Byte], signKey: Array[Byte], encKey: Array[Byte], decKey: Array[Byte]): Unit =
+  override def save(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit =
     val devIdentity = DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey)
 
     val createdNewFile = file.createNewFile()

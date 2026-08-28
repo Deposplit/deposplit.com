@@ -43,8 +43,8 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
 
-/** A keypair not tied to any `Identity` instance — used to sign fixture rows "as" a third party
-  * (a known contact, or a stranger), independent of the `ShareService` under test's own identity.
+/** A keypair not tied to any `Identity` instance — used to sign fixture rows "as" a third party (a known contact, or a
+  * stranger), independent of the `ShareService` under test's own identity.
   */
 private final case class TestKeyPair(publicKey: Array[Byte], privateKey: Array[Byte]):
   def sign(bytes: Array[Byte]): Array[Byte] =
@@ -63,8 +63,8 @@ private object TestKeyPair:
       pair.getPrivate.asInstanceOf[Ed25519PrivateKeyParameters].getEncoded
     )
 
-/** A genuinely mutable in-memory store (not no-ops) — item 9's rotation-processing tests need to
-  * observe the effect of `ContactService.updateContact` on the same contacts `ShareService` reads.
+/** A genuinely mutable in-memory store (not no-ops) — item 9's rotation-processing tests need to observe the effect of
+  * `ContactService.updateContact` on the same contacts `ShareService` reads.
   */
 private class FakeContactRepository(initial: List[Contact]) extends ContactRepository:
   private var contacts: List[Contact] = initial
@@ -78,7 +78,8 @@ private class FakeContactRepository(initial: List[Contact]) extends ContactRepos
 private class FakeShareRepository extends ShareRepository:
   private var shares: List[HeldShare] = Nil
   override def getAll(): List[HeldShare] = shares
-  override def getPlaintextShare(secretId: UUID): Option[Array[Byte]] = shares.find(_.secretId == secretId).map(_.plaintextShare)
+  override def getPlaintextShare(secretId: UUID): Option[Array[Byte]] =
+    shares.find(_.secretId == secretId).map(_.plaintextShare)
   override def save(share: HeldShare): Unit = shares = share :: shares
   override def delete(shareId: UUID): Unit = shares = shares.filterNot(_.id == shareId)
 
@@ -108,13 +109,20 @@ private class FakeKeyConflictRepository extends KeyConflictRepository:
 
 private object NoOpShareEncryption extends ShareEncryption:
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
-  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = noncePlusCiphertext
+  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    noncePlusCiphertext
 
-/** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns
-  * whatever `pending` is configured to, which is all these tests need.
+/** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns whatever `pending` is
+  * configured to, which is all these tests need.
   */
 private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRelay:
-  case class OpenedRequest(secretId: UUID, recipientKey: Array[Byte], transactionType: ShareTransactionType, k: Option[Int], n: Option[Int])
+  case class OpenedRequest(
+      secretId: UUID,
+      recipientKey: Array[Byte],
+      transactionType: ShareTransactionType,
+      k: Option[Int],
+      n: Option[Int]
+  )
 
   var pending: List[ShareRequest] = Nil
   var byId: Map[UUID, ShareRequest] = Map.empty
@@ -124,7 +132,13 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
 
   // Item 9
   case class WithdrawCall(senderKey: Option[Array[Byte]], secretId: Option[UUID])
-  case class PushedRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite, signature: Array[Byte])
+  case class PushedRotation(
+      recipientKey: Array[Byte],
+      newVerifyKey: Array[Byte],
+      newEncKey: Array[Byte],
+      newCipherSuite: CipherSuite,
+      signature: Array[Byte]
+  )
   var withdrawCalls: List[WithdrawCall] = Nil
   var pushedRotations: List[PushedRotation] = Nil
   var rotationsToReturn: List[KeyRotation] = Nil
@@ -203,7 +217,13 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
     withdrawCalls :+= WithdrawCall(senderKey, secretId)
     if throwOnWithdraw then throw RuntimeException("simulated withdraw failure")
 
-  override def pushRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite, signature: Array[Byte]): Unit =
+  override def pushRotation(
+      recipientKey: Array[Byte],
+      newVerifyKey: Array[Byte],
+      newEncKey: Array[Byte],
+      newCipherSuite: CipherSuite,
+      signature: Array[Byte]
+  ): Unit =
     if throwOnPushRotation then throw RuntimeException("simulated push failure")
     pushedRotations :+= PushedRotation(recipientKey, newVerifyKey, newEncKey, newCipherSuite, signature)
 
@@ -213,7 +233,12 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
 
   override def deleteRotation(id: UUID): Unit = deletedRotationIds :+= id
 
-  override def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit =
+  override def pushHeartbeat(
+      ownerKey: Array[Byte],
+      secretIds: Seq[UUID],
+      optedOut: Boolean,
+      signature: Array[Byte]
+  ): Unit =
     pushedHeartbeats :+= PushedHeartbeat(ownerKey, secretIds, optedOut, signature)
     if throwOnPushHeartbeat then throw RuntimeException("simulated push-heartbeat failure")
 
@@ -221,16 +246,16 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
     if unreachable then throw RuntimeException("simulated relay outage")
     else heartbeatsToReturn
 
-/** Resolves to the same relay regardless of the requested URL — these tests exercise signature
-  * verification, not multi-relay routing (see `ShareRelayResolverFanOutTests` for that).
+/** Resolves to the same relay regardless of the requested URL — these tests exercise signature verification, not
+  * multi-relay routing (see `ShareRelayResolverFanOutTests` for that).
   */
 private class FixedShareRelayResolver(relay: ShareRelay) extends driven_ports.ShareRelayResolver:
   override def resolve(relayBaseUrl: Option[String]): ShareRelay = relay
 
-/** Covers the recipient-side signature-verification gating described in `deposplit.com/CLAUDE.md`'s
-  * BYOR section: `syncInbox`/`listPendingRequests` must drop rows with an unverifiable
-  * `senderSignature` (unknown sender, or a genuine contact's key but a forged/mismatched
-  * signature) instead of trusting whatever the relay returns, and `respond` must reject explicitly.
+/** Covers the recipient-side signature-verification gating described in `deposplit.com/CLAUDE.md`'s BYOR section:
+  * `syncInbox`/`listPendingRequests` must drop rows with an unverifiable `senderSignature` (unknown sender, or a
+  * genuine contact's key but a forged/mismatched signature) instead of trusting whatever the relay returns, and
+  * `respond` must reject explicitly.
   */
 class ShareServiceSignatureTests extends munit.FunSuite:
 
@@ -308,7 +333,17 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   private def signOpenAs(signer: TestKeyPair, row: ShareRequest): Array[Byte] =
     signer.sign(
-      PayloadCanonical.forOpen(row.secretId, row.transactionType, row.recipientKey, row.label, row.secretCreatedAt, row.shareId, row.ciphertext, row.k, row.n)
+      PayloadCanonical.forOpen(
+        row.secretId,
+        row.transactionType,
+        row.recipientKey,
+        row.label,
+        row.secretCreatedAt,
+        row.shareId,
+        row.ciphertext,
+        row.k,
+        row.n
+      )
     )
 
   test("syncInbox approves and saves a Deposit with a valid senderSignature from a known contact") {
@@ -409,8 +444,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     )
     (svc, bobIdentity, shareRepo, secretRepo, metaRepo)
 
-  /** A self-approved recoveryMetadata row, as the relay would hand it back — Approved state and
-    * respondedAt set at creation, since this type has no consent phase (see item 8).
+  /** A self-approved recoveryMetadata row, as the relay would hand it back — Approved state and respondedAt set at
+    * creation, since this type has no consent phase (see item 8).
     */
   private def approvedRecoveryMetadataRow(
       secretId: UUID,
@@ -422,7 +457,17 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       label: String = "recovered secret"
   ): ShareRequest =
     val createdAt = Instant.now()
-    val canon = PayloadCanonical.forOpen(secretId, ShareTransactionType.Inventory, recipientKey, label, createdAt, None, None, Some(k), Some(n))
+    val canon = PayloadCanonical.forOpen(
+      secretId,
+      ShareTransactionType.Inventory,
+      recipientKey,
+      label,
+      createdAt,
+      None,
+      None,
+      Some(k),
+      Some(n)
+    )
     val sig = signer.sign(canon)
     val now = Instant.now()
     ShareRequest(
@@ -519,9 +564,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   // ── Item 9: rotation push (client primitive + receive-side) and withdraw tombstone ───────────
 
-  /** Builds a signed KeyRotation notice — the signing counterpart of `relay.pushRotation`.
-    * `signer` is the party whose signature is attached; pass something other than the keypair
-    * backing `oldVerifyKey` to build a forged notice.
+  /** Builds a signed KeyRotation notice — the signing counterpart of `relay.pushRotation`. `signer` is the party whose
+    * signature is attached; pass something other than the keypair backing `oldVerifyKey` to build a forged notice.
     */
   private def signedRotation(
       oldVerifyKey: Array[Byte],
@@ -533,7 +577,16 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   ): KeyRotation =
     val canon = PayloadCanonical.forRotation(recipientKey, newVerifyKey, newEncKey, newCipherSuite)
     val sig = signer.sign(canon)
-    KeyRotation(UUID.randomUUID(), oldVerifyKey, recipientKey, newVerifyKey, newEncKey, newCipherSuite, sig, Instant.now())
+    KeyRotation(
+      UUID.randomUUID(),
+      oldVerifyKey,
+      recipientKey,
+      newVerifyKey,
+      newEncKey,
+      newCipherSuite,
+      sig,
+      Instant.now()
+    )
 
   test("pushRotation signs with the current identity and pushes to the contact's relay") {
     val relay = FakeShareRelay()
@@ -715,10 +768,15 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(shareRepo.getAll().isEmpty)
   }
 
-  /** A bare deposit row shaped only for `syncDistributed()`'s purposes — that method never
-    * checks signatures, so `senderSignature` is deliberately empty filler, not a genuine one.
+  /** A bare deposit row shaped only for `syncDistributed()`'s purposes — that method never checks signatures, so
+    * `senderSignature` is deliberately empty filler, not a genuine one.
     */
-  private def bareDepositRow(id: UUID, secretId: UUID, recipientKey: Array[Byte], state: ShareRequestState): ShareRequest =
+  private def bareDepositRow(
+      id: UUID,
+      secretId: UUID,
+      recipientKey: Array[Byte],
+      state: ShareRequestState
+  ): ShareRequest =
     ShareRequest(
       id = id,
       secretId = secretId,
@@ -796,7 +854,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val relay = FakeShareRelay()
     // Some unrelated historical key, not the one this notice claims continuity from.
     val contactWithUnrelatedRevocation = aliceContact.copy(revokedVerifyKeys = List(Array.fill(32)(0x99.toByte)))
-    val (svc, bob, _, contactRepo, _, conflictRepo, _) = newService(relay, contacts = List(contactWithUnrelatedRevocation))
+    val (svc, bob, _, contactRepo, _, conflictRepo, _) =
+      newService(relay, contacts = List(contactWithUnrelatedRevocation))
     val newEd = Array.fill(32)(0x10.toByte)
     val notice = signedRotation(aliceKeys.publicKey, bob.verifyKey(), aliceKeys, newEd)
     relay.rotationsToReturn = List(notice)
@@ -863,7 +922,9 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val (svc, _, _, _, metaRepo, _, retainedRepo) = newService(relay)
     val depositId = UUID.randomUUID()
     val secretId = UUID.randomUUID()
-    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    retainedRepo.save(
+      RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3)
+    )
     relay.pending = List(bareDepositRow(depositId, secretId, aliceContact.verifyKey, ShareRequestState.Approved))
 
     svc.syncDistributed()
@@ -878,16 +939,20 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val (svc, _, _, _, metaRepo, _, retainedRepo) = newService(relay)
     val depositId = UUID.randomUUID()
     val secretId = UUID.randomUUID()
-    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    retainedRepo.save(
+      RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3)
+    )
     relay.pending = List(bareDepositRow(depositId, secretId, aliceContact.verifyKey, ShareRequestState.Approved))
 
     svc.syncDistributed()
-    val firstConfirmedAt = metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
+    val firstConfirmedAt =
+      metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
 
     // Second poll: the relay still returns the same already-approved row, and the retained blob
     // is already gone — must not bump freshness again.
     svc.syncDistributed()
-    val secondConfirmedAt = metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
+    val secondConfirmedAt =
+      metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt).getOrElse(fail("not confirmed"))
 
     assertEquals(firstConfirmedAt, secondConfirmedAt)
   }
@@ -912,7 +977,19 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val relay = FakeShareRelay()
     val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
     val secretId = UUID.randomUUID()
-    shareRepo.save(HeldShare(UUID.randomUUID(), secretId, "test secret", aliceContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+    shareRepo.save(
+      HeldShare(
+        UUID.randomUUID(),
+        secretId,
+        "test secret",
+        aliceContact.id,
+        Instant.now(),
+        Instant.now(),
+        Array[Byte](1),
+        2,
+        3
+      )
+    )
 
     svc.syncInbox()
 
@@ -930,7 +1007,17 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val recentlySentContact = aliceContact.copy(lastHeartbeatSentAt = Some(Instant.now()))
     val (svc, _, shareRepo, _, _, _, _) = newService(relay, contacts = List(recentlySentContact))
     shareRepo.save(
-      HeldShare(UUID.randomUUID(), UUID.randomUUID(), "test secret", recentlySentContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3)
+      HeldShare(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        "test secret",
+        recentlySentContact.id,
+        Instant.now(),
+        Instant.now(),
+        Array[Byte](1),
+        2,
+        3
+      )
     )
 
     svc.syncInbox()
@@ -943,7 +1030,19 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val optedOutContact = aliceContact.copy(heartbeatEmissionOptedOut = true)
     val (svc, _, shareRepo, _, _, _, _) = newService(relay, contacts = List(optedOutContact))
     val secretId = UUID.randomUUID()
-    shareRepo.save(HeldShare(UUID.randomUUID(), secretId, "test secret", optedOutContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+    shareRepo.save(
+      HeldShare(
+        UUID.randomUUID(),
+        secretId,
+        "test secret",
+        optedOutContact.id,
+        Instant.now(),
+        Instant.now(),
+        Array[Byte](1),
+        2,
+        3
+      )
+    )
 
     svc.syncInbox()
 
@@ -957,7 +1056,19 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val relay = FakeShareRelay()
     relay.throwOnPushHeartbeat = true
     val (svc, _, shareRepo, contactRepo, _, _, _) = newService(relay)
-    shareRepo.save(HeldShare(UUID.randomUUID(), UUID.randomUUID(), "test secret", aliceContact.id, Instant.now(), Instant.now(), Array[Byte](1), 2, 3))
+    shareRepo.save(
+      HeldShare(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        "test secret",
+        aliceContact.id,
+        Instant.now(),
+        Instant.now(),
+        Array[Byte](1),
+        2,
+        3
+      )
+    )
 
     svc.syncInbox()
 
@@ -970,7 +1081,9 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val depositId = UUID.randomUUID()
     val secretId = UUID.randomUUID()
     metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
-    retainedRepo.save(RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3))
+    retainedRepo.save(
+      RetainedDepositBlob(depositId, secretId, aliceContact.id, "test secret", Instant.now(), Array[Byte](9), 2, 3)
+    )
     val notice = signedHeartbeat(aliceKeys.publicKey, bob.verifyKey(), aliceKeys, secretIds = Seq(secretId))
     relay.heartbeatsToReturn = List(notice)
 
@@ -1043,9 +1156,9 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   // ── Reconstruction integrity + fan-out targeting (item 13) ──────────────────
 
-  /** A holder contact with its own real keypair — reconstruct() tests need several distinct
-    * holders (unlike most of this file's single-contact fixtures), each independently able to
-    * produce a validly-signed recipientSignature on its own retrieval response.
+  /** A holder contact with its own real keypair — reconstruct() tests need several distinct holders (unlike most of
+    * this file's single-contact fixtures), each independently able to produce a validly-signed recipientSignature on
+    * its own retrieval response.
     */
   private case class HolderFixture(keys: TestKeyPair, contact: Contact)
 
@@ -1062,9 +1175,9 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     )
     HolderFixture(keys, contact)
 
-  /** An already-Approved retrieval response row, signed by the holder — mirrors what respond()
-    * would have produced. ciphertext is used as-is by NoOpShareEncryption, so passing a real
-    * split() share here makes it stand in directly as the "decrypted" plaintext.
+  /** An already-Approved retrieval response row, signed by the holder — mirrors what respond() would have produced.
+    * ciphertext is used as-is by NoOpShareEncryption, so passing a real split() share here makes it stand in directly
+    * as the "decrypted" plaintext.
     */
   private def makeApprovedRetrievalRow(secretId: UUID, holder: HolderFixture, ciphertext: Array[Byte]): ShareRequest =
     val id = UUID.randomUUID()
@@ -1244,7 +1357,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     relay.pushedRotations.foreach { pushed =>
       // Item 14 — asserts the device's current suite, unconditionally.
       assertEquals(pushed.newCipherSuite, CipherSuite.current)
-      val canon = PayloadCanonical.forRotation(pushed.recipientKey, pushed.newVerifyKey, pushed.newEncKey, pushed.newCipherSuite)
+      val canon =
+        PayloadCanonical.forRotation(pushed.recipientKey, pushed.newVerifyKey, pushed.newEncKey, pushed.newCipherSuite)
       // Signed by the OLD identity, proving continuity — not by the key it's rotating to.
       assert(bob.verify(canon, pushed.signature, oldVerifyKey))
       assert(!bob.verify(canon, pushed.signature, pushed.newVerifyKey))

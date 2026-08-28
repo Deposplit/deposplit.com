@@ -33,31 +33,24 @@ trait ShareRequests:
 
   /** Opens a share request of any type.
     *
-    * - Deposit:   Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if
-    *              absent). `k`/`n` are required and must satisfy `2 <= k <= n <= 255`
-    *              (`BadRequest` otherwise) — see deposplit.com/CLAUDE.md item 8/11.
-    *              Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey)
-    *              already exists.
-    * - Retrieval: Alice asks Bob to return a share. `ciphertext`, `k`, and `n` must be None.
-    *              Returns `Conflict` if a pending Retrieval for (secretId, senderKey,
-    *              recipientKey) exists.
-    * - Removal:   Alice asks Bob to delete his local copy. `ciphertext`, `k`, and `n` must
-    *              be None. Returns `Conflict` if a pending Removal for (secretId, senderKey,
-    *              recipientKey) exists.
-    * - Inventory: A holder (Bob) pushes a metadata-only report about a share of his back to
-    *              its owner (Alice) — see "What is next" item 8. `ciphertext` must be None;
-    *              `k`/`n` are required (same bounds as Deposit). Unlike the other three
-    *              types this is **not consent-gated** — it's a fire-and-forget push, so the
-    *              row is created directly in `Approved` state with no conflict check; the
-    *              recipient (Alice) polls for it and deletes it once consumed.
+    *   - Deposit: Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if absent). `k`/`n` are
+    *     required and must satisfy `2 <= k <= n <= 255` (`BadRequest` otherwise) — see deposplit.com/CLAUDE.md item
+    *     8/11. Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey) already exists.
+    *   - Retrieval: Alice asks Bob to return a share. `ciphertext`, `k`, and `n` must be None. Returns `Conflict` if a
+    *     pending Retrieval for (secretId, senderKey, recipientKey) exists.
+    *   - Removal: Alice asks Bob to delete his local copy. `ciphertext`, `k`, and `n` must be None. Returns `Conflict`
+    *     if a pending Removal for (secretId, senderKey, recipientKey) exists.
+    *   - Inventory: A holder (Bob) pushes a metadata-only report about a share of his back to its owner (Alice) — see
+    *     "What is next" item 8. `ciphertext` must be None; `k`/`n` are required (same bounds as Deposit). Unlike the
+    *     other three types this is **not consent-gated** — it's a fire-and-forget push, so the row is created directly
+    *     in `Approved` state with no conflict check; the recipient (Alice) polls for it and deletes it once consumed.
     *
-    * `shareId` is ignored for Deposit and Inventory. For Retrieval and Removal it should be
-    * the id of the originating Deposit request — the relay stores it opaquely for the client's
-    * benefit.
+    * `shareId` is ignored for Deposit and Inventory. For Retrieval and Removal it should be the id of the originating
+    * Deposit request — the relay stores it opaquely for the client's benefit.
     *
-    * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the
-    * other arguments — defense-in-depth alongside the transport-auth signature already checked
-    * by the caller (`AuthHelper`). Returns `BadRequest` if it doesn't verify.
+    * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the other arguments —
+    * defense-in-depth alongside the transport-auth signature already checked by the caller (`AuthHelper`). Returns
+    * `BadRequest` if it doesn't verify.
     */
   def openShareRequest(
       senderKey: PublicKey,
@@ -75,8 +68,7 @@ trait ShareRequests:
 
   /** Lists share requests, optionally filtered by type and/or state.
     *
-    * `asSender = true`  — requests opened by `callerKey`.
-    * `asSender = false` — requests directed at `callerKey` (inbox).
+    * `asSender = true` — requests opened by `callerKey`. `asSender = false` — requests directed at `callerKey` (inbox).
     */
   def listShareRequests(
       callerKey: PublicKey,
@@ -90,17 +82,16 @@ trait ShareRequests:
 
   /** Approves or denies a pending request. The caller must be the recipient.
     *
-    * - Approving Deposit:   relay delivers ciphertext to Bob (embedded in response) and clears it.
-    * - Approving Retrieval: Bob must supply `ciphertext`; relay stores it for Alice to collect.
-    *                        Returns `BadRequest` if ciphertext is absent.
-    * - Approving Removal:   relay bulk-deletes all rows for (secretId, senderKey, recipientKey).
-    * - Denying any type:    state → Denied; ciphertext cleared if present.
+    *   - Approving Deposit: relay delivers ciphertext to Bob (embedded in response) and clears it.
+    *   - Approving Retrieval: Bob must supply `ciphertext`; relay stores it for Alice to collect. Returns `BadRequest`
+    *     if ciphertext is absent.
+    *   - Approving Removal: relay bulk-deletes all rows for (secretId, senderKey, recipientKey).
+    *   - Denying any type: state → Denied; ciphertext cleared if present.
     *
     * Returns `Conflict` if the request is no longer Pending.
     *
-    * `recipientSignature` must verify against `recipientKey` over `PayloadCanonical.forRespond`
-    * of the other arguments — required unconditionally, including denials. Returns `BadRequest`
-    * if it doesn't verify.
+    * `recipientSignature` must verify against `recipientKey` over `PayloadCanonical.forRespond` of the other arguments
+    * — required unconditionally, including denials. Returns `BadRequest` if it doesn't verify.
     */
   def respondToShareRequest(
       recipientKey: PublicKey,
@@ -110,13 +101,13 @@ trait ShareRequests:
       recipientSignature: Signature
   ): Either[Error, ShareRequest]
 
-  /** Deletes a request from the relay. Sender or recipient may delete any request they are party to.
-    * Deleting a Deposit cascades to all Retrieval/Removal rows for the same (secretId, senderKey, recipientKey).
+  /** Deletes a request from the relay. Sender or recipient may delete any request they are party to. Deleting a Deposit
+    * cascades to all Retrieval/Removal rows for the same (secretId, senderKey, recipientKey).
     */
   def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit]
 
-  /** Bulk recipient-initiated deletion — unilateral, no sender consent required.
-    * Deletes all rows where `recipientKey` is the recipient, optionally filtered by sender and/or secretId.
+  /** Bulk recipient-initiated deletion — unilateral, no sender consent required. Deletes all rows where `recipientKey`
+    * is the recipient, optionally filtered by sender and/or secretId.
     */
   def deleteShareRequests(
       recipientKey: PublicKey,
@@ -124,15 +115,14 @@ trait ShareRequests:
       secretId: Option[SecretId]
   ): Either[Error, Unit]
 
-  /** Recipient-initiated unilateral withdrawal (item 9) — Bob stops holding secretId (or all
-    * secrets from a given sender). Unlike `deleteShareRequests`, this does not hard-delete the
-    * matching Deposit rows; it flips matching `Approved` Deposit rows to `Withdrawn` so the
-    * sender's next poll can observe the tombstone. Retrieval/Removal rows for the same grouping
-    * are untouched — those are separate, already-resolving consent flows.
+  /** Recipient-initiated unilateral withdrawal (item 9) — Bob stops holding secretId (or all secrets from a given
+    * sender). Unlike `deleteShareRequests`, this does not hard-delete the matching Deposit rows; it flips matching
+    * `Approved` Deposit rows to `Withdrawn` so the sender's next poll can observe the tombstone. Retrieval/Removal rows
+    * for the same grouping are untouched — those are separate, already-resolving consent flows.
     *
-    * Best-effort and fire-and-forget: the relay may still garbage-collect a `Withdrawn` row at
-    * any time, so its absence must never be read as a signal — only an *observed* `Withdrawn`
-    * row counts. See deposplit.com/CLAUDE.md "What is next" item 9.
+    * Best-effort and fire-and-forget: the relay may still garbage-collect a `Withdrawn` row at any time, so its absence
+    * must never be read as a signal — only an *observed* `Withdrawn` row counts. See deposplit.com/CLAUDE.md "What is
+    * next" item 9.
     */
   def withdrawShareRequests(
       recipientKey: PublicKey,

@@ -24,12 +24,11 @@
 
 package value_objects.svo
 
-/** The matched pairing of signing algorithm + key-agreement algorithm an identity currently uses
-  * — see deposplit.com/CLAUDE.md "What is next" item 14 ("crypto agility"). One case exists today;
-  * the point of naming it explicitly is making a future fleet-wide algorithm swap an additive new
-  * case rather than a breaking wire-format migration. Client-side mirror of
-  * `hexagons/relay`'s `CipherSuite` (separate sbt subprojects, no dependency between them) —
-  * byte-for-byte/wire-value-for-wire-value identical; keep both in sync.
+/** The matched pairing of signing algorithm + key-agreement algorithm an identity currently uses — see
+  * deposplit.com/CLAUDE.md "What is next" item 14 ("crypto agility"). One case exists today; the point of naming it
+  * explicitly is making a future fleet-wide algorithm swap an additive new case rather than a breaking wire-format
+  * migration. Client-side mirror of `hexagons/relay`'s `CipherSuite` (separate sbt subprojects, no dependency between
+  * them) — byte-for-byte/wire-value-for-wire-value identical; keep both in sync.
   */
 enum CipherSuite(val wireValue: String, val verifyKeyLength: Int, val encKeyLength: Int):
   case Ed25519X25519V1 extends CipherSuite("ed25519+x25519-v1", verifyKeyLength = 32, encKeyLength = 32)

@@ -29,25 +29,22 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-/** Canonical byte constructions for the two payload-level signatures that ride with a
-  * ShareRequest row (`senderSignature`, `recipientSignature`), independent of the per-call
-  * transport-auth signature verified by `AuthHelper`.
+/** Canonical byte constructions for the two payload-level signatures that ride with a ShareRequest row
+  * (`senderSignature`, `recipientSignature`), independent of the per-call transport-auth signature verified by
+  * `AuthHelper`.
   *
-  * The transport signature authenticates the HTTP caller for one specific call and is never
-  * persisted — it gives a later reader of a row nothing to re-verify authorship against. These
-  * two signatures ride with the row instead, so any reader (not just the relay that received the
-  * original request) can independently re-verify who authored it, using only the author's
-  * Ed25519 public key. This is required for BYOR: a passive third-party relay performs no
+  * The transport signature authenticates the HTTP caller for one specific call and is never persisted — it gives a
+  * later reader of a row nothing to re-verify authorship against. These two signatures ride with the row instead, so
+  * any reader (not just the relay that received the original request) can independently re-verify who authored it,
+  * using only the author's Ed25519 public key. This is required for BYOR: a passive third-party relay performs no
   * verification of its own.
   *
-  * Same newline-joined UTF-8 idiom as the transport canonical string. Two deliberate choices
-  * exist purely to keep this byte-identical across three independently-implemented platforms
-  * (JVM, Kotlin, Swift):
-  *   - `secretCreatedAt` is encoded as epoch milliseconds, not an ISO-8601 string, to avoid
-  *     formatting drift between java.time and Swift's Date/ISO8601DateFormatter.
-  *   - UUIDs are rendered lowercase (Java/Kotlin's `UUID.toString` default) — Swift's
-  *     `UUID.uuidString` is uppercase by default and MUST be lowercased by the iOS
-  *     implementation to match.
+  * Same newline-joined UTF-8 idiom as the transport canonical string. Two deliberate choices exist purely to keep this
+  * byte-identical across three independently-implemented platforms (JVM, Kotlin, Swift):
+  *   - `secretCreatedAt` is encoded as epoch milliseconds, not an ISO-8601 string, to avoid formatting drift between
+  *     java.time and Swift's Date/ISO8601DateFormatter.
+  *   - UUIDs are rendered lowercase (Java/Kotlin's `UUID.toString` default) — Swift's `UUID.uuidString` is uppercase by
+  *     default and MUST be lowercased by the iOS implementation to match.
   */
 object PayloadCanonical:
 
@@ -55,9 +52,9 @@ object PayloadCanonical:
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
-    * `k`/`n` were added by item 8 (identity recovery) — populated for Deposit and
-    * Inventory, `None` for Retrieval/Removal; appended at the end of the sequence to
-    * keep the existing field order (and its cross-platform byte-vector test) undisturbed.
+    * `k`/`n` were added by item 8 (identity recovery) — populated for Deposit and Inventory, `None` for
+    * Retrieval/Removal; appended at the end of the sequence to keep the existing field order (and its cross-platform
+    * byte-vector test) undisturbed.
     */
   def forOpen(
       secretId: SecretId,
@@ -82,9 +79,8 @@ object PayloadCanonical:
       n.fold("")(_.toString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the recipient when responding to a share request (`recipientSignature`).
-    * Required on every response, including denials — a forged denial is as much a
-    * consent-authenticity violation as a forged approval.
+  /** Signed by the recipient when responding to a share request (`recipientSignature`). Required on every response,
+    * including denials — a forged denial is as much a consent-authenticity violation as a forged approval.
     */
   def forRespond(requestId: UUID, approved: Boolean, ciphertext: Option[Array[Byte]]): Array[Byte] =
     Seq(
@@ -93,15 +89,14 @@ object PayloadCanonical:
       ciphertext.fold("")(base64Std.encodeToString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who
-    * becomes `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone
-    * holding the old private key can produce this signature, which is what lets the recipient
-    * auto-verify and auto-accept the rotation without a fresh human re-verification.
+  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who becomes
+    * `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone holding the old private key can
+    * produce this signature, which is what lets the recipient auto-verify and auto-accept the rotation without a fresh
+    * human re-verification.
     *
-    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14
-    * field order — and this construction's cross-platform byte-vector test — undisturbed. No
-    * `oldCipherSuite` is signed — the recipient already has it pinned on the existing contact
-    * record.
+    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14 field order — and this
+    * construction's cross-platform byte-vector test — undisturbed. No `oldCipherSuite` is signed — the recipient
+    * already has it pinned on the existing contact record.
     */
   def forRotation(
       recipientKey: PublicKey,
@@ -116,12 +111,11 @@ object PayloadCanonical:
       newCipherSuite.wireValue
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller
-    * who becomes `CustodyHeartbeat.holderKey`. `secretIds` is sorted (lowercase `UUID.toString`)
-    * before joining so the signed bytes are independent of list-construction order on either
-    * side. The same construction covers the opt-out notice (`optedOut = true`, `secretIds`
-    * typically empty) — mechanically it is the same signed row, just a different meaning to the
-    * reader.
+  /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller who becomes
+    * `CustodyHeartbeat.holderKey`. `secretIds` is sorted (lowercase `UUID.toString`) before joining so the signed bytes
+    * are independent of list-construction order on either side. The same construction covers the opt-out notice
+    * (`optedOut = true`, `secretIds` typically empty) — mechanically it is the same signed row, just a different
+    * meaning to the reader.
     */
   def forHeartbeat(ownerKey: PublicKey, secretIds: Seq[UUID], optedOut: Boolean): Array[Byte] =
     Seq(

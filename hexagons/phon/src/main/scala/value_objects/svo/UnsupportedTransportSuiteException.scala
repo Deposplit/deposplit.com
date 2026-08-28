@@ -24,8 +24,7 @@
 
 package value_objects.svo
 
-/** Thrown by `ShareEncryption.decrypt` when a ciphertext's leading suite-tag byte doesn't match
-  * any [[TransportSuite]] this app version supports — never a silent misparse. See
-  * deposplit.com/CLAUDE.md item 14.
+/** Thrown by `ShareEncryption.decrypt` when a ciphertext's leading suite-tag byte doesn't match any [[TransportSuite]]
+  * this app version supports — never a silent misparse. See deposplit.com/CLAUDE.md item 14.
   */
 final case class UnsupportedTransportSuiteException(message: String) extends Exception(message)

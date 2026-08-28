@@ -25,4 +25,4 @@
 package driven_ports
 
 trait ForgettableIdentityStore extends IdentityStore:
-    def forget(): Unit
+  def forget(): Unit

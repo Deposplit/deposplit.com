@@ -28,9 +28,8 @@ import java.util.Base64
 
 /** Base64url-decoded bytes of a signature.
   *
-  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a
-  * future signing algorithm will not share Ed25519's 64-byte signature size, so only a generous
-  * sanity bound is enforced here.
+  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a future signing
+  * algorithm will not share Ed25519's 64-byte signature size, so only a generous sanity bound is enforced here.
   */
 opaque type Signature = Array[Byte]
 

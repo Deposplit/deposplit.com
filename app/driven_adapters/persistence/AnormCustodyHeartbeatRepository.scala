@@ -69,17 +69,16 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
       get[String]("secret_ids") ~
       get[Boolean]("opted_out") ~
       get[Array[Byte]]("signature") ~
-      get[Instant]("created_at") map {
-        case id ~ holderKey ~ ownerKey ~ secretIds ~ optedOut ~ sig ~ createdAt =>
-          CustodyHeartbeat(
-            id = id,
-            holderKey = parseKey(holderKey),
-            ownerKey = parseKey(ownerKey),
-            secretIds = parseSecretIds(secretIds),
-            optedOut = optedOut,
-            signature = parseSignature(sig),
-            createdAt = createdAt
-          )
+      get[Instant]("created_at") map { case id ~ holderKey ~ ownerKey ~ secretIds ~ optedOut ~ sig ~ createdAt =>
+        CustodyHeartbeat(
+          id = id,
+          holderKey = parseKey(holderKey),
+          ownerKey = parseKey(ownerKey),
+          secretIds = parseSecretIds(secretIds),
+          optedOut = optedOut,
+          signature = parseSignature(sig),
+          createdAt = createdAt
+        )
       }
 
   // Plain select-then-insert-or-update rather than `ON CONFLICT ... DO UPDATE`: H2's PostgreSQL
@@ -91,9 +90,10 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
   // persisted, which is harmless: both are freshness proofs from the same holder.
   override def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat =
     db.withConnection { implicit conn =>
-      val existingId = SQL("SELECT id FROM custody_heartbeats WHERE holder_key = {holderKey} AND owner_key = {ownerKey}")
-        .on("holderKey" -> heartbeat.holderKey.toBytes, "ownerKey" -> heartbeat.ownerKey.toBytes)
-        .as(get[UUID]("id").singleOpt)
+      val existingId =
+        SQL("SELECT id FROM custody_heartbeats WHERE holder_key = {holderKey} AND owner_key = {ownerKey}")
+          .on("holderKey" -> heartbeat.holderKey.toBytes, "ownerKey" -> heartbeat.ownerKey.toBytes)
+          .as(get[UUID]("id").singleOpt)
 
       existingId match
         case Some(id) =>

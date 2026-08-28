@@ -40,7 +40,9 @@ class InMemoryCustodyHeartbeatRepository extends CustodyHeartbeatRepository:
   private def sameKey(a: PublicKey, b: PublicKey): Boolean = a.toBase64Url == b.toBase64Url
 
   override def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat =
-    heartbeats = heartbeats.filterNot(h => sameKey(h.holderKey, heartbeat.holderKey) && sameKey(h.ownerKey, heartbeat.ownerKey)) :+ heartbeat
+    heartbeats = heartbeats.filterNot(h =>
+      sameKey(h.holderKey, heartbeat.holderKey) && sameKey(h.ownerKey, heartbeat.ownerKey)
+    ) :+ heartbeat
     heartbeat
 
   override def getHeartbeatsForOwner(ownerKey: PublicKey): Seq[CustodyHeartbeat] =

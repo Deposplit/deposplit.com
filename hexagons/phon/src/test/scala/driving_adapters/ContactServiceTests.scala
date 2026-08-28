@@ -291,7 +291,13 @@ class ContactServiceTests extends munit.FunSuite:
     val svc = ContactService(repo)
 
     svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), nickname = Some("  Bobby  "))
-    svc.addFromQr("carol", Array.fill(32)(0x03.toByte), Array.fill(32)(0x04.toByte), CipherSuite.current, nickname = Some("   "))
+    svc.addFromQr(
+      "carol",
+      Array.fill(32)(0x03.toByte),
+      Array.fill(32)(0x04.toByte),
+      CipherSuite.current,
+      nickname = Some("   ")
+    )
 
     val contacts = repo.getAll()
     assertEquals(contacts.find(_.pseudonym == "bob").flatMap(_.nickname), Some("Bobby"))

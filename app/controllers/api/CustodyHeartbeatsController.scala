@@ -39,8 +39,8 @@ class CustodyHeartbeatsController @Inject() (
 ) extends BaseController,
       ApiSupport:
 
-  /** POST /custody-heartbeats — push (upsert) a signed heartbeat for one owner. The authenticated
-    * caller becomes `holderKey`.
+  /** POST /custody-heartbeats — push (upsert) a signed heartbeat for one owner. The authenticated caller becomes
+    * `holderKey`.
     */
   def pushHeartbeat() = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])

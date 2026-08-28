@@ -29,11 +29,10 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-/** Client-side mirror of `hexagons/relay`'s `PayloadCanonical` (this module can't depend on
-  * `relay` — separate sbt subprojects with no dependency between them). Byte-for-byte identical
-  * construction; keep both in sync. See the relay module's `PayloadCanonical` for the full
-  * rationale (epoch-millis timestamps, lowercase UUIDs — both exist purely to keep this
-  * byte-identical across the JVM, Kotlin, and Swift implementations).
+/** Client-side mirror of `hexagons/relay`'s `PayloadCanonical` (this module can't depend on `relay` — separate sbt
+  * subprojects with no dependency between them). Byte-for-byte identical construction; keep both in sync. See the relay
+  * module's `PayloadCanonical` for the full rationale (epoch-millis timestamps, lowercase UUIDs — both exist purely to
+  * keep this byte-identical across the JVM, Kotlin, and Swift implementations).
   */
 object PayloadCanonical:
 
@@ -42,8 +41,8 @@ object PayloadCanonical:
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
-    * `k`/`n` (item 8) are appended at the end of the sequence, keeping the existing field order
-    * — and this construction's cross-platform byte-vector test — undisturbed.
+    * `k`/`n` (item 8) are appended at the end of the sequence, keeping the existing field order — and this
+    * construction's cross-platform byte-vector test — undisturbed.
     */
   def forOpen(
       secretId: UUID,
@@ -76,17 +75,21 @@ object PayloadCanonical:
       ciphertext.fold("")(base64Std.encodeToString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who
-    * becomes `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone
-    * holding the old private key can produce this signature, which is what lets the recipient
-    * auto-verify and auto-accept the rotation without a fresh human re-verification.
+  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who becomes
+    * `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone holding the old private key can
+    * produce this signature, which is what lets the recipient auto-verify and auto-accept the rotation without a fresh
+    * human re-verification.
     *
-    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14
-    * field order — and this construction's cross-platform byte-vector test — undisturbed. No
-    * `oldCipherSuite` is signed — the recipient already has it pinned on the existing contact
-    * record.
+    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14 field order — and this
+    * construction's cross-platform byte-vector test — undisturbed. No `oldCipherSuite` is signed — the recipient
+    * already has it pinned on the existing contact record.
     */
-  def forRotation(recipientKey: Array[Byte], newVerifyKey: Array[Byte], newEncKey: Array[Byte], newCipherSuite: CipherSuite): Array[Byte] =
+  def forRotation(
+      recipientKey: Array[Byte],
+      newVerifyKey: Array[Byte],
+      newEncKey: Array[Byte],
+      newCipherSuite: CipherSuite
+  ): Array[Byte] =
     Seq(
       base64Url.encodeToString(recipientKey),
       base64Url.encodeToString(newVerifyKey),
@@ -94,12 +97,11 @@ object PayloadCanonical:
       newCipherSuite.wireValue
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller
-    * who becomes `CustodyHeartbeat.holderKey`. `secretIds` is sorted (lowercase `UUID.toString`)
-    * before joining so the signed bytes are independent of list-construction order on either
-    * side. The same construction covers the opt-out notice (`optedOut = true`, `secretIds`
-    * typically empty) — mechanically it is the same signed row, just a different meaning to the
-    * reader.
+  /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller who becomes
+    * `CustodyHeartbeat.holderKey`. `secretIds` is sorted (lowercase `UUID.toString`) before joining so the signed bytes
+    * are independent of list-construction order on either side. The same construction covers the opt-out notice
+    * (`optedOut = true`, `secretIds` typically empty) — mechanically it is the same signed row, just a different
+    * meaning to the reader.
     */
   def forHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean): Array[Byte] =
     Seq(

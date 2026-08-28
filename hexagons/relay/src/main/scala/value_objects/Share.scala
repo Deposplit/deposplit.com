@@ -28,11 +28,10 @@ import java.time.Instant
 
 /** A deposited share row in the relay.
   *
-  * `ciphertext` is opaque to the server and is present only while the share is in the recipient's
-  * inbox (before pickup). Once the recipient picks up the share, `ciphertext` is set to `None` and
-  * `pickedUpAt` is set to the pickup timestamp — the ciphertext now lives only on the recipient's
-  * device. The row is retained for routing and listing purposes until the sender or recipient
-  * explicitly deletes it.
+  * `ciphertext` is opaque to the server and is present only while the share is in the recipient's inbox (before
+  * pickup). Once the recipient picks up the share, `ciphertext` is set to `None` and `pickedUpAt` is set to the pickup
+  * timestamp — the ciphertext now lives only on the recipient's device. The row is retained for routing and listing
+  * purposes until the sender or recipient explicitly deletes it.
   */
 case class Share(
     id: java.util.UUID,

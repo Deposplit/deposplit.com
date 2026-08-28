@@ -26,12 +26,11 @@ package value_objects.svo
 
 import java.util.UUID
 
-/** Item 13 — the outcome of `ShareManagement.reconstruct`'s over-determination cross-check.
-  * `NoMargin` means exactly k shares were available (no surplus to check against — the
-  * "reconstructed without integrity margin" case). `Confirmed` means more than k were collected
-  * and all of them agreed. `ExcludedSuspects` means more than k were collected, at least one
-  * disagreed, and the disagreeing share(s) were identified and excluded — the reconstructed
-  * secret still comes from a group large enough to make that exclusion provably correct (see
+/** Item 13 — the outcome of `ShareManagement.reconstruct`'s over-determination cross-check. `NoMargin` means exactly k
+  * shares were available (no surplus to check against — the "reconstructed without integrity margin" case). `Confirmed`
+  * means more than k were collected and all of them agreed. `ExcludedSuspects` means more than k were collected, at
+  * least one disagreed, and the disagreeing share(s) were identified and excluded — the reconstructed secret still
+  * comes from a group large enough to make that exclusion provably correct (see
   * `shamir.SecretSharing.combineWithIntegrity`), not a guess.
   */
 enum ReconstructionIntegrity extends Serializable:

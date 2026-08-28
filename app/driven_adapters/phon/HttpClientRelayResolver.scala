@@ -31,11 +31,10 @@ import jakarta.inject.Inject
 
 import java.util.concurrent.ConcurrentHashMap
 
-/** phon is a manual-testing dev tool, not a real device — it has no persisted "default relay"
-  * setting (unlike Android/iOS's runtime-configurable default). It hardcodes the same
-  * `localhost:9000` default `HttpClientShareRelay` always used, but still honors a per-contact
-  * `relayBaseUrl` override so BYOR can be exercised in interop testing (e.g. two local `sbt run`
-  * instances on different ports).
+/** phon is a manual-testing dev tool, not a real device — it has no persisted "default relay" setting (unlike
+  * Android/iOS's runtime-configurable default). It hardcodes the same `localhost:9000` default `HttpClientShareRelay`
+  * always used, but still honors a per-contact `relayBaseUrl` override so BYOR can be exercised in interop testing
+  * (e.g. two local `sbt run` instances on different ports).
   */
 class HttpClientRelayResolver @Inject() (identity: Identity) extends ShareRelayResolver:
 

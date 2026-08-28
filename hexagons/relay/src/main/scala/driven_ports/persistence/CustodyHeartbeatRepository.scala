@@ -28,8 +28,8 @@ import value_objects.*
 
 trait CustodyHeartbeatRepository:
 
-  /** Upserts by `(holderKey, ownerKey)` — a fresh push from the same holder to the same owner
-    * replaces the previous one rather than accumulating. Returns the row as actually persisted.
+  /** Upserts by `(holderKey, ownerKey)` — a fresh push from the same holder to the same owner replaces the previous one
+    * rather than accumulating. Returns the row as actually persisted.
     */
   def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat
 

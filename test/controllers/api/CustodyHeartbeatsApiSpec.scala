@@ -32,9 +32,8 @@ import play.api.test.Helpers.*
 
 import java.util.UUID
 
-/** Integration tests for POST/GET /custody-heartbeats (item 12's signed custodial-heartbeat
-  * push). Runs in declaration order and shares a single in-memory H2 database via
-  * GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
+/** Integration tests for POST/GET /custody-heartbeats (item 12's signed custodial-heartbeat push). Runs in declaration
+  * order and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
   */
 class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
@@ -77,8 +76,9 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       // Signed as if by alice, but posted (and transport-authenticated) as bob.
       val secretId = UUID.randomUUID().toString
       val sig = alice.signHeartbeat(alice.publicKeyHeader, Seq(secretId), false)
-      val body = s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"signature":"$sig"}"""
-        .getBytes("UTF-8")
+      val body =
+        s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"signature":"$sig"}"""
+          .getBytes("UTF-8")
       val result = route(app, bob.post("/custody-heartbeats", body)).get
       status(result) mustBe BAD_REQUEST
     }
@@ -94,15 +94,21 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(route(app, bob.post("/custody-heartbeats", pushBody(bob, alice))).get) mustBe CREATED
 
       val listResult = route(app, alice.get("/custody-heartbeats")).get
-      contentAsJson(listResult).as[JsArray].value.count(j => (j \ "holderKey").as[String] == bob.publicKeyHeader) mustBe 1
+      contentAsJson(listResult)
+        .as[JsArray]
+        .value
+        .count(j => (j \ "holderKey").as[String] == bob.publicKeyHeader) mustBe 1
     }
 
     "an opted-out push replaces a prior non-opted-out heartbeat from the same holder" in {
       status(route(app, charlie.post("/custody-heartbeats", pushBody(charlie, alice))).get) mustBe CREATED
-      status(route(app, charlie.post("/custody-heartbeats", pushBody(charlie, alice, Seq.empty, optedOut = true))).get) mustBe CREATED
+      status(
+        route(app, charlie.post("/custody-heartbeats", pushBody(charlie, alice, Seq.empty, optedOut = true))).get
+      ) mustBe CREATED
 
       val listResult = route(app, alice.get("/custody-heartbeats")).get
-      val fromCharlie = contentAsJson(listResult).as[JsArray].value.filter(j => (j \ "holderKey").as[String] == charlie.publicKeyHeader)
+      val fromCharlie =
+        contentAsJson(listResult).as[JsArray].value.filter(j => (j \ "holderKey").as[String] == charlie.publicKeyHeader)
       fromCharlie.size mustBe 1
       (fromCharlie.head \ "optedOut").as[Boolean] mustBe true
     }

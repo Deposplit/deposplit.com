@@ -30,13 +30,12 @@ import play.api.routing.Router
 import play.api.test.*
 import play.api.test.Helpers.*
 
-/** `ApiHostPathFilter` splits one deployment across two hostnames: the REST API on `api.`
-  * and everything else on `www.`.
+/** `ApiHostPathFilter` splits one deployment across two hostnames: the REST API on `api.` and everything else on
+  * `www.`.
   *
-  * The audit below is the point of this spec. The filter classifies paths from a hardcoded
-  * list, and that list once named only `/share-requests` — so when `/key-rotations` and
-  * `/custody-heartbeats` were added, both were redirected off `api.` and away from the
-  * endpoint the native apps call. Deriving the expectation from the router means adding a
+  * The audit below is the point of this spec. The filter classifies paths from a hardcoded list, and that list once
+  * named only `/share-requests` — so when `/key-rotations` and `/custody-heartbeats` were added, both were redirected
+  * off `api.` and away from the endpoint the native apps call. Deriving the expectation from the router means adding a
   * fourth endpoint without updating the list fails here instead of in production.
   */
 class ApiHostPathFilterSpec extends PlaySpec with GuiceOneAppPerSuite {

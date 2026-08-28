@@ -105,7 +105,9 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** GET /share-requests?role=sender|recipient[&type=deposit|retrieval|removal|inventory][&state=pending|approved|denied|withdrawn] */
+  /** GET
+    * /share-requests?role=sender|recipient[&type=deposit|retrieval|removal|inventory][&state=pending|approved|denied|withdrawn]
+    */
   def listShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
@@ -189,10 +191,9 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral
-    * withdrawal (item 9). Flips matching approved Deposit rows to `withdrawn` instead of
-    * deleting them, so the sender's next poll can observe the tombstone. Best-effort and
-    * fire-and-forget — see deposplit.com/CLAUDE.md "What is next" item 9.
+  /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral withdrawal (item 9).
+    * Flips matching approved Deposit rows to `withdrawn` instead of deleting them, so the sender's next poll can
+    * observe the tombstone. Best-effort and fire-and-forget — see deposplit.com/CLAUDE.md "What is next" item 9.
     */
   def withdrawShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for

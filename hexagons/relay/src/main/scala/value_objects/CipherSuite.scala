@@ -24,18 +24,16 @@
 
 package value_objects
 
-/** The matched pairing of signing algorithm + key-agreement algorithm an identity currently uses
-  * — see deposplit.com/CLAUDE.md "What is next" item 14 ("crypto agility"). One case exists today;
-  * the point of naming it explicitly is making a future fleet-wide algorithm swap an additive new
-  * case rather than a breaking wire-format migration. Bundled as one value (not two independent
-  * per-algorithm tags) because both of a device's keypairs are generated together and rotate
-  * together — nothing today expresses "signing algorithm A with agreement algorithm B" as a valid
-  * combination distinct from this one.
+/** The matched pairing of signing algorithm + key-agreement algorithm an identity currently uses — see
+  * deposplit.com/CLAUDE.md "What is next" item 14 ("crypto agility"). One case exists today; the point of naming it
+  * explicitly is making a future fleet-wide algorithm swap an additive new case rather than a breaking wire-format
+  * migration. Bundled as one value (not two independent per-algorithm tags) because both of a device's keypairs are
+  * generated together and rotate together — nothing today expresses "signing algorithm A with agreement algorithm B" as
+  * a valid combination distinct from this one.
   *
-  * `wireValue` follows `ShareTransactionType`'s pattern: a string, not an ordinal, since ordinals
-  * aren't safe across independently hand-ported enums on three other platforms.
-  * `verifyKeyLength`/`encKeyLength` are what let key-length validation be suite-driven instead of
-  * a bare hardcoded constant — see `PublicKey`/`X25519Key`.
+  * `wireValue` follows `ShareTransactionType`'s pattern: a string, not an ordinal, since ordinals aren't safe across
+  * independently hand-ported enums on three other platforms. `verifyKeyLength`/`encKeyLength` are what let key-length
+  * validation be suite-driven instead of a bare hardcoded constant — see `PublicKey`/`X25519Key`.
   */
 enum CipherSuite(val wireValue: String, val verifyKeyLength: Int, val encKeyLength: Int):
   case Ed25519X25519V1 extends CipherSuite("ed25519+x25519-v1", verifyKeyLength = 32, encKeyLength = 32)

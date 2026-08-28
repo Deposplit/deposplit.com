@@ -37,14 +37,13 @@ import scala.concurrent.Future
 
 /** Keeps the REST API on `api.` and everything else on `www.`.
   *
-  * A request that arrives on the wrong host is redirected to the right one rather than
-  * served, so there is exactly one canonical host per surface.
+  * A request that arrives on the wrong host is redirected to the right one rather than served, so there is exactly one
+  * canonical host per surface.
   *
-  * The API surface is enumerated in [[ApiHostPathFilter.apiPathPrefixes]]. That list must
-  * cover every path routed to a `controllers.api.*` action — a path missing from it is
-  * redirected off `api.` and away from the endpoint the native apps actually call.
-  * `ApiHostPathFilterSpec` asserts the list against the router, so adding an endpoint
-  * without updating it fails the build rather than production.
+  * The API surface is enumerated in [[ApiHostPathFilter.apiPathPrefixes]]. That list must cover every path routed to a
+  * `controllers.api.*` action — a path missing from it is redirected off `api.` and away from the endpoint the native
+  * apps actually call. `ApiHostPathFilterSpec` asserts the list against the router, so adding an endpoint without
+  * updating it fails the build rather than production.
   */
 class ApiHostPathFilter @Inject() (implicit val mat: Materializer, env: Environment) extends Filter:
 
@@ -73,8 +72,8 @@ class ApiHostPathFilter @Inject() (implicit val mat: Materializer, env: Environm
 
 object ApiHostPathFilter:
 
-  /** Every path prefix belonging to the REST API, i.e. routed to a `controllers.api.*`
-    * action. Kept in sync with `conf/routes` by `ApiHostPathFilterSpec`.
+  /** Every path prefix belonging to the REST API, i.e. routed to a `controllers.api.*` action. Kept in sync with
+    * `conf/routes` by `ApiHostPathFilterSpec`.
     */
   val apiPathPrefixes: Seq[String] =
     Seq("/share-requests", "/key-rotations", "/custody-heartbeats")

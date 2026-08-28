@@ -24,7 +24,6 @@
 
 package driven_ports
 
-
 /* IdentityStore manages exactly one thing: the current user's keypair and pseudonym. There's no list, no ID-based
  * lookup, no getAll(). The interface is essentially a typed credential store — save(...) once at registration, then
  * read individual fields. Calling it IdentityRepository would imply a collection of identities could exist, which
@@ -32,7 +31,13 @@ package driven_ports
  */
 trait IdentityStore:
   def isRegistered(): Boolean
-  def save(pseudonym: String, verifyKey: Array[Byte], signKey: Array[Byte], encKey: Array[Byte], decKey: Array[Byte]): Unit
+  def save(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit
   def pseudonym(): String
   def verifyKey(): Array[Byte]
   def signKey(): Array[Byte]

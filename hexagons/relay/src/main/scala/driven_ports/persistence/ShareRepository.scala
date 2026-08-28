@@ -49,13 +49,13 @@ trait ShareRepository:
       state: Option[ShareRequestState]
   ): Seq[ShareRequest]
 
-  /** True if a non-denied Deposit already exists for this (secretId, recipientKey) pair.
-    * Used to prevent duplicate deposits (a denied Deposit allows re-deposit).
+  /** True if a non-denied Deposit already exists for this (secretId, recipientKey) pair. Used to prevent duplicate
+    * deposits (a denied Deposit allows re-deposit).
     */
   def hasActiveDeposit(secretId: SecretId, recipientKey: PublicKey): Boolean
 
-  /** True if a Pending request of the given type already exists for this
-    * (secretId, senderKey, recipientKey) triple. Used for Retrieval and Removal.
+  /** True if a Pending request of the given type already exists for this (secretId, senderKey, recipientKey) triple.
+    * Used for Retrieval and Removal.
     */
   def hasPendingRequest(
       secretId: SecretId,
@@ -76,9 +76,8 @@ trait ShareRepository:
   /** Deletes a single request row by primary key. */
   def deleteShareRequestById(id: UUID): Unit
 
-  /** Bulk delete — all rows where `recipientKey` matches, optionally filtered
-    * by `senderKey` and/or `secretId`. Used for recipient-initiated cleanup and
-    * cascaded deletion when a Deposit row is removed.
+  /** Bulk delete — all rows where `recipientKey` matches, optionally filtered by `senderKey` and/or `secretId`. Used
+    * for recipient-initiated cleanup and cascaded deletion when a Deposit row is removed.
     */
   def deleteShareRequests(
       recipientKey: PublicKey,
@@ -86,8 +85,8 @@ trait ShareRepository:
       secretId: Option[SecretId]
   ): Unit
 
-  /** Flips matching `Approved` Deposit rows (recipientKey match, optionally filtered by
-    * senderKey and/or secretId) to `Withdrawn`, in place — see `ShareRequests.withdrawShareRequests`.
+  /** Flips matching `Approved` Deposit rows (recipientKey match, optionally filtered by senderKey and/or secretId) to
+    * `Withdrawn`, in place — see `ShareRequests.withdrawShareRequests`.
     */
   def withdrawDeposits(
       recipientKey: PublicKey,

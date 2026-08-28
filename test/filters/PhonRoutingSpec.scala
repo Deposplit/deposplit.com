@@ -31,13 +31,12 @@ import play.api.routing.Router
 import play.api.test.*
 import play.api.test.Helpers.*
 
-/** phon is a teaching and manual-testing tool. It is mounted only by the development
-  * router (`conf/dev.routes`), and its Guice bindings live in `PhonModule`, which only
-  * `conf/localhost.conf` enables.
+/** phon is a teaching and manual-testing tool. It is mounted only by the development router (`conf/dev.routes`), and
+  * its Guice bindings live in `PhonModule`, which only `conf/localhost.conf` enables.
   *
-  * Production therefore has no phon route, no phon controller and no phon binding. These
-  * tests pin that down from both ends: production must not reach phon, and — the failure
-  * that hid here for a long time — production must still be able to start.
+  * Production therefore has no phon route, no phon controller and no phon binding. These tests pin that down from both
+  * ends: production must not reach phon, and — the failure that hid here for a long time — production must still be
+  * able to start.
   */
 class PhonRoutingSpec extends PlaySpec {
 

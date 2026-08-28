@@ -39,8 +39,8 @@ class KeyRotationsController @Inject() (
 ) extends BaseController,
       ApiSupport:
 
-  /** POST /key-rotations — push a signed rotation notice to one contact. The authenticated
-    * caller becomes `oldVerifyKey`.
+  /** POST /key-rotations — push a signed rotation notice to one contact. The authenticated caller becomes
+    * `oldVerifyKey`.
     */
   def pushRotation() = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])

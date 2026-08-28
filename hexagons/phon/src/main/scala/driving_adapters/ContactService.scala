@@ -41,11 +41,23 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
 
   // No cipherSuite parameter: manual entry has no wire payload to read one from, and only one
   // suite exists to assume — see ContactManagement.addManually.
-  def addManually(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit =
+  def addManually(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      encKey: Array[Byte],
+      relayBaseUrl: Option[String] = None,
+      nickname: Option[String] = None
+  ): Unit =
     val cipherSuite = CipherSuite.current
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
-    require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
-    require(encKey.length == cipherSuite.encKeyLength, s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite")
+    require(
+      verifyKey.length == cipherSuite.verifyKeyLength,
+      s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite"
+    )
+    require(
+      encKey.length == cipherSuite.encKeyLength,
+      s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite"
+    )
     val now = Instant.now()
     contactRepository.save(
       Contact(
@@ -62,10 +74,23 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       )
     )
 
-  def addFromQr(pseudonym: String, verifyKey: Array[Byte], encKey: Array[Byte], cipherSuite: CipherSuite, relayBaseUrl: Option[String] = None, nickname: Option[String] = None): Unit =
+  def addFromQr(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      encKey: Array[Byte],
+      cipherSuite: CipherSuite,
+      relayBaseUrl: Option[String] = None,
+      nickname: Option[String] = None
+  ): Unit =
     require(pseudonym.nonEmpty, "pseudonym must not be blank")
-    require(verifyKey.length == cipherSuite.verifyKeyLength, s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite")
-    require(encKey.length == cipherSuite.encKeyLength, s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite")
+    require(
+      verifyKey.length == cipherSuite.verifyKeyLength,
+      s"Verify key must be ${cipherSuite.verifyKeyLength} bytes for $cipherSuite"
+    )
+    require(
+      encKey.length == cipherSuite.encKeyLength,
+      s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite"
+    )
     val now = Instant.now()
     contactRepository.save(
       Contact(
@@ -93,8 +118,18 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       .getById(contactId)
       .getOrElse(throw IllegalStateException(s"Contact not found for id $contactId"))
     val effectiveSuite = cipherSuite.getOrElse(existing.cipherSuite)
-    verifyKey.foreach(k => require(k.length == effectiveSuite.verifyKeyLength, s"Verify key must be ${effectiveSuite.verifyKeyLength} bytes for $effectiveSuite"))
-    encKey.foreach(k => require(k.length == effectiveSuite.encKeyLength, s"Enc key must be ${effectiveSuite.encKeyLength} bytes for $effectiveSuite"))
+    verifyKey.foreach(k =>
+      require(
+        k.length == effectiveSuite.verifyKeyLength,
+        s"Verify key must be ${effectiveSuite.verifyKeyLength} bytes for $effectiveSuite"
+      )
+    )
+    encKey.foreach(k =>
+      require(
+        k.length == effectiveSuite.encKeyLength,
+        s"Enc key must be ${effectiveSuite.encKeyLength} bytes for $effectiveSuite"
+      )
+    )
     // Item 14 — a cipher-suite-only change (no key-value change) forces the same fresh-level
     // rule as a key change: it's still continuity of key control, not a fresh personhood check.
     val changingIdentity = verifyKey.isDefined || encKey.isDefined || cipherSuite.isDefined
@@ -109,7 +144,8 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         encKey = encKey.getOrElse(existing.encKey),
         cipherSuite = effectiveSuite,
         verificationLevel = newLevel.getOrElse(existing.verificationLevel),
-        verifiedAt = if changingIdentity || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
+        verifiedAt =
+          if changingIdentity || verificationLevel.isDefined then Some(Instant.now()) else existing.verifiedAt,
         revokedVerifyKeys = existing.revokedVerifyKeys,
         keyChangedAt = if changingIdentity then Some(Instant.now()) else existing.keyChangedAt
       )
