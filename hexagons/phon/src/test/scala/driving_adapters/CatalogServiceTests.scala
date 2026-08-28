@@ -40,7 +40,8 @@ import java.util.UUID
 private class InMemoryContactRepositoryForCatalogTest extends ContactRepository:
   private var contacts: List[Contact] = Nil
   override def getAll(): List[Contact] = contacts
-  override def getByEdKey(verifyKey: Array[Byte]): Option[Contact] = contacts.find(_.verifyKey.sameElements(verifyKey))
+  override def getByVerifyKey(verifyKey: Array[Byte]): Option[Contact] =
+    contacts.find(_.verifyKey.sameElements(verifyKey))
   override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
   override def delete(contactId: UUID): Unit = contacts = contacts.filterNot(_.id == contactId)

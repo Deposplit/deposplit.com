@@ -69,7 +69,7 @@ private object TestKeyPair:
 private class FakeContactRepository(initial: List[Contact]) extends ContactRepository:
   private var contacts: List[Contact] = initial
   override def getAll(): List[Contact] = contacts
-  override def getByEdKey(verifyKey: Array[Byte]): Option[Contact] =
+  override def getByVerifyKey(verifyKey: Array[Byte]): Option[Contact] =
     contacts.find(_.verifyKey.sameElements(verifyKey))
   override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
@@ -107,8 +107,8 @@ private class FakeKeyConflictRepository extends KeyConflictRepository:
   override def delete(id: UUID): Unit = conflicts = conflicts.filterNot(_.id == id)
 
 private object NoOpShareEncryption extends ShareEncryption:
-  override def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] = plaintext
-  override def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] = noncePlusCiphertext
+  override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
+  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = noncePlusCiphertext
 
 /** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns
   * whatever `pending` is configured to, which is all these tests need.
@@ -1233,8 +1233,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       addedAt = Instant.now()
     )
     val (svc, bob, _, _, _, _, _) = newService(relay, List(aliceContact, charlieContact))
-    val oldEdKey = bob.verifyKey()
-    val oldXKey = bob.encKey()
+    val oldVerifyKey = bob.verifyKey()
+    val oldEncKey = bob.encKey()
 
     val result = svc.regenerateIdentity()
 
@@ -1246,18 +1246,18 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       assertEquals(pushed.newCipherSuite, CipherSuite.current)
       val canon = PayloadCanonical.forRotation(pushed.recipientKey, pushed.newVerifyKey, pushed.newEncKey, pushed.newCipherSuite)
       // Signed by the OLD identity, proving continuity — not by the key it's rotating to.
-      assert(bob.verify(canon, pushed.signature, oldEdKey))
+      assert(bob.verify(canon, pushed.signature, oldVerifyKey))
       assert(!bob.verify(canon, pushed.signature, pushed.newVerifyKey))
     }
     // The new identity is now live.
-    assert(!bob.verifyKey().sameElements(oldEdKey))
-    assert(!bob.encKey().sameElements(oldXKey))
+    assert(!bob.verifyKey().sameElements(oldVerifyKey))
+    assert(!bob.encKey().sameElements(oldEncKey))
   }
 
   test("regenerateIdentity drains the pending inbox under the old identity before rotating") {
     val relay = FakeShareRelay()
     val (svc, bob, shareRepo, _, _, _, _) = newService(relay)
-    val oldEdKey = bob.verifyKey()
+    val oldVerifyKey = bob.verifyKey()
     val depositId = UUID.randomUUID()
     val unsigned = depositRow(depositId, aliceKeys.publicKey, bob.verifyKey(), Array.emptyByteArray)
     val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
@@ -1273,7 +1273,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assertEquals(approved.state, ShareRequestState.Approved)
     val sig = approved.recipientSignature.getOrElse(fail("expected a recipientSignature"))
     val canon = PayloadCanonical.forRespond(depositId, true, None)
-    assert(bob.verify(canon, sig, oldEdKey))
+    assert(bob.verify(canon, sig, oldVerifyKey))
   }
 
   test("regenerateIdentity still activates the new keys when one contact's relay is unreachable") {
@@ -1307,7 +1307,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
-    val oldEdKey = bobIdentity.verifyKey()
+    val oldVerifyKey = bobIdentity.verifyKey()
 
     val result = svc.regenerateIdentity()
 
@@ -1316,5 +1316,5 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assertEquals(defaultRelay.pushedRotations.size, 1)
     assert(byorRelay.pushedRotations.isEmpty)
     // The swap still completes even though one contact couldn't be notified.
-    assert(!bobIdentity.verifyKey().sameElements(oldEdKey))
+    assert(!bobIdentity.verifyKey().sameElements(oldVerifyKey))
   }

@@ -69,8 +69,8 @@ class FileContactRepository @Inject() (config: Configuration) extends ContactRep
 
   override def getAll(): List[Contact] = contacts.toList
 
-  override def getByEdKey(edPublicKey: Array[Byte]): Option[Contact] =
-    contacts.find(_.verifyKey == edPublicKey)
+  override def getByVerifyKey(verifyKey: Array[Byte]): Option[Contact] =
+    contacts.find(_.verifyKey.sameElements(verifyKey))
 
   override def getById(id: UUID): Option[Contact] =
     contacts.find(_.id == id)

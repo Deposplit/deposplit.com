@@ -91,14 +91,14 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
   test("generateNewKeyPair does not touch storage") {
     val alice = newIdentity()
-    val originalEdKey = alice.verifyKey()
-    val originalXKey = alice.encKey()
+    val originalVerifyKey = alice.verifyKey()
+    val originalEncKey = alice.encKey()
     val candidate = alice.generateNewKeyPair()
-    assert(!candidate.verifyKey.sameElements(originalEdKey))
-    assert(!candidate.encKey.sameElements(originalXKey))
+    assert(!candidate.verifyKey.sameElements(originalVerifyKey))
+    assert(!candidate.encKey.sameElements(originalEncKey))
     // Unpersisted — the live identity hasn't moved.
-    assert(alice.verifyKey().sameElements(originalEdKey))
-    assert(alice.encKey().sameElements(originalXKey))
+    assert(alice.verifyKey().sameElements(originalVerifyKey))
+    assert(alice.encKey().sameElements(originalEncKey))
   }
 
   test("activateKeyPair persists the new keys and preserves the pseudonym") {
@@ -112,13 +112,13 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
   test("sign after activateKeyPair verifies against the new key not the old") {
     val alice = newIdentity()
-    val oldEdKey = alice.verifyKey()
+    val oldVerifyKey = alice.verifyKey()
     val candidate = alice.generateNewKeyPair()
     alice.activateKeyPair(candidate)
     val message = "post-rotation message".getBytes("UTF-8")
     val sig = alice.sign(message)
     assert(alice.verify(message, sig, candidate.verifyKey))
-    assert(!alice.verify(message, sig, oldEdKey))
+    assert(!alice.verify(message, sig, oldVerifyKey))
   }
 
   // ---------------------------------------------------------------------------

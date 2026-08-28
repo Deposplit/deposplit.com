@@ -48,6 +48,6 @@ trait Identity:
   def generateNewKeyPair(): KeyPairMaterial
 
   /** Item 9 — persists `keyPair` as this device's identity, preserving the existing pseudonym.
-    * After this call, `sign`/`edPublicKey`/`xPublicKey` all reflect the new keys.
+    * After this call, `sign`/`verifyKey`/`encKey` all reflect the new keys.
     */
   def activateKeyPair(keyPair: KeyPairMaterial): Unit

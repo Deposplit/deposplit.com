@@ -103,7 +103,7 @@ class ShareService @Inject() (
   // ── Signature helpers ────────────────────────────────────────────────────
 
   private def verifyOpen(req: ShareRequest): Boolean =
-    contactRepository.getByEdKey(req.senderKey).exists { contact =>
+    contactRepository.getByVerifyKey(req.senderKey).exists { contact =>
       val canon = PayloadCanonical.forOpen(
         req.secretId,
         req.transactionType,
@@ -120,7 +120,7 @@ class ShareService @Inject() (
 
   private def verifyRespond(req: ShareRequest): Boolean =
     req.recipientSignature.exists { sig =>
-      contactRepository.getByEdKey(req.recipientKey).exists { contact =>
+      contactRepository.getByVerifyKey(req.recipientKey).exists { contact =>
         val approved = req.state == ShareRequestState.Approved
         val signedCiphertext =
           if approved && req.transactionType == ShareTransactionType.Retrieval then req.ciphertext else None
@@ -179,7 +179,7 @@ class ShareService @Inject() (
           else
             // A row for a holder we no longer have a contact record for can't be re-anchored to
             // a contactId — skip rather than drop the holder's identity on the floor.
-            contactRepository.getByEdKey(req.recipientKey).foreach { contact =>
+            contactRepository.getByVerifyKey(req.recipientKey).foreach { contact =>
               val priorConfirmedAt = existingMetadata.find(_.id == req.id).flatMap(_.lastConfirmedAt)
               if req.state == ShareRequestState.Approved && isRetentionStillPending(req.id) then
                 // Item 12 — first-observed pickup confirmation (relay-observed channel): a
@@ -413,7 +413,7 @@ class ShareService @Inject() (
           .getOrElse(Nil)
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
-        contactRepository.getByEdKey(req.senderKey).foreach { senderContact =>
+        contactRepository.getByVerifyKey(req.senderKey).foreach { senderContact =>
           // A deposit without valid k/n can't happen against a conforming relay (required by
           // ShareRequestsService) — skip defensively rather than store a share we can't later
           // report thresholds for during recovery.
@@ -484,7 +484,7 @@ class ShareService @Inject() (
     allRelays().foreach { relay =>
       val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
       notices.foreach { notice =>
-        contactRepository.getByEdKey(notice.holderKey).foreach { contact =>
+        contactRepository.getByVerifyKey(notice.holderKey).foreach { contact =>
           val canon = PayloadCanonical.forHeartbeat(myKey, notice.secretIds, notice.optedOut)
           if identity.verify(canon, notice.signature, notice.holderKey) then
             if notice.optedOut then
@@ -520,7 +520,7 @@ class ShareService @Inject() (
     allRelays().foreach { relay =>
       val notices = Try(relay.listRotations()).getOrElse(Nil)
       notices.foreach { notice =>
-        contactRepository.getByEdKey(notice.oldVerifyKey).foreach { contact =>
+        contactRepository.getByVerifyKey(notice.oldVerifyKey).foreach { contact =>
           val canon = PayloadCanonical.forRotation(notice.recipientKey, notice.newVerifyKey, notice.newEncKey, notice.newCipherSuite)
           if identity.verify(canon, notice.signature, notice.oldVerifyKey) then
             // Item 10 — a rotation claiming continuity from a key the user has flagged
@@ -597,7 +597,7 @@ class ShareService @Inject() (
         Try(relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Inventory), Some(ShareRequestState.Approved)))
           .getOrElse(Nil)
       pushes.filter(verifyOpen).foreach { req =>
-        contactRepository.getByEdKey(req.senderKey).foreach { holderContact =>
+        contactRepository.getByVerifyKey(req.senderKey).foreach { holderContact =>
           (req.k, req.n) match
             case (Some(k), Some(n)) =>
               if secretRepository.getAll().forall(_.id != req.secretId) then
@@ -667,7 +667,7 @@ class ShareService @Inject() (
         // deposit time. This is what lets reconstruction survive a sender key rotation/recovery
         // (item 7's core reason for existing).
         val requesterContact = contactRepository
-          .getByEdKey(request.senderKey)
+          .getByVerifyKey(request.senderKey)
           .getOrElse(throw IllegalStateException(s"Contact not found for requester"))
         Some(encryption.encrypt(plaintext, requesterContact.encKey))
       else None

@@ -106,11 +106,11 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   // Item 14 — wire format is now suiteTag(1) || nonce(12) || ciphertext+tag. No persistent state
   // needed: a device always encrypts with its current preferred TransportSuite, and a decrypting
   // device dispatches on the tag it reads.
-  override def encrypt(plaintext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] =
+  override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
     val sk = X25519PrivateKeyParameters(identityStore.decKey())
     val nonce = Array.ofDim[Byte](IdentityService.NonceBytes)
     IdentityService.secureRandom.nextBytes(nonce)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientXPublicKey), nonce)
+    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce)
     val cipher = ChaCha20Poly1305()
     cipher.init(true, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(plaintext.length))
@@ -118,7 +118,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     len += cipher.doFinal(out, len)
     Array(TransportSuite.current.tag) ++ nonce ++ out.take(len)
 
-  override def decrypt(noncePlusCiphertext: Array[Byte], recipientXPublicKey: Array[Byte]): Array[Byte] =
+  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
     val tag = noncePlusCiphertext.headOption.getOrElse(
       throw UnsupportedTransportSuiteException("ciphertext is empty — no transport suite tag")
     )
@@ -127,7 +127,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     val sk = X25519PrivateKeyParameters(identityStore.decKey())
     val nonce = noncePlusCiphertext.slice(1, 1 + IdentityService.NonceBytes)
     val ciphertext = noncePlusCiphertext.drop(1 + IdentityService.NonceBytes)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientXPublicKey), nonce)
+    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce)
     val cipher = ChaCha20Poly1305()
     cipher.init(false, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(ciphertext.length))
