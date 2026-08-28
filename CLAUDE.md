@@ -79,6 +79,7 @@ sbt test                                    # all tests (276: relay 95, phon 108
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
+sbt scalafmtAll scalafmtSbt                 # reformat; CI fails the build if anything is unformatted
 ```
 
 Tests run against in-memory H2 via `conf/test.conf` — no external services needed.
@@ -123,7 +124,9 @@ locales must be kept in sync.
 
 - Match the surrounding code: this codebase uses explicit types at public boundaries and
   keeps value objects small and total.
-- Scala formatting is `scalafmt` (`.scalafmt.conf`).
+- Scala formatting is `scalafmt` (`.scalafmt.conf`), enforced by CI ahead of the tests. Run
+  `sbt scalafmtAll scalafmtSbt` before pushing rather than formatting by hand — and never mix
+  a reformat into a behavioural commit, which buries the change.
 - Line endings are CRLF on Windows; `core.autocrlf` handles the conversion, so do not
   hand-convert files.
 - Do not reference work items by number in code comments or documentation. Say what the
