@@ -1200,6 +1200,27 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       recipientSignature = Some(sig)
     )
 
+  /** A still-Pending retrieval row, as a previous requestAll would have left it — no recipientSignature, because a
+    * pending row has had no response phase yet.
+    */
+  private def makePendingRetrievalRow(secretId: UUID, recipientKey: Array[Byte]): ShareRequest =
+    ShareRequest(
+      id = UUID.randomUUID(),
+      secretId = secretId,
+      senderKey = Array.emptyByteArray,
+      recipientKey = recipientKey,
+      label = "s",
+      secretCreatedAt = Instant.now(),
+      transactionType = ShareTransactionType.Retrieval,
+      state = ShareRequestState.Pending,
+      shareId = Some(UUID.randomUUID()),
+      requestedAt = Instant.now(),
+      respondedAt = None,
+      ciphertext = None,
+      senderSignature = Array.emptyByteArray,
+      recipientSignature = None
+    )
+
   test("reconstruct with exactly k approved shares has no integrity margin") {
     val relay = FakeShareRelay()
     val holders = (0 until 4).map(i => makeHolderFixture(s"holder$i")).toList
@@ -1309,6 +1330,27 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val targeted = relay.openedRequests.map(_.recipientKey.toList).toSet
     val expected = Set(fresh.contact.verifyKey.toList, stale1.contact.verifyKey.toList, stale2.contact.verifyKey.toList)
     assertEquals(targeted, expected)
+  }
+
+  test("requestAll still asks a holder whose sibling already has an outstanding request") {
+    val relay = FakeShareRelay()
+    val standing = makeHolderFixture("standing")
+    val untouched = makeHolderFixture("untouched")
+    val (svc, _, _, secretRepo, metaRepo) =
+      newServiceForRecoveryTest(relay, List(standing.contact, untouched.contact))
+    val secretId = UUID.randomUUID()
+    secretRepo.save(Secret(secretId, "s", 2, 2, Instant.now(), SecretState.Active))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, standing.contact.id, lastConfirmedAt = None))
+    metaRepo.save(ShareMetadata(UUID.randomUUID(), secretId, untouched.contact.id, lastConfirmedAt = None))
+    // Neither holder is confirmed, so targeting widens to both — the case the per-secret skip used
+    // to blank out entirely. The row carries a *copy* of the key, as a relay round-trip would, so
+    // the skip has to compare bytes: reference identity would pass this fixture by accident.
+    relay.pending = List(makePendingRetrievalRow(secretId, standing.contact.verifyKey.clone()))
+
+    svc.requestAll(secretId)
+
+    val targeted = relay.openedRequests.map(_.recipientKey.toList)
+    assertEquals(targeted, List(untouched.contact.verifyKey.toList))
   }
 
   test("requestAll treats a heartbeat opted-out holder as not confirmed even with a recent timestamp") {

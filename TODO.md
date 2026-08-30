@@ -20,26 +20,6 @@ Nothing here is blocked; it needs devices and an hour. Flows are written up in
 - [ ] `A` `I` BYOR variant: two relays on different ports, one contact with a `relayBaseUrl` override, one without — verify routing and independent soft-failure
 - [ ] `A` `I` reconstruction integrity with a surplus holder: confirm the advisory reports the margin honestly
 
-## Make the retrieval fan-out skip per holder, not per secret
-
-`requestAll(secretId)` opens a retrieval request per holder and skips any holder who already
-has one outstanding. The skip test matches on `secretId` alone — but every holder of a secret
-shares that `secretId`, so the test evaluates identically for all of them. A single `Pending`
-or `Approved` retrieval row therefore turns the whole call into a no-op for that secret,
-including for holders who have no row of their own.
-
-Two consequences. A holder whose `openShareRequest` threw — the fan-out soft-fails per relay
-by design, so one unreachable host cannot blank out the rest — is never retried while a
-sibling's request still stands. And the fan-out deliberately widens from the confirmed-fresh
-set to every holder once the fresh ones cannot reach *k*; that widening call is also a no-op,
-so the additional holders are never asked.
-
-Nothing is lost — the user can re-request once the outstanding rows resolve — but the
-advertised behaviour is "ask everyone", and quietly asking nobody is not that.
-
-- [ ] `A` `I` `phon` narrow the skip test to the holder, matching the row's recipient key alongside `secretId`. Note that a holder who rotated keys since the row was opened will no longer match, which is correct: that row is unreachable under the new key anyway
-- [ ] `A` `I` `phon` cover it — an outstanding request for one holder must not stop a second holder being asked
-
 ## Persist the secret's MIME type
 
 `Secret` treats the payload as opaque bytes with no content type; the only hint is the

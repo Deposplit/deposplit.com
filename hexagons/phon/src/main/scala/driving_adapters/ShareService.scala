@@ -285,10 +285,15 @@ class ShareService @Inject() (
       val targets = if confirmed.size >= secret.k then confirmed else deposited
       targets.foreach { meta =>
         contactRepository.getById(meta.contactId).foreach { contact =>
-          // Matched on secretId, not the local shareId — a recovered ShareMetadata's id is a
-          // freshly generated local UUID with no relay-row counterpart. See item 8.
+          // Matched on secretId plus the holder's key. Not the local shareId — a recovered
+          // ShareMetadata's id is a freshly generated local UUID with no relay-row counterpart
+          // (see item 8). And not secretId alone — every holder of a secret shares it, so one
+          // standing row would silence the whole fan-out. A holder who rotated keys since the
+          // row was opened no longer matches, which is right: that row is unreachable under
+          // the new key anyway.
           val hasActive = existing.exists(r =>
             r.secretId == meta.secretId &&
+              r.recipientKey.sameElements(contact.verifyKey) &&
               (r.state == ShareRequestState.Pending || r.state == ShareRequestState.Approved)
           )
           if !hasActive then
