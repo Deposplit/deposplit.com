@@ -860,7 +860,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assert(repo.getShareRequestById(req2.id).isDefined)
   }
 
-  // --- withdrawShareRequests (item 9 — recipient-initiated tombstone) ---
+  // --- withdrawShareRequests (recipient-initiated tombstone) ---
 
   test("withdrawShareRequests flips an approved deposit to Withdrawn instead of deleting it") {
     val (repo, service) = newService()
@@ -953,7 +953,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assert(redeposit.isRight)
   }
 
-  // --- k/n (item 8) ---
+  // --- k/n ---
 
   test("Deposit stores k and n") {
     val (_, service) = newService()
@@ -1091,7 +1091,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assertEquals(result, Left(Error.BadRequest))
   }
 
-  // --- Inventory (item 8) ---
+  // --- Inventory ---
 
   test("Inventory self-approves on open — no consent phase") {
     val (_, service) = newService()

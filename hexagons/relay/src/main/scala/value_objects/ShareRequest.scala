@@ -40,9 +40,8 @@ import java.util.UUID
   *   - Inventory: always None — this type never carries share bytes, only the metadata needed to rebuild a
   *     `ShareMetadata` row (see "state" below).
   *
-  * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal) — see deposplit.com/CLAUDE.md
-  * "What is next" item 8. Signed as part of `senderSignature` so a holder can't misreport them without invalidating the
-  * row.
+  * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal). Signed as part of
+  * `senderSignature` so a holder can't misreport them without invalidating the row.
   *
   * `state` is `Pending` at creation for Deposit/Retrieval/Removal, awaiting the recipient's approve/deny. Inventory is
   * different: it's a holder-initiated *push*, not a consent-gated request — nothing for the recipient to approve — so

@@ -32,7 +32,7 @@ import value_objects.*
 
 import java.util.UUID
 
-/** Item 12's signed custodial-heartbeat push — see `driving_ports.CustodyHeartbeats`. */
+/** The signed custodial-heartbeat push — see `driving_ports.CustodyHeartbeats`. */
 class CustodyHeartbeatsController @Inject() (
     val controllerComponents: ControllerComponents,
     heartbeats: CustodyHeartbeats

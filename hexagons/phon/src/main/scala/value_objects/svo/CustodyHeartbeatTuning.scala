@@ -26,10 +26,9 @@ package value_objects.svo
 
 import java.time.Duration
 
-/** Item 12's cadence/staleness numbers — UI tuning, not load-bearing spec (see deposplit.com/CLAUDE.md "What is next"
-  * item 12: "the load-bearing part is not the interval number ... but two guarantees"). Shared between `ShareService`
-  * (emission cadence, on the holder side) and any future owner-side health/freshness display, so both halves agree on
-  * the same numbers.
+/** The custodial-heartbeat cadence/staleness numbers — UI tuning, not load-bearing spec: the load-bearing part is not
+  * the interval number but the two guarantees it makes. Shared between `ShareService` (emission cadence, on the holder
+  * side) and any future owner-side health/freshness display, so both halves agree on the same numbers.
   */
 object CustodyHeartbeatTuning:
 

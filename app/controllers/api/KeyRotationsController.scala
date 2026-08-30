@@ -32,7 +32,7 @@ import value_objects.*
 
 import java.util.UUID
 
-/** Item 9's signed `rotate(K_old -> K_new)` push — see `driving_ports.KeyRotations`. */
+/** The signed `rotate(K_old -> K_new)` push — see `driving_ports.KeyRotations`. */
 class KeyRotationsController @Inject() (
     val controllerComponents: ControllerComponents,
     rotations: KeyRotations

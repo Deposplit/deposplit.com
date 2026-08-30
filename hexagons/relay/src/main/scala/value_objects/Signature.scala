@@ -28,14 +28,14 @@ import java.util.Base64
 
 /** Base64url-decoded bytes of a signature.
   *
-  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a future signing
-  * algorithm will not share Ed25519's 64-byte signature size, so only a generous sanity bound is enforced here.
+  * Not pinned to an exact length, because keys are variable-length by design: a future signing algorithm will not share
+  * Ed25519's 64-byte signature size, so only a generous sanity bound is enforced here.
   */
 opaque type Signature = Array[Byte]
 
 object Signature:
   // A sanity bound only, not algorithm-exact — see the type doc above. Not sized for any specific
-  // future algorithm; revisit once one is actually chosen (deposplit.com/CLAUDE.md item 14).
+  // future algorithm; revisit once one is actually chosen.
   private val MaxLength = 128
   private val decoder = Base64.getUrlDecoder
   private val encoder = Base64.getUrlEncoder.withoutPadding

@@ -34,7 +34,7 @@ class SignatureTests extends munit.FunSuite:
     assert(Signature.fromBase64Url("not!!valid@@base64").isLeft)
   }
 
-  // Item 14 ("variable-length keys") — Signature is no longer pinned to Ed25519's exact 64-byte
+  // Signature is not pinned to Ed25519's exact 64-byte
   // size, only a generous sanity bound (1..128 bytes). A shorter or longer signature than today's
   // is no longer, by itself, a parsing error.
 

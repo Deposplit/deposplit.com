@@ -74,8 +74,8 @@ class RequestSigner:
   // rationale (epoch-millis timestamps, lowercase UUIDs) behind this exact construction.
 
   /** Signs an `openShareRequest` payload. `secretCreatedAt` is the ISO-8601 wire string (e.g. "2026-01-01T00:00:00Z");
-    * `ciphertext` is the standard-base64 string as it appears on the wire. `k`/`n` (item 8) are appended at the end of
-    * the sequence, mirroring PayloadCanonical.
+    * `ciphertext` is the standard-base64 string as it appears on the wire. `k`/`n` are appended at the end of the
+    * sequence, mirroring PayloadCanonical.
     */
   def signOpen(
       secretId: String,
@@ -112,16 +112,16 @@ class RequestSigner:
       .getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
-  /** Signs a `pushRotation` payload (item 9) — mirrors `PayloadCanonical.forRotation`.
-    * `recipientKey`/`newVerifyKey`/`newEncKey` are base64url public key strings as they appear on the wire;
-    * `newCipherSuite` (item 14) is the wire cipher-suite string, appended last.
+  /** Signs a `pushRotation` payload — mirrors `PayloadCanonical.forRotation`. `recipientKey`/`newVerifyKey`/`newEncKey`
+    * are base64url public key strings as they appear on the wire; `newCipherSuite` is the wire cipher-suite string,
+    * appended last.
     */
   def signRotation(recipientKey: String, newVerifyKey: String, newEncKey: String, newCipherSuite: String): String =
     val canon = Seq(recipientKey, newVerifyKey, newEncKey, newCipherSuite).mkString("\n").getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
-  /** Signs a `pushHeartbeat` payload (item 12) — mirrors `PayloadCanonical.forHeartbeat`. `secretIds` is sorted before
-    * joining, same as the relay's own construction.
+  /** Signs a `pushHeartbeat` payload — mirrors `PayloadCanonical.forHeartbeat`. `secretIds` is sorted before joining,
+    * same as the relay's own construction.
     */
   def signHeartbeat(ownerKey: String, secretIds: Seq[String], optedOut: Boolean): String =
     val canon = Seq(ownerKey, secretIds.sorted.mkString(","), optedOut.toString).mkString("\n").getBytes("UTF-8")

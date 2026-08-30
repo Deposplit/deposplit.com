@@ -437,7 +437,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
-  // ── Withdraw (item 9 — recipient-initiated tombstone) ───────────────────────
+  // ── Withdraw (recipient-initiated tombstone) ────────────────────────────────
 
   "POST /share-requests/withdraw" should {
 
@@ -479,7 +479,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
-  // ── Inventory push (item 8) ─────────────────────────────────────────────────
+  // ── Inventory push ──────────────────────────────────────────────────────────
 
   "POST /share-requests (Inventory)" should {
 

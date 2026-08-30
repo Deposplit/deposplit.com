@@ -24,10 +24,10 @@
 
 package value_objects.svo
 
-// A freshly generated keypair, not yet persisted as this device's identity — see item 9's
+// A freshly generated keypair, not yet persisted as this device's identity — see the
 // "regenerate my own identity" trigger. Kept separate from IdentityStore.save's parameters so a
 // caller can push a signed rotation notice (proving continuity from the *old* key) before
-// activating the new one. Field names follow item 14's rename (verifyKey/signKey/encKey/decKey) —
+// activating the new one. Field names are role-based (verifyKey/signKey/encKey/decKey) —
 // the same vocabulary whether the keys are mine or a contact's.
 case class KeyPairMaterial(
     verifyKey: Array[Byte],

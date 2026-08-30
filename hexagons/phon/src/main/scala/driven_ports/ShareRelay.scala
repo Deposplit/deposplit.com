@@ -77,13 +77,12 @@ trait ShareRelay:
     */
   def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit
 
-  /** Recipient-initiated unilateral withdrawal (item 9) — flips matching approved Deposit rows to Withdrawn on the
-    * relay instead of deleting them, so the sender's next poll can observe the tombstone. Best-effort and
-    * fire-and-forget.
+  /** Recipient-initiated unilateral withdrawal — flips matching approved Deposit rows to Withdrawn on the relay instead
+    * of deleting them, so the sender's next poll can observe the tombstone. Best-effort and fire-and-forget.
     */
   def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit
 
-  // Item 9's signed rotate(K_old -> K_new) push. Grouped onto this trait rather than a separate
+  // The signed rotate(K_old -> K_new) push. Grouped onto this trait rather than a separate
   // port: it's the same physical relay endpoint and the same BYOR per-contact routing as every
   // other ShareRelay call. deposplit.com's own backend keeps rotation pushes in a dedicated
   // key_rotations table/KeyRotations service for domain-purity reasons (no secretId, no consent
@@ -91,8 +90,8 @@ trait ShareRelay:
   // port, so no equivalent split is needed here.
 
   /** Pushes a signed rotation notice to one contact. `signature` must verify against the caller's own current verify
-    * key (the relay's `oldVerifyKey`) over `value_objects.svo.PayloadCanonical.forRotation`. `newCipherSuite` (item 14)
-    * is the signing + key-agreement algorithm pairing `newVerifyKey`/`newEncKey` use.
+    * key (the relay's `oldVerifyKey`) over `value_objects.svo.PayloadCanonical.forRotation`. `newCipherSuite` is the
+    * signing + key-agreement algorithm pairing `newVerifyKey`/`newEncKey` use.
     */
   def pushRotation(
       recipientKey: Array[Byte],
@@ -108,7 +107,7 @@ trait ShareRelay:
   /** Deletes a rotation notice once consumed. */
   def deleteRotation(id: UUID): Unit
 
-  // Item 12's signed custodial-heartbeat push. Grouped onto this trait for the same reason as
+  // The signed custodial-heartbeat push. Grouped onto this trait for the same reason as
   // the rotation methods above — same physical relay endpoint, same BYOR per-contact routing.
 
   /** Pushes (upserts) a signed heartbeat to one owner. `signature` must verify against the caller's own current Ed25519

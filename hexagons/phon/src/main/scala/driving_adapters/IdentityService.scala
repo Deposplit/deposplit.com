@@ -103,7 +103,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
       verifier.verifySignature(signature)
     catch case _: Exception => false
 
-  // Item 14 — wire format is now suiteTag(1) || nonce(12) || ciphertext+tag. No persistent state
+  // Wire format is suiteTag(1) || nonce(12) || ciphertext+tag. No persistent state
   // needed: a device always encrypts with its current preferred TransportSuite, and a decrypting
   // device dispatches on the tag it reads.
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =

@@ -28,19 +28,19 @@ import value_objects.*
 
 import java.util.UUID
 
-/** Item 9's signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now K_new, previously K_old" notice,
-  * addressed to one contact at a time. Deliberately separate from `ShareRequests`: a rotation notice has no `secretId`
-  * and no consent phase, so it does not fit that port's share-shaped contract.
+/** The signed `rotate(K_old -> K_new)` push — a holder's proactive "I am now K_new, previously K_old" notice, addressed
+  * to one contact at a time. Deliberately separate from `ShareRequests`: a rotation notice has no `secretId` and no
+  * consent phase, so it does not fit that port's share-shaped contract.
   */
 trait KeyRotations:
 
   /** Pushes a signed rotation notice to one contact. The authenticated caller becomes `oldVerifyKey` — `signature` must
     * verify against it over `PayloadCanonical.forRotation`, proving the caller still controls the old private key.
     * Returns `BadRequest` if it doesn't verify, or if `newVerifyKey`/`newEncKey`'s byte length doesn't match what
-    * `newCipherSuite` declares (item 14).
+    * `newCipherSuite` declares.
     *
-    * No consent phase and no conflict check — fire-and-forget, the same shape as Inventory (deposplit.com/CLAUDE.md
-    * "What is next" item 8): the recipient polls, auto-verifies, and deletes the row once consumed.
+    * No consent phase and no conflict check — fire-and-forget, the same shape as Inventory: the recipient polls,
+    * auto-verifies, and deletes the row once consumed.
     */
   def pushRotation(
       oldVerifyKey: PublicKey,

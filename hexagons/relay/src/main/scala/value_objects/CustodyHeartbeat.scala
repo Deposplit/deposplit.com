@@ -27,16 +27,16 @@ package value_objects
 import java.time.Instant
 import java.util.UUID
 
-/** Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds} for you" notice,
-  * addressed to one owner at a time, or the same holder's signed opt-out notice ("my silence from here on is not a loss
-  * signal") when `optedOut` is true.
+/** A signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds} for you" notice, addressed to
+  * one owner at a time, or the same holder's signed opt-out notice ("my silence from here on is not a loss signal")
+  * when `optedOut` is true.
   *
   * Deliberately not a `ShareRequest`: no `secretId` column, no consent phase. Deliberately *not* consumed-and-deleted
   * like `KeyRotation`/Inventory either — a heartbeat is a standing "last seen" record, not a one-shot delivery, so the
   * relay keeps only the *latest* one per `(holderKey, ownerKey)` pair (upserted, never accumulated). The owner's
   * durable freshness state lives on the owner's own device, refreshed each time it observes this row — the relay row
-  * itself may be GC'd at any time without consequence, per deposplit.com/CLAUDE.md item 12's "correctness comes from
-  * idempotent re-emission ... not from retention."
+  * itself may be GC'd at any time without consequence: correctness comes from idempotent re-emission, not from
+  * retention.
   */
 case class CustodyHeartbeat(
     id: UUID,

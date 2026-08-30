@@ -33,16 +33,16 @@ import java.util.Base64
   * used for signature verification), keeps the two key algorithms from being silently interchangeable at a call site
   * despite sharing a byte length.
   *
-  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a future key-agreement
-  * algorithm will not share X25519's 32-byte key size, so only a generous sanity bound is enforced here. Exact-length
-  * validation against a known algorithm happens wherever a [[CipherSuite]] is actually asserted alongside the key (e.g.
+  * Not pinned to an exact length, because keys are variable-length by design: a future key-agreement algorithm will not
+  * share X25519's 32-byte key size, so only a generous sanity bound is enforced here. Exact-length validation against a
+  * known algorithm happens wherever a [[CipherSuite]] is actually asserted alongside the key (e.g.
   * `KeyRotationsService`).
   */
 opaque type X25519Key = Array[Byte]
 
 object X25519Key:
   // A sanity bound only, not algorithm-exact — see the type doc above. Not sized for any specific
-  // future algorithm; revisit once one is actually chosen (deposplit.com/CLAUDE.md item 14).
+  // future algorithm; revisit once one is actually chosen.
   private val MaxLength = 128
   private val decoder = Base64.getUrlDecoder
   private val encoder = Base64.getUrlEncoder.withoutPadding

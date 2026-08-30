@@ -39,7 +39,7 @@ import java.io.ObjectOutputStream
 import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
-// Item 10 — the durable local copy a detected key conflict is captured into before its relay
+// The durable local copy a detected key conflict is captured into before its relay
 // notice is deleted, since the relay may lose its state at any time and must never be relied on
 // to keep the alert alive.
 @Singleton

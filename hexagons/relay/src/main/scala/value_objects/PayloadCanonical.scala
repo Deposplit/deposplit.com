@@ -52,9 +52,9 @@ object PayloadCanonical:
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
-    * `k`/`n` were added by item 8 (identity recovery) — populated for Deposit and Inventory, `None` for
-    * Retrieval/Removal; appended at the end of the sequence to keep the existing field order (and its cross-platform
-    * byte-vector test) undisturbed.
+    * `k`/`n` were added for identity recovery — populated for Deposit and Inventory, `None` for Retrieval/Removal;
+    * appended at the end of the sequence to keep the existing field order (and its cross-platform byte-vector test)
+    * undisturbed.
     */
   def forOpen(
       secretId: SecretId,
@@ -89,13 +89,12 @@ object PayloadCanonical:
       ciphertext.fold("")(base64Std.encodeToString)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the old key when pushing a rotation notice (item 9), i.e. by the caller who becomes
-    * `KeyRotation.oldVerifyKey`. Proves continuity of key control — only someone holding the old private key can
-    * produce this signature, which is what lets the recipient auto-verify and auto-accept the rotation without a fresh
-    * human re-verification.
+  /** Signed by the old key when pushing a rotation notice, i.e. by the caller who becomes `KeyRotation.oldVerifyKey`.
+    * Proves continuity of key control — only someone holding the old private key can produce this signature, which is
+    * what lets the recipient auto-verify and auto-accept the rotation without a fresh human re-verification.
     *
-    * `newCipherSuite` (item 14) is appended at the end of the sequence, keeping the pre-item-14 field order — and this
-    * construction's cross-platform byte-vector test — undisturbed. No `oldCipherSuite` is signed — the recipient
+    * `newCipherSuite` is appended at the end of the sequence, keeping the field order that predates cipher suites — and
+    * this construction's cross-platform byte-vector test — undisturbed. No `oldCipherSuite` is signed — the recipient
     * already has it pinned on the existing contact record.
     */
   def forRotation(
@@ -111,7 +110,7 @@ object PayloadCanonical:
       newCipherSuite.wireValue
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
-  /** Signed by the holder when pushing a custodial-heartbeat push (item 12), i.e. by the caller who becomes
+  /** Signed by the holder when pushing a custodial-heartbeat push, i.e. by the caller who becomes
     * `CustodyHeartbeat.holderKey`. `secretIds` is sorted (lowercase `UUID.toString`) before joining so the signed bytes
     * are independent of list-construction order on either side. The same construction covers the opt-out notice
     * (`optedOut = true`, `secretIds` typically empty) — mechanically it is the same signed row, just a different

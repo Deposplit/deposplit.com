@@ -37,8 +37,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   private def sameKey(a: PublicKey, b: PublicKey): Boolean =
     a.toBase64Url == b.toBase64Url
 
-  /** `2 <= k <= n <= 255` — the same hard bound `split()`/`combine()` enforce client-side (item 11); re-checked here
-    * since Deposit/Inventory rows now carry k/n on the wire.
+  /** `2 <= k <= n <= 255` — the same hard bound `split()`/`combine()` enforce client-side; re-checked here since
+    * Deposit/Inventory rows now carry k/n on the wire.
     */
   private def validKN(k: Option[Int], n: Option[Int]): Boolean = (k, n) match
     case (Some(kk), Some(nn)) => kk >= 2 && kk <= nn && nn <= 255

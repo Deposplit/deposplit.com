@@ -32,15 +32,15 @@ case class HeldShare(
     secretId: UUID,
     label: String,
     // The sender's stable local contact id — not their Ed25519 key — so this record survives a
-    // sender key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
+    // sender key rotation/recovery.
     contactId: UUID,
     createdAt: Instant,
     pickedUpAt: Instant,
-    // The decrypted share, plaintext at rest — see item 7: a single holder's share is
+    // The decrypted share, plaintext at rest: a single holder's share is
     // information-theoretically empty on its own, so this is safe to store unencrypted.
     plaintextShare: Array[Byte],
     // SSS threshold/share-count, carried on the deposit that produced this share — reported back
-    // during identity recovery (item 8) so a recovering owner can rebuild her Secret record.
+    // during identity recovery so a recovering owner can rebuild her Secret record.
     k: Int,
     n: Int
 ) extends Serializable:

@@ -63,7 +63,7 @@ private object TestKeyPair:
       pair.getPrivate.asInstanceOf[Ed25519PrivateKeyParameters].getEncoded
     )
 
-/** A genuinely mutable in-memory store (not no-ops) — item 9's rotation-processing tests need to observe the effect of
+/** A genuinely mutable in-memory store (not no-ops) — the rotation-processing tests need to observe the effect of
   * `ContactService.updateContact` on the same contacts `ShareService` reads.
   */
 private class FakeContactRepository(initial: List[Contact]) extends ContactRepository:
@@ -130,7 +130,7 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
   var deletedRequestIds: List[UUID] = Nil
   var openedRequests: List[OpenedRequest] = Nil
 
-  // Item 9
+  // Rotation push and withdraw tombstone
   case class WithdrawCall(senderKey: Option[Array[Byte]], secretId: Option[UUID])
   case class PushedRotation(
       recipientKey: Array[Byte],
@@ -146,7 +146,7 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
   var throwOnWithdraw: Boolean = false
   var throwOnPushRotation: Boolean = false
 
-  // Item 12
+  // Custodial heartbeat
   case class PushedHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte])
   var pushedHeartbeats: List[PushedHeartbeat] = Nil
   var heartbeatsToReturn: List[CustodyHeartbeat] = Nil
@@ -418,7 +418,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     }
   }
 
-  // ── Identity recovery (item 8) ──────────────────────────────────────────────
+  // ── Identity recovery ───────────────────────────────────────────────────────
 
   private def newServiceForRecoveryTest(
       relay: FakeShareRelay,
@@ -445,7 +445,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     (svc, bobIdentity, shareRepo, secretRepo, metaRepo)
 
   /** A self-approved recoveryMetadata row, as the relay would hand it back — Approved state and respondedAt set at
-    * creation, since this type has no consent phase (see item 8).
+    * creation, since this type has no consent phase.
     */
   private def approvedRecoveryMetadataRow(
       secretId: UUID,
@@ -562,7 +562,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(relay.deletedRequestIds.isEmpty)
   }
 
-  // ── Item 9: rotation push (client primitive + receive-side) and withdraw tombstone ───────────
+  // ── Rotation push (client primitive + receive-side) and withdraw tombstone ───────────────────
 
   /** Builds a signed KeyRotation notice — the signing counterpart of `relay.pushRotation`. `signer` is the party whose
     * signature is attached; pass something other than the keypair backing `oldVerifyKey` to build a forged notice.
@@ -631,7 +631,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(updated.verifyKey.sameElements(newEd))
     assert(updated.encKey.sameElements(newX))
     assertEquals(updated.verificationLevel, VerificationLevel.Low)
-    // Item 14 — the notice's cipherSuite is threaded through to the updated contact record.
+    // The notice's cipherSuite is threaded through to the updated contact record.
     assertEquals(updated.cipherSuite, notice.newCipherSuite)
     assertEquals(relay.deletedRotationIds, List(notice.id))
   }
@@ -651,7 +651,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
     svc.syncInbox()
 
-    // Continuity of key control is not a fresh personhood check (item 10) — it can never raise
+    // Continuity of key control is not a fresh personhood check — it can never raise
     // the level, only cap it at Low.
     assertEquals(contactRepo.getById(daveContact.id).map(_.verificationLevel), Some(VerificationLevel.VeryLow))
   }
@@ -823,7 +823,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(relay.deletedRequestIds.isEmpty)
   }
 
-  // ── Item 10: stolen-key revocation (compromised-key flag + key conflicts) ────────────────────
+  // ── Stolen-key revocation (compromised-key flag + key conflicts) ─────────────────────────────
 
   test("syncInbox refuses auto-accept and captures a key conflict when the old key is revoked") {
     val relay = FakeShareRelay()
@@ -886,7 +886,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(svc.listKeyConflicts().isEmpty)
   }
 
-  // ── Item 12: custodial heartbeats + deposit retention ────────────────────────
+  // ── Custodial heartbeats + deposit retention ─────────────────────────────────
 
   private val holderTwoKeys = TestKeyPair.generate()
   private val holderTwoContact = aliceContact.copy(
@@ -1154,7 +1154,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     }
   }
 
-  // ── Reconstruction integrity + fan-out targeting (item 13) ──────────────────
+  // ── Reconstruction integrity + fan-out targeting ────────────────────────────
 
   /** A holder contact with its own real keypair — reconstruct() tests need several distinct holders (unlike most of
     * this file's single-contact fixtures), each independently able to produce a validly-signed recipientSignature on
@@ -1373,7 +1373,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assertEquals(targeted, expected)
   }
 
-  // ── Identity regeneration (item 9's parked "regenerate my own identity" trigger) ────────────
+  // ── Identity regeneration (the "regenerate my own identity" trigger) ────────────────────────
 
   test("regenerateIdentity pushes a signed rotation to every contact and activates the new keys") {
     val relay = FakeShareRelay()
@@ -1397,7 +1397,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assertEquals(result.totalContacts, 2)
     assertEquals(relay.pushedRotations.size, 2)
     relay.pushedRotations.foreach { pushed =>
-      // Item 14 — asserts the device's current suite, unconditionally.
+      // Asserts the device's current suite, unconditionally.
       assertEquals(pushed.newCipherSuite, CipherSuite.current)
       val canon =
         PayloadCanonical.forRotation(pushed.recipientKey, pushed.newVerifyKey, pushed.newEncKey, pushed.newCipherSuite)

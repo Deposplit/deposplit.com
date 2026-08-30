@@ -49,8 +49,8 @@ object ShareTransactionType:
   def fromWire(s: String): Option[ShareTransactionType] = values.find(_.wireValue == s)
 
 enum ShareRequestState:
-  /** Deposit-only (item 9): the recipient unilaterally stopped holding the share. A best-effort tombstone, not
-    * authoritative — see `ShareRelay.withdrawShareRequests`.
+  /** Deposit-only: the recipient unilaterally stopped holding the share. A best-effort tombstone, not authoritative —
+    * see `ShareRelay.withdrawShareRequests`.
     */
   case Pending, Approved, Denied, Withdrawn
 
@@ -74,7 +74,6 @@ case class ShareRequest(
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
     // SSS threshold/share-count — populated for Deposit/Inventory, None for
-    // Retrieval/Removal. See deposplit.com/CLAUDE.md "What is next" items 8 and 11.
     k: Option[Int] = None,
     n: Option[Int] = None,
     senderSignature: Array[Byte],
@@ -87,15 +86,14 @@ case class ShareRequest(
 
 /** Lightweight record Alice stores locally when she deposits a share (one per Deposit request). Normalized to reference
   * its parent `Secret` (by `secretId`) rather than duplicating `label`/`secretCreatedAt` — see deposplit.com/CLAUDE.md
-  * "What is next" item 11.
   */
 case class ShareMetadata(
     id: UUID, // Deposit request ID — used as shareId in Retrieval/Removal requests
     secretId: UUID,
     // The holder's stable local contact id — not their Ed25519 key — so this record survives a
-    // holder key rotation/recovery (see deposplit.com/CLAUDE.md "What is next" item 7).
+    // holder key rotation/recovery.
     contactId: UUID,
-    // Item 12 — the last time this holder proved custody (relay-observed pickup, a retrieve
+    // The last time this holder proved custody (relay-observed pickup, a retrieve
     // approval, or a custodial heartbeat), gating whether this share counts toward n_live within
     // CustodyHeartbeatTuning.lossThreshold. None until first confirmed.
     lastConfirmedAt: Option[Instant] = None

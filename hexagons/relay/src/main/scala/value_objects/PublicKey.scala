@@ -30,16 +30,16 @@ import java.util.Base64
 
 /** Raw bytes of a signing-algorithm public key, base64url-encoded on the wire.
   *
-  * Not pinned to an exact length — see deposplit.com/CLAUDE.md item 14 ("variable-length keys"): a future signing
-  * algorithm will not share Ed25519's 32-byte key size, so only a generous sanity bound is enforced here. Exact-length
-  * validation against a known algorithm happens wherever a [[CipherSuite]] is actually asserted alongside the key (e.g.
+  * Not pinned to an exact length, because keys are variable-length by design: a future signing algorithm will not share
+  * Ed25519's 32-byte key size, so only a generous sanity bound is enforced here. Exact-length validation against a
+  * known algorithm happens wherever a [[CipherSuite]] is actually asserted alongside the key (e.g.
   * `KeyRotationsService`).
   */
 opaque type PublicKey = Array[Byte]
 
 object PublicKey:
   // A sanity bound only, not algorithm-exact — see the type doc above. Not sized for any specific
-  // future algorithm; revisit once one is actually chosen (deposplit.com/CLAUDE.md item 14).
+  // future algorithm; revisit once one is actually chosen.
   private val MaxLength = 128
   private val decoder = Base64.getUrlDecoder
   private val encoder = Base64.getUrlEncoder.withoutPadding
@@ -62,8 +62,7 @@ object PublicKey:
     /** Verifies a `signature` over `message`. Returns false on any error.
       *
       * Dispatches on signing algorithm — a trivial single-branch dispatch today (only Ed25519 exists), structured as a
-      * named per-algorithm function so a second algorithm is an additional branch here rather than a rewrite. See
-      * deposplit.com/CLAUDE.md item 14.
+      * named per-algorithm function so a second algorithm is an additional branch here rather than a rewrite.
       */
     def verify(message: Array[Byte], signature: Signature): Boolean = verifyEd25519(pk, message, signature)
 

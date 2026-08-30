@@ -31,7 +31,7 @@ import value_objects.svo.VerificationLevel
 
 trait ContactManagement:
   def listContacts(): List[Contact]
-  // nickname (item 15) lets a nickname be set at add-time rather than only via a later
+  // nickname lets a nickname be set at add-time rather than only via a later
   // renameContact call; it is purely local and never transmitted anywhere.
   def addManually(
       pseudonym: String,
@@ -40,9 +40,9 @@ trait ContactManagement:
       relayBaseUrl: Option[String] = None,
       nickname: Option[String] = None
   ): Unit
-  // cipherSuite (item 14) is required here (unlike addManually) because the QR/link payload is
+  // cipherSuite is required here (unlike addManually) because the QR/link payload is
   // exactly where this self-describing fact comes from — manual entry has no wire payload to read
-  // one from, so addManually assumes today's one suite instead. nickname (item 15) is likewise
+  // one from, so addManually assumes today's one suite instead. nickname is likewise
   // not sourced from the QR payload — it is purely local — so it defaults to None here too.
   def addFromQr(
       pseudonym: String,
@@ -54,13 +54,13 @@ trait ContactManagement:
   ): Unit
 
   /** Updates an existing contact in place, preserving contactId — never delete-and-re-add, which would mint a fresh id
-    * and orphan any HeldShare/ShareMetadata rows anchored to it. See deposplit.com/CLAUDE.md "What is next" item 8.
+    * and orphan any HeldShare/ShareMetadata rows anchored to it.
     *
-    * `verificationLevel` is `None` by default: when the keys or cipher suite change (item 14 extends this to a
-    * suite-only change too) and no explicit level is given, this hexagon (no picker UI — item 6's narrower phon scope)
-    * defaults to `VeryHigh`, mirroring `addFromQr`'s in-person-flow default. Item 9's rotation-processing supplies an
-    * explicit level (`min(old, Low)` — a signed rotation proves key continuity, not fresh personhood, so it must never
-    * default to the same `VeryHigh` a human re-scan would earn).
+    * `verificationLevel` is `None` by default: when the keys or cipher suite change (a suite-only change counts too)
+    * and no explicit level is given, this hexagon (which has no verification-level picker UI) defaults to `VeryHigh`,
+    * mirroring `addFromQr`'s in-person-flow default. Rotation-processing supplies an explicit level (`min(old, Low)` —
+    * a signed rotation proves key continuity, not fresh personhood, so it must never default to the same `VeryHigh` a
+    * human re-scan would earn).
     */
   def updateContact(
       contactId: UUID,
@@ -70,14 +70,14 @@ trait ContactManagement:
       verificationLevel: Option[VerificationLevel] = None
   ): Unit
 
-  /** Item 15 — deliberately separate from `updateContact`: a rename is not an identity change, so it must never trigger
+  /** Deliberately separate from `updateContact`: a rename is not an identity change, so it must never trigger
     * `updateContact`'s fresh-verification-level requirement. Pass `None` to clear an existing nickname.
     */
   def renameContact(contactId: UUID, nickname: Option[String]): Unit
   def deleteContact(contactId: UUID): Unit
 
-  /** Item 10 — flags a verify key into the contact's revokedVerifyKeys history, out-of-band- triggered (the user has
-    * some independent reason to believe it was stolen). Defaults to the contact's *current* verifyKey when verifyKey is
+  /** Flags a verify key into the contact's revokedVerifyKeys history, out-of-band-triggered (the user has some
+    * independent reason to believe it was stolen). Defaults to the contact's *current* verifyKey when verifyKey is
     * None. From this point, any signed rotation notice claiming continuity from that key is refused auto-accept; only a
     * fresh human-verified relink can move the contact forward. Idempotent — a no-op if already flagged.
     */

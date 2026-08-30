@@ -26,10 +26,10 @@ package driving_ports
 
 import value_objects.*
 
-/** Item 12's signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds} for you" notice (or
-  * signed opt-out), addressed to one owner at a time. Deliberately separate from `ShareRequests`/`KeyRotations`: it
-  * carries no `secretId` singular (a heartbeat covers a whole *list* of secrets in one coalesced push) and has no
-  * consent phase or per-row consumption — see `value_objects.CustodyHeartbeat` for why it is upserted, not deleted.
+/** The signed custodial-heartbeat push — a holder's proactive "still guarding {secretIds} for you" notice (or signed
+  * opt-out), addressed to one owner at a time. Deliberately separate from `ShareRequests`/`KeyRotations`: it carries no
+  * `secretId` singular (a heartbeat covers a whole *list* of secrets in one coalesced push) and has no consent phase or
+  * per-row consumption — see `value_objects.CustodyHeartbeat` for why it is upserted, not deleted.
   */
 trait CustodyHeartbeats:
 

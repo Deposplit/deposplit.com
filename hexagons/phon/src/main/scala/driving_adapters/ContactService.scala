@@ -130,13 +130,13 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
         s"Enc key must be ${effectiveSuite.encKeyLength} bytes for $effectiveSuite"
       )
     )
-    // Item 14 — a cipher-suite-only change (no key-value change) forces the same fresh-level
-    // rule as a key change: it's still continuity of key control, not a fresh personhood check.
+    // A cipher-suite-only change (no key-value change) forces the same fresh-level rule as a key
+    // change: it's still continuity of key control, not a fresh personhood check.
     val changingIdentity = verifyKey.isDefined || encKey.isDefined || cipherSuite.isDefined
-    // A key or cipher-suite change forces re-choosing the level fresh (item 8/10/14), never
-    // silently carrying the old one forward. An explicit `verificationLevel` (item 9's rotation
-    // downgrade) always wins; absent one, a change defaults to the same VeryHigh addFromQr uses
-    // for its analogous re-scan-in-person flow — phon has no picker UI (item 6's narrower scope).
+    // A key or cipher-suite change forces re-choosing the level fresh, never silently carrying
+    // the old one forward. An explicit `verificationLevel` (the rotation downgrade) always wins;
+    // absent one, a change defaults to the same VeryHigh addFromQr uses for its analogous
+    // re-scan-in-person flow — phon has no verification-level picker UI.
     val newLevel = verificationLevel.orElse(if changingIdentity then Some(VerificationLevel.VeryHigh) else None)
     contactRepository.save(
       existing.copy(
@@ -151,7 +151,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
       )
     )
 
-  // Item 15 — deliberately separate from updateContact: never touches keys, cipherSuite,
+  // Deliberately separate from updateContact: never touches keys, cipherSuite,
   // verificationLevel, verifiedAt, or keyChangedAt. Pass None to clear an existing nickname.
   def renameContact(contactId: UUID, nickname: Option[String]): Unit =
     val existing = contactRepository
@@ -162,7 +162,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
   def deleteContact(contactId: UUID): Unit =
     contactRepository.delete(contactId)
 
-  // Item 10 — idempotent: a no-op if the key is already in revokedVerifyKeys.
+  // Idempotent: a no-op if the key is already in revokedVerifyKeys.
   def markKeyCompromised(contactId: UUID, verifyKey: Option[Array[Byte]] = None): Unit =
     val existing = contactRepository
       .getById(contactId)
@@ -171,7 +171,7 @@ class ContactService @Inject() (contactRepository: ContactRepository) extends Co
     if !existing.revokedVerifyKeys.exists(_.sameElements(keyToFlag)) then
       contactRepository.save(existing.copy(revokedVerifyKeys = keyToFlag :: existing.revokedVerifyKeys))
 
-  // Item 15 — trim, then collapse blank to None. Lives here (not the UI layer) so every
+  // Trim, then collapse blank to None. Lives here (not the UI layer) so every
   // caller — UI, tests, a future relink flow — gets consistent normalization for free.
   private def normalizeNickname(nickname: Option[String]): Option[String] =
     nickname.map(_.strip()).filter(_.nonEmpty)

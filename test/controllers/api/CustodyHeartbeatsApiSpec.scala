@@ -32,8 +32,8 @@ import play.api.test.Helpers.*
 
 import java.util.UUID
 
-/** Integration tests for POST/GET /custody-heartbeats (item 12's signed custodial-heartbeat push). Runs in declaration
-  * order and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
+/** Integration tests for POST/GET /custody-heartbeats, the signed custodial-heartbeat push. Runs in declaration order
+  * and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
   */
 class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 

@@ -191,9 +191,9 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral withdrawal (item 9).
-    * Flips matching approved Deposit rows to `withdrawn` instead of deleting them, so the sender's next poll can
-    * observe the tombstone. Best-effort and fire-and-forget — see deposplit.com/CLAUDE.md "What is next" item 9.
+  /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral withdrawal. Flips
+    * matching approved Deposit rows to `withdrawn` instead of deleting them, so the sender's next poll can observe the
+    * tombstone. Best-effort and fire-and-forget.
     */
   def withdrawShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for

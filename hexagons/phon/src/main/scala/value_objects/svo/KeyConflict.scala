@@ -27,10 +27,10 @@ package value_objects.svo
 import java.time.Instant
 import java.util.UUID
 
-/** Item 10 — captured the instant a rotation notice's `oldVerifyKey` is found in a contact's `revokedVerifyKeys`.
-  * Durable and local: the relay may lose its state at any time, so this is saved before the corresponding relay notice
-  * is deleted, never re-derived from the relay later. Never auto-resolved — the only path forward is a fresh
-  * human-verified relink; this record only exists to be surfaced and dismissed.
+/** Captured the instant a rotation notice's `oldVerifyKey` is found in a contact's `revokedVerifyKeys`. Durable and
+  * local: the relay may lose its state at any time, so this is saved before the corresponding relay notice is deleted,
+  * never re-derived from the relay later. Never auto-resolved — the only path forward is a fresh human-verified relink;
+  * this record only exists to be surfaced and dismissed.
   */
 case class KeyConflict(
     id: UUID,

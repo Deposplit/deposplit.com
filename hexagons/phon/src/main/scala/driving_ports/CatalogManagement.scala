@@ -26,7 +26,7 @@ package driving_ports
 
 import value_objects.svo.Catalog
 
-// Optional catalog export/import (item 8) — a convenience backup of the *non-secret* catalog,
+// Optional catalog export/import — a convenience backup of the *non-secret* catalog,
 // never shares or private keys. phon has no UI for this (consistency, not parity) — the
 // primitive exists for cross-platform consistency and is exercised via tests only.
 trait CatalogManagement:

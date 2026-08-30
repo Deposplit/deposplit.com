@@ -86,7 +86,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
   }
 
   // ---------------------------------------------------------------------------
-  // generateNewKeyPair() / activateKeyPair() — item 9's identity-regen trigger
+  // generateNewKeyPair() / activateKeyPair() — the identity-regeneration trigger
   // ---------------------------------------------------------------------------
 
   test("generateNewKeyPair does not touch storage") {
@@ -122,7 +122,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
   }
 
   // ---------------------------------------------------------------------------
-  // encrypt()/decrypt() suite-tag wire format — item 14
+  // encrypt()/decrypt() suite-tag wire format
   // ---------------------------------------------------------------------------
 
   test("encrypt prepends the current TransportSuite tag and decrypt round-trips") {

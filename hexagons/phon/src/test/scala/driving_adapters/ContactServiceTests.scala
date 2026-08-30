@@ -41,8 +41,8 @@ private class InMemoryContactRepositoryForContactServiceTest extends ContactRepo
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
   override def delete(contactId: UUID): Unit = contacts = contacts.filterNot(_.id == contactId)
 
-// updateContact (item 8) — contact-update-in-place, preserving contactId, used both for benign
-// key rotation and holder-driven recovery relinking. See deposplit.com/CLAUDE.md item 8.
+// updateContact — contact-update-in-place, preserving contactId, used both for benign key
+// rotation and holder-driven recovery relinking.
 class ContactServiceTests extends munit.FunSuite:
 
   private def makeContact(): Contact = Contact(
@@ -95,7 +95,7 @@ class ContactServiceTests extends munit.FunSuite:
     }
   }
 
-  // Item 9: an explicit verificationLevel (the rotation-processing downgrade) always wins over
+  // An explicit verificationLevel (the rotation-processing downgrade) always wins over
   // the no-picker-UI VeryHigh default a bare key change would otherwise apply.
   test("updateContact honors an explicit verificationLevel instead of defaulting to VeryHigh on a key change") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
@@ -122,7 +122,7 @@ class ContactServiceTests extends munit.FunSuite:
     assertEquals(repo.getById(original.id).map(_.verificationLevel), Some(VerificationLevel.VeryHigh))
   }
 
-  // ── Item 10: stolen-key revocation ────────────────────────────────────────
+  // ── Stolen-key revocation ─────────────────────────────────────────────────
 
   test("updateContact sets keyChangedAt only when keys actually change") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
@@ -177,7 +177,7 @@ class ContactServiceTests extends munit.FunSuite:
     assert(!updated.revokedVerifyKeys.head.sameElements(original.verifyKey))
   }
 
-  // ── Item 14: crypto agility — cipher suite threading + suite-aware length validation ────────
+  // ── Crypto agility: cipher suite threading + suite-aware length validation ──────────────────
 
   test("addFromQr stores the asserted cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
@@ -233,7 +233,7 @@ class ContactServiceTests extends munit.FunSuite:
     assert(updated.keyChangedAt.isDefined)
   }
 
-  // ── Item 15: local contact nicknames ──────────────────────────────────────
+  // ── Local contact nicknames ───────────────────────────────────────────────
 
   test("renameContact sets a nickname without touching keys, level, or keyChangedAt") {
     val repo = InMemoryContactRepositoryForContactServiceTest()

@@ -27,15 +27,14 @@ package value_objects.svo
 import java.time.Instant
 import java.util.UUID
 
-/** Two-state lifecycle — see deposplit.com/CLAUDE.md "What is next" item 11. No `Discarded` tombstone: once every
-  * holder confirms deletion (or the sender force-forgets), the `Secret` record is removed outright.
+/** Two-state lifecycle. No `Discarded` tombstone: once every holder confirms deletion (or the sender force-forgets),
+  * the `Secret` record is removed outright.
   */
 enum SecretState:
   case Active, Discarding
 
 /** Sender-side per-secret aggregate — the single source of truth for k/n/label/secretCreatedAt, keyed by secretId.
-  * `ShareMetadata` rows reference this rather than duplicating its fields. See deposplit.com/CLAUDE.md "What is next"
-  * item 11.
+  * `ShareMetadata` rows reference this rather than duplicating its fields.
   */
 case class Secret(
     id: UUID,

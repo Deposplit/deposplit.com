@@ -30,7 +30,8 @@ import value_objects.svo.HeldShare
 trait ShareRepository:
   def getAll(): List[HeldShare]
   // Keyed on secretId, not the pickup relay-row id — secretId survives device loss/recovery and
-  // is unique per (secretId, sender) at a given holder. See item 8's "re-key retrieve".
+  // is unique per (secretId, sender) at a given holder — which is what lets a retrieval after
+  // identity recovery re-key against a share this device can still find.
   def getPlaintextShare(secretId: UUID): Option[Array[Byte]]
   def save(share: HeldShare): Unit
   def delete(shareId: UUID): Unit

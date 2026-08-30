@@ -60,7 +60,7 @@ class PublicKeyTests extends munit.FunSuite:
     assert(PublicKey.fromBase64Url("not!!valid@@base64").isLeft)
   }
 
-  // Item 14 ("variable-length keys") — PublicKey is no longer pinned to Ed25519's exact 32-byte
+  // PublicKey is not pinned to Ed25519's exact 32-byte
   // size, only a generous sanity bound (1..128 bytes). A shorter or longer key than today's is no
   // longer, by itself, a parsing error; exact-length validation against a known algorithm happens
   // wherever a CipherSuite is actually asserted (see KeyRotationsServiceTests).

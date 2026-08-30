@@ -58,8 +58,8 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val label = Label("cross-platform test vector")
   private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
   private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
-  // k/n (item 8) — appended at the end of the field sequence, so the pre-item-8 fields above are
-  // byte-identical to the original vector; only the two new trailing lines are new.
+  // k/n — appended at the end of the field sequence, so the fields above are byte-identical to
+  // the original vector; only the two new trailing lines are new.
   private val k = Some(2)
   private val n = Some(3)
 
@@ -121,7 +121,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   }
 
   // ---------------------------------------------------------------------------
-  // forRotation (item 9) — same cross-platform-interop purpose as forOpen above, checked into
+  // forRotation — same cross-platform-interop purpose as forOpen above, checked into
   // Android's and iOS's PayloadCanonicalVectorTest/-Tests once their turn comes. Uses the same
   // fixed private key seed as forOpen so both vectors are anchored to one known keypair.
   // ---------------------------------------------------------------------------
@@ -129,8 +129,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val rotationRecipientKey = PublicKey.fromBytes(Array.fill(32)(0x03.toByte)).getOrElse(fail("bad fixture key"))
   private val newVerifyKey = PublicKey.fromBytes(Array.fill(32)(0x04.toByte)).getOrElse(fail("bad fixture key"))
   private val newEncKey = X25519Key.fromBytes(Array.fill(32)(0x05.toByte)).getOrElse(fail("bad fixture key"))
-  // item 14 — appended as a 4th line; the pre-item-14 fields above are byte-identical to the
-  // original vector.
+  // Appended as a 4th line; the fields above are byte-identical to the original vector.
   private val newCipherSuite = CipherSuite.current
   private val expectedRotationSignatureBase64Url =
     "EH45bL4chGQALZ6J9IDhfUAtPNovGHmqlJvF6HBKa8sqkF3SU1NhMGWmSTGM87isxdHIxoQCHFITplmzN1zeDg"
@@ -160,7 +159,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   }
 
   // ---------------------------------------------------------------------------
-  // forHeartbeat (item 12) — same cross-platform-interop purpose as forOpen/forRotation above,
+  // forHeartbeat — same cross-platform-interop purpose as forOpen/forRotation above,
   // checked into Android's and iOS's PayloadCanonicalVectorTest/-Tests once their turn comes.
   // Uses the same fixed private key seed as forOpen/forRotation so all three vectors are anchored
   // to one known keypair.
