@@ -31,9 +31,9 @@ enum Role:
   case Sender, Recipient
 
 /** The kind of thing that happened (or is being asked to happen) to a share, phrased as a neutral transaction noun
-  * rather than either party's verb — see deposplit.com/CLAUDE.md "Cross-cutting implementation chores" for why: naming
-  * from a single named actor's point of view (Alice's, or Bob's) breaks down because the actor genuinely alternates —
-  * Alice always opens Deposit/Retrieval/Removal, but the *holder* opens Inventory (holder → owner).
+  * rather than either party's verb. Naming from a single named actor's point of view (Alice's, or Bob's) breaks down
+  * because the actor genuinely alternates — Alice always opens Deposit/Retrieval/Removal, but the *holder* opens
+  * Inventory (holder → owner).
   *
   * `wireValue` is the single source of truth for this type's wire representation, mirroring the relay's
   * `ShareTransactionType` (this module can't depend on `relay` — separate sbt subprojects with no dependency between
@@ -85,7 +85,7 @@ case class ShareRequest(
   override def hashCode(): Int = id.hashCode()
 
 /** Lightweight record Alice stores locally when she deposits a share (one per Deposit request). Normalized to reference
-  * its parent `Secret` (by `secretId`) rather than duplicating `label`/`secretCreatedAt` — see deposplit.com/CLAUDE.md
+  * its parent `Secret` (by `secretId`) rather than duplicating `label`/`secretCreatedAt`.
   */
 case class ShareMetadata(
     id: UUID, // Deposit request ID — used as shareId in Retrieval/Removal requests

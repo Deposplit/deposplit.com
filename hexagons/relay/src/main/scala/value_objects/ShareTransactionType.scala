@@ -25,9 +25,9 @@
 package value_objects
 
 /** The kind of thing that happened (or is being asked to happen) to a share, phrased as a neutral transaction noun
-  * rather than either party's verb — see deposplit.com/CLAUDE.md "Cross-cutting implementation chores" for why: naming
-  * from a single named actor's point of view (Alice's, or Bob's) breaks down because the actor genuinely alternates —
-  * Alice always opens Deposit/Retrieval/Removal, but the *holder* opens Inventory (holder → owner).
+  * rather than either party's verb. Naming from a single named actor's point of view (Alice's, or Bob's) breaks down
+  * because the actor genuinely alternates — Alice always opens Deposit/Retrieval/Removal, but the *holder* opens
+  * Inventory (holder → owner).
   *
   * `wireValue` is the single source of truth for this type's wire representation — the DB enum label, the JSON
   * `transactionType` value, and the string `PayloadCanonical` signs are all the same `wireValue`, looked up here rather

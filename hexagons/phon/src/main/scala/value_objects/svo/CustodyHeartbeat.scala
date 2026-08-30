@@ -31,7 +31,7 @@ import java.util.UUID
   * you" notice (or, when `optedOut` is true, a signed "my silence from here on is not a loss signal" notice).
   * Deliberately not a `ShareRequest`: no singular `secretId`, no consent phase — and unlike `KeyRotation`, never
   * consumed-and-deleted: the relay keeps only the latest heartbeat per (holder, owner) pair, so this is read
-  * repeatedly, not drained. See `PayloadCanonical.forHeartbeat` for the exact bytes signed, and deposplit.com/CLAUDE.md
+  * repeatedly, not drained. See `PayloadCanonical.forHeartbeat` for the exact bytes signed.
   */
 case class CustodyHeartbeat(
     id: UUID,

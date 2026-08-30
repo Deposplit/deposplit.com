@@ -31,11 +31,11 @@ import value_objects.svo.CipherSuite
 import java.util.Base64
 
 /** `relay` carries the *displaying* device's currently-configured relay — the out-of-band exchange mechanism BYOR uses
-  * (deposplit.com/CLAUDE.md "BYOR"). `None`/absent means "use the scanning device's own default relay". `cipherSuite`
-  * is required, not optional like `relay`: every contact-exchange has exactly one cipher suite in effect. This payload
-  * is rendered into a real scannable QR code (`readQrCode`) that the Android/iOS apps read, so its shape must stay
-  * byte-for-byte compatible with their own `QrPayload`. Field names spelled out in full (`verifyKey`/`encKey`, not
-  * `ed`/`x`), matching the vocabulary used everywhere else in the codebase.
+  * BYOR uses. `None`/absent means "use the scanning device's own default relay". `cipherSuite` is required, not
+  * optional like `relay`: every contact-exchange has exactly one cipher suite in effect. This payload is rendered into
+  * a real scannable QR code (`readQrCode`) that the Android/iOS apps read, so its shape must stay byte-for-byte
+  * compatible with their own `QrPayload`. Field names spelled out in full (`verifyKey`/`encKey`, not `ed`/`x`),
+  * matching the vocabulary used everywhere else in the codebase.
   *
   * `v` stays at 1 permanently — Deposplit is pre-launch and never supports decoding an old shape, so a version number
   * never actually gates anything: a payload missing a newly-required field (like `cipherSuite` here) already fails to

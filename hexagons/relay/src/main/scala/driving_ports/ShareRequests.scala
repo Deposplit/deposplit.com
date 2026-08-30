@@ -34,8 +34,9 @@ trait ShareRequests:
   /** Opens a share request of any type.
     *
     *   - Deposit: Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if absent). `k`/`n` are
-    *     required and must satisfy `2 <= k <= n <= 255` (`BadRequest` otherwise) — see deposplit.com/CLAUDE.md item
-    *     8/11. Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey) already exists.
+    *     required and must satisfy `2 <= k <= n <= 255` (`BadRequest` otherwise), the same hard bound `split()` and
+    *     `combine()` enforce client-side. Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey)
+    *     already exists.
     *   - Retrieval: Alice asks Bob to return a share. `ciphertext`, `k`, and `n` must be None. Returns `Conflict` if a
     *     pending Retrieval for (secretId, senderKey, recipientKey) exists.
     *   - Removal: Alice asks Bob to delete his local copy. `ciphertext`, `k`, and `n` must be None. Returns `Conflict`

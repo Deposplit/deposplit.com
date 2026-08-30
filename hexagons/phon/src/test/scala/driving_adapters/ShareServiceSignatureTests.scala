@@ -252,10 +252,10 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
 private class FixedShareRelayResolver(relay: ShareRelay) extends driven_ports.ShareRelayResolver:
   override def resolve(relayBaseUrl: Option[String]): ShareRelay = relay
 
-/** Covers the recipient-side signature-verification gating described in `deposplit.com/CLAUDE.md`'s BYOR section:
-  * `syncInbox`/`listPendingRequests` must drop rows with an unverifiable `senderSignature` (unknown sender, or a
-  * genuine contact's key but a forged/mismatched signature) instead of trusting whatever the relay returns, and
-  * `respond` must reject explicitly.
+/** Covers the recipient-side signature-verification gating BYOR requires — a third-party relay performs no verification
+  * of its own, so `syncInbox`/`listPendingRequests` must drop rows with an unverifiable `senderSignature` (unknown
+  * sender, or a genuine contact's key but a forged or mismatched signature) instead of trusting whatever the relay
+  * returns, and `respond` must reject explicitly.
   */
 class ShareServiceSignatureTests extends munit.FunSuite:
 
