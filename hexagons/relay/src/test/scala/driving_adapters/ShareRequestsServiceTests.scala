@@ -204,7 +204,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     *
     * `k`/`n` default to a valid pair (`Some(2)`/`Some(2)`) and are only actually threaded through for Deposit/Inventory
     * — silently forced to `None` for Retrieval/Removal regardless of what's passed, since the domain requires them
-    * absent there. This keeps every pre-item-8 call site (Retrieval/Removal included) compiling unchanged.
+    * absent there. This keeps every call site predating `k`/`n` (Retrieval/Removal included) compiling unchanged.
     */
   private def open(
       service: ShareRequestsService,

@@ -260,11 +260,11 @@ class ShareService @Inject() (
       .flatMap(relay => Try(relay.listShareRequests(Role.Sender)).getOrElse(Nil))
       .filterNot(_.transactionType == ShareTransactionType.Deposit)
 
-  // A holder is worth prioritizing for a fresh retrieval ask when the custody-freshness rule that
-  // "still counts toward n_live" freshness rule already trusts them: an unexpired
-  // proof-of-custody and no standing opt-out. Recomputed here (not shared with the app-layer's
+  // A holder is worth prioritizing for a fresh retrieval ask when the custody-freshness rule
+  // that decides "still counts toward n_live" already trusts them: an unexpired
+  // proof-of-custody and no standing opt-out. Recomputed here (not shared with the app layer's
   // own freshness display logic) — a small, deliberate duplication of a threshold check rather
-  // than restructuring already-shipped item-12 code.
+  // than restructuring already-shipped display code.
   private def isConfirmed(meta: ShareMetadata): Boolean =
     contactRepository.getById(meta.contactId).exists { contact =>
       contact.heartbeatOptedOutAt.isEmpty &&

@@ -76,8 +76,8 @@ case class Contact(
       */
     heartbeatEmissionOptedOut: Boolean = false,
     /** The signing + key-agreement algorithm pairing this contact currently uses. Defaulted (not required) purely to
-      * keep the large item-14 rename from also being a "thread a new value through every call site" exercise; the
-      * default is correct today (every contact really is on this one suite), not a placeholder.
+      * keep a large rename from also being a "thread a new value through every call site" exercise; the default is
+      * correct today (every contact really is on this one suite), not a placeholder.
       */
     cipherSuite: CipherSuite = CipherSuite.current,
     /** A purely local, optional label to disambiguate contacts who share the same sender-asserted pseudonym (e.g. two
