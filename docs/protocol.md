@@ -197,6 +197,11 @@ precisely because the blob is encrypted to the *holder's* key: the sender cannot
 what she is retaining, so holding all *n* is *n* opaque forward-only blobs, not a
 reconstructable secret sitting on one device.
 
+**The blob is the prerequisite, not yet the mechanism.** Nothing re-deposits from it today,
+and that path lands with collection itself. Nothing costs anything meanwhile, because no
+collection job exists to GC a deposit row in the first place — but adding one *without* the
+client half is what would turn this into the very loss the retention exists to prevent.
+
 Pickup counts as confirmed through either channel — the relay showing the deposit accepted
 (fast, but collectable before she ever polls), or the holder's signed heartbeat naming that
 `secretId` (durable, immune to collection). A *later* loss is a different problem with a
