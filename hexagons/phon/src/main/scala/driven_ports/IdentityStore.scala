@@ -31,6 +31,9 @@ package driven_ports
  */
 trait IdentityStore:
   def isRegistered(): Boolean
+
+  /* Registration. Establishes a brand-new identity, so any retained previous decKey is cleared — it belonged to an
+   * identity this device is no longer continuous with. */
   def save(
       pseudonym: String,
       verifyKey: Array[Byte],
@@ -38,8 +41,28 @@ trait IdentityStore:
       encKey: Array[Byte],
       decKey: Array[Byte]
   ): Unit
+
+  /* Rotation. Persists the new keys and moves the displaced decKey into the previous slot, preserving the pseudonym.
+   * Separate from save() because only rotation is continuous with what came before, and only rotation may leave an old
+   * key readable.
+   *
+   * Only the decKey is kept. The old signKey is destroyed here: retaining it would let someone who extracts an
+   * unlocked device sign a rotation notice as the *previous* identity, which every contact would auto-accept as proof
+   * of key continuity. */
+  def rotate(
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit
+
   def pseudonym(): String
   def verifyKey(): Array[Byte]
   def signKey(): Array[Byte]
   def encKey(): Array[Byte]
   def decKey(): Array[Byte]
+
+  /* The decKey displaced by the most recent rotate(), or None on an identity that has never rotated. Does not throw:
+   * absence is the ordinary case, and a storage read that fails should cost the fallback, never the decryption that
+   * was going to succeed anyway. */
+  def previousDecKey(): Option[Array[Byte]]

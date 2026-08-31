@@ -618,6 +618,19 @@ class ShareService @Inject() (
     val signature = identity.sign(canon)
     relayForContact(contact).pushRotation(contact.verifyKey, newVerifyKey, newEncKey, newCipherSuite, signature)
 
+  /** Whether every relay this device knows of answered. `syncInbox` and `syncDistributed` soft-fail per relay on
+    * purpose — one dark BYOR relay must not blank out results from the others — which also means neither can tell its
+    * caller that a relay went unheard. Rotation is the one caller that needs to know, because it is about to retire the
+    * identity those rows are addressed to, so it asks separately rather than the fan-out growing a return value every
+    * other caller would ignore.
+    */
+  private def allRelaysAnswered(): Boolean =
+    allRelays().forall { relay =>
+      Try(
+        relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Deposit), Some(ShareRequestState.Pending))
+      ).isSuccess
+    }
+
   /** The identity-regeneration trigger. Order matters: the drain and the rotation pushes must both happen before
     * activateKeyPair, since pushRotation (and the drain's own relay calls) sign with whatever identity is currently
     * persisted — that's what proves continuity from the old key to each contact. If the app dies partway through, the
@@ -628,18 +641,19 @@ class ShareService @Inject() (
   override def regenerateIdentity(): RegenerateIdentityResult =
     Try(syncInbox())
     Try(syncDistributed())
+    val drainSucceeded = allRelaysAnswered()
     val newKeys = identity.generateNewKeyPair()
     val contacts = contactRepository.getAll()
     val notified = contacts.count { contact =>
       Try(pushRotation(contact.id, newKeys.verifyKey, newKeys.encKey, CipherSuite.current)).isSuccess
     }
     identity.activateKeyPair(newKeys)
-    RegenerateIdentityResult(notified, contacts.size)
+    RegenerateIdentityResult(notified, contacts.size, drainSucceeded)
 
   /** Identity recovery — sender/owner side. Consumes pending recoveryMetadata pushes addressed to this device,
     * rebuilding Secret/ShareMetadata records from what each holder reports. A push is trusted only once its
-    * senderSignature verifies against a *known* contact — the holder must already have been re-added out-of-band (item
-    * 8 step 1) before their push is honored. Consumed rows are deleted from the relay once processed.
+    * senderSignature verifies against a *known* contact — the holder must already have been re-added out-of-band before
+    * their push is honored. Consumed rows are deleted from the relay once processed.
     */
   private def processRecoveryMetadata(): Unit =
     allRelays().foreach { relay =>

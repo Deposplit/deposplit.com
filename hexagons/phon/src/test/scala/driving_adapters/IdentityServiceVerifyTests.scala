@@ -33,6 +33,7 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
   private var registered = false
   private var _pseudonym = ""
   private var _edPk, _edSk, _xPk, _xSk: Array[Byte] = Array.empty
+  private var _previousXSk: Option[Array[Byte]] = None
 
   override def isRegistered(): Boolean = registered
 
@@ -42,13 +43,27 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
     _edSk = edSk
     _xPk = xPk
     _xSk = xSk
+    _previousXSk = None
     registered = true
+
+  override def rotate(
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit =
+    _previousXSk = Some(_xSk)
+    _edPk = verifyKey
+    _edSk = signKey
+    _xPk = encKey
+    _xSk = decKey
 
   override def pseudonym(): String = _pseudonym
   override def verifyKey(): Array[Byte] = _edPk
   override def signKey(): Array[Byte] = _edSk
   override def encKey(): Array[Byte] = _xPk
   override def decKey(): Array[Byte] = _xSk
+  override def previousDecKey(): Option[Array[Byte]] = _previousXSk
   override def forget(): Unit = registered = false
 
 /** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify` — the phon-side
@@ -108,6 +123,59 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     assert(alice.verifyKey().sameElements(candidate.verifyKey))
     assert(alice.encKey().sameElements(candidate.encKey))
     assertEquals(alice.pseudonym(), "test")
+  }
+
+  // A share is sealed to whichever encKey the holder advertised at deposit time. If rotating destroyed the matching
+  // decKey outright, a holder who rotates between a deposit and their pickup could never collect it — the row would
+  // stay pending and every later poll would fail identically.
+
+  test("decrypt falls back to the decKey displaced by the last rotation") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val share = "one share".getBytes("UTF-8")
+    val sealedToAlicesOldKey = bob.encrypt(share, alice.encKey())
+
+    alice.activateKeyPair(alice.generateNewKeyPair())
+
+    assert(alice.decrypt(sealedToAlicesOldKey, bob.encKey()).sameElements(share))
+  }
+
+  test("decrypt does not reach back past one generation") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val sealedToAlicesOldestKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey())
+
+    alice.activateKeyPair(alice.generateNewKeyPair())
+    alice.activateKeyPair(alice.generateNewKeyPair())
+
+    // Deliberate: one generation covers the deposit-to-pickup window, and no more key material than that lingers at
+    // rest.
+    intercept[Exception](alice.decrypt(sealedToAlicesOldestKey, bob.encKey()))
+  }
+
+  test("encrypt never seals under the displaced key") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val alicesOldEncKey = alice.encKey()
+    alice.activateKeyPair(alice.generateNewKeyPair())
+
+    val sealed_ = alice.encrypt("outgoing".getBytes("UTF-8"), bob.encKey())
+
+    assert(bob.decrypt(sealed_, alice.encKey()).sameElements("outgoing".getBytes("UTF-8")))
+    intercept[Exception](bob.decrypt(sealed_, alicesOldEncKey))
+  }
+
+  test("registering a fresh identity drops the retained key") {
+    val alice = IdentityService(InMemoryForgettableIdentityStore())
+    alice.register("test")
+    val bob = newIdentity()
+    val sealedToAlicesOldKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey())
+    alice.activateKeyPair(alice.generateNewKeyPair())
+
+    // Registration is a new identity, not a continuation of the old one, so nothing carries over.
+    alice.register("test")
+
+    intercept[Exception](alice.decrypt(sealedToAlicesOldKey, bob.encKey()))
   }
 
   test("sign after activateKeyPair verifies against the new key not the old") {

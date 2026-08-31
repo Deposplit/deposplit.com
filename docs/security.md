@@ -16,7 +16,7 @@ watches all traffic still learns nothing worth having.
 | A single malicious or compromised holder | Holds one share. Fewer than *k* shares are information-theoretically independent of the secret — not merely hard to invert, but carrying no information about it. |
 | A malicious holder who lies at reconstruction | Detected, and with enough margin identified and excluded. See *Reconstruction integrity*. |
 | Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind biometrics. |
-| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. |
+| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). |
 | Fewer than *k* holders colluding | Nothing. This is the guarantee Shamir actually provides. |
 | *k* holders colluding | Full reconstruction. This is by design and cannot be defended against — choosing *k* is choosing who you trust collectively. |
 
@@ -50,6 +50,18 @@ under the `deposplit_master` alias, and never leave the device as raw key materi
 **iOS** — raw 32-byte key material in the Keychain (`kSecClassGenericPassword`, service
 `com.deposplit.Deposplit`, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). The Secure
 Enclave is deliberately **not** used: it only handles P256, and Deposplit needs Curve25519.
+
+**One generation of `decKey` is retained across a rotation**, under the same protection as
+the current one, and is tried only after the current key fails to open a box. A share is
+sealed to whichever `encKey` the holder advertised at deposit time, so without it a holder
+who rotates between a deposit and their pickup could never collect that share: the row stays
+pending and every later poll fails identically. The displaced `signKey` is **not** retained —
+that would let an extracted device sign a rotation notice as the previous identity, which
+every contact auto-accepts as proof of key continuity.
+
+The cost is stated plainly in the table above: an attacker who extracts keys from an unlocked
+device gets two generations of key-agreement key rather than one. It buys them one more
+share, and a single share is still information-theoretically independent of the secret.
 
 ## Shamir's Secret Sharing
 

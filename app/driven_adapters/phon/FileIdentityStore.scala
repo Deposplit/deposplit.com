@@ -41,7 +41,8 @@ case class DevIdentity(
     signKey: Array[Byte],
     verifyKey: Array[Byte],
     decKey: Array[Byte],
-    encKey: Array[Byte]
+    encKey: Array[Byte],
+    previousDecKey: Option[Array[Byte]]
 ) extends Serializable
 
 @Singleton
@@ -74,8 +75,18 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
       encKey: Array[Byte],
       decKey: Array[Byte]
   ): Unit =
-    val devIdentity = DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey)
+    persist(DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey, None))
 
+  override def rotate(
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit =
+    val current = optionalIdentity.get
+    persist(DevIdentity(current.pseudonym, signKey, verifyKey, decKey, encKey, Some(current.decKey)))
+
+  private def persist(devIdentity: DevIdentity): Unit =
     val createdNewFile = file.createNewFile()
     if createdNewFile then logger.info(s"file $file created") else logger.info(s"file $file not created again")
     val oos = ObjectOutputStream(FileOutputStream(file))
@@ -85,6 +96,8 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
     optionalIdentity = Option(devIdentity)
 
   override def decKey(): Array[Byte] = optionalIdentity.get.decKey
+
+  override def previousDecKey(): Option[Array[Byte]] = optionalIdentity.flatMap(_.previousDecKey)
 
   override def encKey(): Array[Byte] = optionalIdentity.get.encKey
 

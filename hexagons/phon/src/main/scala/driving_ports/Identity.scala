@@ -48,5 +48,9 @@ trait Identity:
 
   /** Persists `keyPair` as this device's identity, preserving the existing pseudonym. After this call,
     * `sign`/`verifyKey`/`encKey` all reflect the new keys.
+    *
+    * The displaced `decKey` is kept one generation deep, so a share sealed to the old `encKey` while it was still
+    * current can still be opened at pickup. The displaced `signKey` is not: this device stops being able to sign as its
+    * former self the moment it rotates.
     */
   def activateKeyPair(keyPair: KeyPairMaterial): Unit

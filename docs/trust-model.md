@@ -63,6 +63,23 @@ key bytes are identical.
 Contacts must always be **updated**, never deleted and re-added. Re-adding mints a fresh
 `contactId` and orphans every share linked to the old one. The UI steers accordingly.
 
+### Rotating while a share is still in flight
+
+A share is encrypted to the holder's `encKey` as it stood at deposit time, so a holder who
+rotates before collecting it would find the ciphertext addressed to a key they no longer
+hold. Two things keep that from costing anything:
+
+- **Pickup stores before it approves**, so a failed decrypt leaves the deposit pending with
+  the relay's copy intact and the next poll retries. Approving is the destructive read.
+- **One generation of `decKey` survives the rotation** (see
+  [security.md](security.md)), so that retry succeeds rather than repeating forever.
+
+Regenerating an identity still drains the inbox under the old keys first, because collecting
+in advance is cheaper than relying on the fallback. That drain is best-effort — an
+unreachable relay must never block someone rotating precisely because they believe the old
+key is compromised — but a drain that could not reach every relay is now **reported** rather
+than silently dropped, so the choice of what to do next stays with the person rotating.
+
 ## Revocation is social, not cryptographic
 
 If an attacker holds your stolen key, you and the attacker are cryptographically

@@ -42,7 +42,7 @@ object CustodyHeartbeatTuning:
     */
   val lossThreshold: Duration = emissionInterval.multipliedBy(3)
 
-  /** Below `lossThreshold` but past this point, the UI nudges "getting stale" — the early warning called for in item
-    * 12, surfaced before a holder actually drops out of n_live.
+  /** Below `lossThreshold` but past this point, the UI nudges "getting stale" — an early warning surfaced before a
+    * holder actually drops out of n_live.
     */
   val staleWarningThreshold: Duration = emissionInterval.multipliedBy(2)

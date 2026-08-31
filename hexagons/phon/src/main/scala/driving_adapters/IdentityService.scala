@@ -49,6 +49,7 @@ import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 
 import java.security.SecureRandom
+import scala.util.Try
 
 class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extends ForgettableIdentity, ShareEncryption:
 
@@ -61,7 +62,7 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   override def generateNewKeyPair(): KeyPairMaterial = generateKeyPairMaterial()
 
   override def activateKeyPair(keyPair: KeyPairMaterial): Unit =
-    identityStore.save(identityStore.pseudonym(), keyPair.verifyKey, keyPair.signKey, keyPair.encKey, keyPair.decKey)
+    identityStore.rotate(keyPair.verifyKey, keyPair.signKey, keyPair.encKey, keyPair.decKey)
 
   private def generateKeyPairMaterial(): KeyPairMaterial =
     val random = SecureRandom()
@@ -118,13 +119,31 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     len += cipher.doFinal(out, len)
     Array(TransportSuite.current.tag) ++ nonce ++ out.take(len)
 
+  /** Falls back to the decKey displaced by the last rotation when the current one cannot open the box. A share is
+    * sealed to whichever encKey the holder advertised at deposit time, so a holder who rotates between a deposit and
+    * their pickup would otherwise never be able to collect it: the row stays pending and every later poll fails
+    * identically. One generation is enough to cover that window without keeping a keyring.
+    *
+    * Never used for encrypt — this device always seals under its current key.
+    */
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
     val tag = noncePlusCiphertext.headOption.getOrElse(
       throw UnsupportedTransportSuiteException("ciphertext is empty — no transport suite tag")
     )
     if TransportSuite.fromTag(tag).isEmpty then
       throw UnsupportedTransportSuiteException("this share used an encryption scheme this app version doesn't support")
-    val sk = X25519PrivateKeyParameters(identityStore.decKey())
+    try open(noncePlusCiphertext, recipientEncKey, identityStore.decKey())
+    catch
+      case e: Exception =>
+        // The current key's failure is the one worth reporting — the fallback missing or failing too just means there
+        // was no earlier generation this box belongs to.
+        identityStore
+          .previousDecKey()
+          .flatMap(previous => Try(open(noncePlusCiphertext, recipientEncKey, previous)).toOption)
+          .getOrElse(throw e)
+
+  private def open(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte], decKey: Array[Byte]): Array[Byte] =
+    val sk = X25519PrivateKeyParameters(decKey)
     val nonce = noncePlusCiphertext.slice(1, 1 + IdentityService.NonceBytes)
     val ciphertext = noncePlusCiphertext.drop(1 + IdentityService.NonceBytes)
     val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce)

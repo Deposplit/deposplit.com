@@ -1458,6 +1458,75 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(bob.verify(canon, sig, oldVerifyKey))
   }
 
+  // The mid-flight rotation case, end to end: a share sealed to the encKey this device advertised at deposit time is
+  // still collectable after the device has rotated away from it. Uses the real IdentityService on both sides rather
+  // than NoOpShareEncryption, because the whole point is which private key the key agreement runs against.
+
+  test("syncInbox still picks up a deposit sealed to the encKey rotated away from") {
+    val aliceIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    aliceIdentity.register("alice")
+    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    bobIdentity.register("bob")
+    // Alice signs with the fixture keypair but agrees with her real X25519 key — the two keypairs are independent,
+    // exactly as they are in production.
+    val alice = aliceContact.copy(encKey = aliceIdentity.encKey())
+    val relay = FakeShareRelay()
+    val contactRepo = FakeContactRepository(List(alice))
+    val shareRepo = FakeShareRepository()
+    val svc = ShareService(
+      relayResolver = FixedShareRelayResolver(relay),
+      encryption = bobIdentity,
+      shareRepository = shareRepo,
+      shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
+      contactRepository = contactRepo,
+      contactManagement = ContactService(contactRepo),
+      keyConflictRepository = FakeKeyConflictRepository(),
+      retainedDepositRepository = FakeRetainedDepositRepository(),
+      identity = bobIdentity
+    )
+
+    val id = UUID.randomUUID()
+    val share = "bob's share".getBytes("UTF-8")
+    val sealedToBobsOldKey = aliceIdentity.encrypt(share, bobIdentity.encKey())
+    val unsigned =
+      depositRow(id, aliceKeys.publicKey, bobIdentity.verifyKey(), Array.emptyByteArray, sealedToBobsOldKey)
+    val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
+
+    bobIdentity.activateKeyPair(bobIdentity.generateNewKeyPair())
+    relay.pending = List(row)
+    relay.byId = Map(id -> row)
+
+    svc.syncInbox()
+
+    assertEquals(shareRepo.getAll().size, 1)
+    assert(shareRepo.getAll().head.plaintextShare.sameElements(share))
+    assertEquals(relay.respondCalls, List(id))
+  }
+
+  test("regenerateIdentity reports a drain that could not reach every relay") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, _, _, _, _) = newService(relay)
+    val oldVerifyKey = bob.verifyKey()
+    relay.unreachable = true
+
+    val result = svc.regenerateIdentity()
+
+    // Reported, not dropped — but the rotation still completes: an unreachable relay must not be able to block someone
+    // rotating precisely because they think the old key is compromised.
+    assert(!result.drainSucceeded)
+    assert(!bob.verifyKey().sameElements(oldVerifyKey))
+  }
+
+  test("regenerateIdentity reports a complete drain when every relay answers") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, _) = newService(relay)
+
+    val result = svc.regenerateIdentity()
+
+    assert(result.drainSucceeded)
+  }
+
   test("regenerateIdentity still activates the new keys when one contact's relay is unreachable") {
     val byorUrl = "http://byor.example:9000"
     val charlieKeys = TestKeyPair.generate()
