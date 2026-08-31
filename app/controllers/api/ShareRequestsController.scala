@@ -141,8 +141,10 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** PATCH /share-requests/:requestId — approve or deny (recipient). Approving a Deposit returns the ciphertext in the
-    * response body (one-time delivery). Approving a Retrieval requires `ciphertext` in the request body.
+  /** PATCH /share-requests/:requestId — approve or deny (recipient). Approving a Deposit clears the stored ciphertext
+    * and echoes it back in the response body; the echo is a convenience, not the delivery, since the recipient's own
+    * listing already carries it (and must, because the sender's signature covers it). Approving a Retrieval requires
+    * `ciphertext` in the request body.
     */
   def respondToShareRequest(requestId: String) = Action(parse.raw) { (request: Request[RawBuffer]) =>
     val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])

@@ -112,6 +112,12 @@ private object NoOpShareEncryption extends ShareEncryption:
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
     noncePlusCiphertext
 
+/** Stands in for the real failure at pickup: a share sealed to a key this device no longer holds. */
+private object FailingShareEncryption extends ShareEncryption:
+  override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
+  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    throw RuntimeException("simulated decryption failure")
+
 /** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns whatever `pending` is
   * configured to, which is all these tests need.
   */
@@ -274,7 +280,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   private def newService(
       relay: FakeShareRelay,
-      contacts: List[Contact] = List(aliceContact)
+      contacts: List[Contact] = List(aliceContact),
+      encryption: ShareEncryption = NoOpShareEncryption
   ): (
       ShareService,
       IdentityService,
@@ -293,7 +300,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val retainedRepo = FakeRetainedDepositRepository()
     val svc = ShareService(
       relayResolver = FixedShareRelayResolver(relay),
-      encryption = NoOpShareEncryption,
+      encryption = encryption,
       shareRepository = shareRepo,
       shareMetadataRepository = metaRepo,
       secretRepository = FakeSecretRepository(),
@@ -359,6 +366,25 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
     assertEquals(relay.respondCalls, List(id))
     assertEquals(shareRepo.getAll().map(_.id), List(id))
+  }
+
+  test("syncInbox leaves a Deposit pending when the share cannot be decrypted") {
+    val relay = FakeShareRelay()
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay, encryption = FailingShareEncryption)
+    val id = UUID.randomUUID()
+    val unsigned = depositRow(id, aliceKeys.publicKey, bob.verifyKey(), Array.empty)
+    val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
+    relay.pending = List(row)
+    relay.byId = Map(id -> row)
+
+    svc.syncInbox()
+
+    // Approving is what clears the relay's only copy of the ciphertext, so a pickup that couldn't
+    // be stored locally must leave the row pending for the next poll to retry — approving first
+    // would consume the share and lose it silently.
+    assert(relay.respondCalls.isEmpty)
+    assert(shareRepo.getAll().isEmpty)
+    assertEquals(relay.byId(id).state, ShareRequestState.Pending)
   }
 
   test("syncInbox skips a Deposit whose senderSignature doesn't verify against the claimed sender") {

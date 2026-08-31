@@ -435,28 +435,40 @@ class ShareService @Inject() (
           // ShareRequestsService) — skip defensively rather than store a share we can't later
           // report thresholds for during recovery.
           (req.k, req.n) match
-            case (Some(k), Some(n)) if shareRepository.getPlaintextShare(req.secretId).isEmpty =>
+            case (Some(k), Some(n)) =>
+              // Order is load-bearing: approving is what clears the relay's only copy of the
+              // ciphertext, so it is the last step of pickup and never the first. Decrypting and
+              // storing first means a failure leaves the row pending with the relay's copy intact,
+              // and the next poll simply retries. The ciphertext is already in hand and already
+              // authenticated — verifyOpen above covers it — so the approval response's echoed copy
+              // adds nothing. Try isolates one bad row from the rest of the poll; it must never span
+              // a half-completed pickup.
               Try {
-                val canon = PayloadCanonical.forRespond(req.id, approved = true, ciphertext = None)
-                val recipientSignature = identity.sign(canon)
-                val responded =
-                  relay.respondToShareRequest(req.id, approved = true, recipientSignature = recipientSignature)
-                responded.ciphertext.foreach { ct =>
-                  val plaintext = encryption.decrypt(ct, senderContact.encKey)
-                  shareRepository.save(
-                    HeldShare(
-                      id = req.id,
-                      secretId = req.secretId,
-                      label = req.label,
-                      contactId = senderContact.id,
-                      createdAt = req.secretCreatedAt,
-                      pickedUpAt = Instant.now(),
-                      plaintextShare = plaintext,
-                      k = k,
-                      n = n
+                val alreadyHeld = shareRepository.getPlaintextShare(req.secretId).isDefined
+                val stored =
+                  alreadyHeld || req.ciphertext.fold(false) { ct =>
+                    val plaintext = encryption.decrypt(ct, senderContact.encKey)
+                    shareRepository.save(
+                      HeldShare(
+                        id = req.id,
+                        secretId = req.secretId,
+                        label = req.label,
+                        contactId = senderContact.id,
+                        createdAt = req.secretCreatedAt,
+                        pickedUpAt = Instant.now(),
+                        plaintextShare = plaintext,
+                        k = k,
+                        n = n
+                      )
                     )
-                  )
-                }
+                    true
+                  }
+                // Sent even when an earlier poll already stored the share but failed to acknowledge
+                // it: without the approval the sender never observes the pickup and keeps her
+                // retained blob forever.
+                if stored then
+                  val canon = PayloadCanonical.forRespond(req.id, approved = true, ciphertext = None)
+                  relay.respondToShareRequest(req.id, approved = true, recipientSignature = identity.sign(canon))
               }
             case _ => ()
         }

@@ -202,6 +202,12 @@ Pickup counts as confirmed through either channel — the relay showing the depo
 `secretId` (durable, immune to collection). A *later* loss is a different problem with a
 different remedy; see [trust-model.md](trust-model.md).
 
+Which makes a deposit approval an **acknowledgement, not the delivery**. The pending row
+must already carry the ciphertext — the sender's signature covers it, so a holder cannot
+verify the row without it — and the approval's job is to tell the sender the share arrived
+and let the relay drop its copy. Holders therefore decrypt and store before approving, never
+after; see "The holder decrypts at pickup" in [security.md](security.md).
+
 ## The two clocks never meet
 
 The five-minute nonce window times a single request *in flight*. Row retention is storage

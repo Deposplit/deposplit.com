@@ -125,10 +125,17 @@ exists in all three stacks.
 This is the load-bearing decision, and it is not obvious.
 
 1. **Deposit** — the sender encrypts each share to the holder's *current* public key.
-2. **Pickup** — on approval the holder decrypts immediately and stores the **plaintext**
-   share locally. The ciphertext is discarded and the relay row cleared.
+2. **Pickup** — the holder decrypts the ciphertext their pending deposit row already carries
+   and stores the **plaintext** share locally, and only *then* approves. The ciphertext is
+   discarded and the relay row cleared.
 3. **Retrieval** — the holder re-encrypts that plaintext to the requester's *current*
    public key, looked up live.
+
+**That order is the guarantee, not an implementation detail.** Approving is what clears the
+relay's only copy, so it has to be the last step of pickup: anything that fails before it —
+a share sealed to a key the holder has since rotated away from, a device that dies
+mid-sync — leaves the deposit pending with the relay's copy intact, and the next poll simply
+retries. Approving first would consume the share and lose it with no error anyone could see.
 
 Plaintext at rest sounds alarming and is not: one share below the threshold carries no
 information about the secret, and it still sits in app-private storage under the OS's
