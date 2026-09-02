@@ -43,9 +43,9 @@ class ShareRequestsController @Inject() (
   private val b64Dec = Base64.getDecoder
 
   /** POST /share-requests — open any share request (Deposit / Retrieval / Removal / Inventory). */
-  def openShareRequest() = Action(parse.raw) { (request: Request[RawBuffer]) =>
-    val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
+  def openShareRequest() = Action(signedBody) { (request: Request[RawBuffer]) =>
     val result = for
+      bodyBytes <- signedBodyBytes(request)
       callerKey <- AuthHelper.verify(request, bodyBytes)
       json <- parseJson(bodyBytes)
       ttStr <- (json \ "transactionType")
@@ -148,9 +148,9 @@ class ShareRequestsController @Inject() (
     * listing already carries it (and must, because the sender's signature covers it). Approving a Retrieval requires
     * `ciphertext` in the request body.
     */
-  def respondToShareRequest(requestId: String) = Action(parse.raw) { (request: Request[RawBuffer]) =>
-    val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
+  def respondToShareRequest(requestId: String) = Action(signedBody) { (request: Request[RawBuffer]) =>
     val result = for
+      bodyBytes <- signedBodyBytes(request)
       callerKey <- AuthHelper.verify(request, bodyBytes)
       id <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
       json <- parseJson(bodyBytes)

@@ -42,9 +42,9 @@ class CustodyHeartbeatsController @Inject() (
   /** POST /custody-heartbeats — push (upsert) a signed heartbeat for one owner. The authenticated caller becomes
     * `holderKey`.
     */
-  def pushHeartbeat() = Action(parse.raw) { (request: Request[RawBuffer]) =>
-    val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
+  def pushHeartbeat() = Action(signedBody) { (request: Request[RawBuffer]) =>
     val result = for
+      bodyBytes <- signedBodyBytes(request)
       callerKey <- AuthHelper.verify(request, bodyBytes)
       json <- parseJson(bodyBytes)
       ownerKeyStr <- (json \ "ownerKey")

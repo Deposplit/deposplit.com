@@ -30,6 +30,7 @@ import play.api.libs.json.*
 import play.api.test.*
 import play.api.test.Helpers.*
 
+import java.util.Base64
 import java.util.UUID
 
 /** Integration tests for POST/GET/PATCH/DELETE /share-requests.
@@ -632,5 +633,29 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
         route(app, bob.post("/share-requests", body)).get
       status(push()) mustBe CREATED
       status(push()) mustBe CREATED
+    }
+  }
+
+  // ── Request body size ──────────────────────────────────────────────────────
+
+  "POST /share-requests body size" should {
+
+    "accept a deposit whose ciphertext is far larger than Play's default in-memory buffer" in {
+      // ~273 KiB of base64 in a ~274 KiB body — comfortably past the 100 KB `maxMemoryBuffer`
+      // default. This used to fail: the raw body spooled to a temp file, `RawBuffer.asBytes`
+      // answered None above the threshold, and the controller's fallback handed signature
+      // verification an *empty* array, so a perfectly valid deposit came back unauthorised.
+      val bigCiphertext = Base64.getEncoder.encodeToString(Array.fill(200 * 1024)(0x7a.toByte))
+      val sender = new RequestSigner()
+      val recipient = new RequestSigner()
+      val sid = UUID.randomUUID().toString
+      val result = route(app, sender.post("/share-requests", depositBody(sender, recipient, sid, bigCiphertext))).get
+      status(result) mustBe CREATED
+    }
+
+    "refuse a body past the parser's limit with 413, not a misleading 400 or 401" in {
+      val oversized = Array.fill(1024 * 1024 + 1024)(0x7a.toByte)
+      val result = route(app, alice.post("/share-requests", oversized)).get
+      status(result) mustBe REQUEST_ENTITY_TOO_LARGE
     }
   }

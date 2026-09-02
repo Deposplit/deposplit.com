@@ -1619,6 +1619,55 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(!bobIdentity.verifyKey().sameElements(oldVerifyKey))
   }
 
+  // ── secret size and format ────────────────────────────────────────────────
+
+  test("deposit accepts a secret exactly at the limit") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, _) = newService(relay, contacts = List(aliceContact, holderTwoContact))
+
+    svc.deposit(
+      Array.fill(SecretLimits.MaxSecretBytes)(0x41.toByte),
+      "test secret",
+      List(aliceContact, holderTwoContact),
+      threshold = 2
+    )
+
+    assertEquals(relay.openedRequests.size, 2)
+  }
+
+  test("deposit refuses a secret one byte over the limit") {
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, _) = newService(relay, contacts = List(aliceContact, holderTwoContact))
+
+    intercept[SecretTooLargeException] {
+      svc.deposit(
+        Array.fill(SecretLimits.MaxSecretBytes + 1)(0x41.toByte),
+        "test secret",
+        List(aliceContact, holderTwoContact),
+        threshold = 2
+      )
+    }
+    // Nothing reached the relay — the guard runs before the split, not after it.
+    assert(relay.openedRequests.isEmpty)
+  }
+
+  test("sniffed recognises PNG and JPEG and nothing else") {
+    val png = Array(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01).map(_.toByte)
+    val jpeg = Array(0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10).map(_.toByte)
+    assertEquals(MimeType.sniffed(png), Some(MimeType.Png))
+    assertEquals(MimeType.sniffed(jpeg), Some(MimeType.Jpeg))
+    assertEquals(MimeType.sniffed("hello".getBytes("UTF-8")), None)
+    // GIF is deliberately not accepted.
+    assertEquals(MimeType.sniffed(Array(0x47, 0x49, 0x46, 0x38).map(_.toByte)), None)
+  }
+
+  test("sniffed does not overrun a buffer shorter than the magic bytes") {
+    assertEquals(MimeType.sniffed(Array.empty[Byte]), None)
+    assertEquals(MimeType.sniffed(Array(0xff).map(_.toByte)), None)
+    assertEquals(MimeType.sniffed(Array(0xff, 0xd8).map(_.toByte)), None)
+    assertEquals(MimeType.sniffed(Array(0x89, 0x50, 0x4e).map(_.toByte)), None)
+  }
+
   // ── mimeType ──────────────────────────────────────────────────────────────
 
   test("deposit records the mimeType on the Secret and signs it into every deposit row") {

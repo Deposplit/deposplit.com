@@ -166,10 +166,16 @@ retrieval.
 
 ## Rendering a reconstructed secret
 
-Every secret carries a sender-declared `mimeType` — `text/plain` for everything the apps can
-split today — which travels with the deposit payload and the `inventory` recovery push. It is
-a **claim**, at the same trust level as `label`: nobody sniffs the bytes to check it, and the
-relay could not check it if it wanted to, seeing only ciphertext.
+Every secret carries a sender-declared `mimeType` — `text/plain` for typed text, `image/png` or
+`image/jpeg` for a picked image — which travels with the deposit payload and the `inventory`
+recovery push. It is a **claim**, at the same trust level as `label`: nothing on a receiving
+device checks it against the bytes, and the relay could not check it if it wanted to, seeing
+only ciphertext.
+
+A device does check its *own* secrets. A picked image's type is read off its leading bytes
+rather than taken from the picker, the file name, or the system's guess, so a claim a device
+makes about something it split itself cannot disagree with what it split. That is worth having,
+but it is not a property anyone else can rely on: a different client may claim whatever it likes.
 
 Reconstruction therefore forks on the declared type, and the fork is built to fail safe. Text
 renders as text only if the bytes really are valid UTF-8; an image goes through the platform's
@@ -184,11 +190,44 @@ harm is feeding attacker-chosen bytes to an image decoder, which is why decoding
 platform's sandboxed decoder rather than a bundled library, and why every failure lands on the
 binary view instead of an error path.
 
+The export writes back exactly the bytes that were split, never a re-encode of them. That
+matters for an image: handing back a re-compressed copy under the original type's name would
+quietly make the export something other than the secret.
+
 The export is the one genuinely new surface here: it writes reconstructed **plaintext** out of
 the app, to a location the user picks. The catalogue backup deliberately never does that — it
 carries contacts, levels and share metadata, no shares and no keys — so the two are not
 comparable, and the export is offered per reconstruction, at the user's request, rather than
 being anything the app does on its own.
+
+## How large a secret may be
+
+A secret may be at most **256 KiB**, typed text and picked images alike. The limit lives in the
+domain rather than in an input form, so no entry point can slip past it — a re-split during a
+repair least of all.
+
+It is this modest because Shamir shares are byte-wise. An *S*-byte secret becomes *n* shares of
+*S* bytes each; every one is sealed, base64-encoded into its own request, and held by the relay
+until its holder picks it up, while the sender retains a copy of all *n* until every pickup is
+confirmed. A secret therefore costs several times its own size, several times over. Splitting
+and reconstruction are linear in *S* too, and `combineWithIntegrity` is linear in *S* for every
+hypothesis it tries, so payload size buys latency at reconstruction as well as bytes at rest.
+
+**An image is split verbatim or refused — never shrunk to fit.** Re-encoding to make something
+fit would mean the secret is not the file the user chose, and a secret nobody can predict the
+bytes of is a poor secret to hand back later. The cost is that most camera photos are several
+megabytes and will be refused; what fits is a screenshot, a cropped photo of a paper backup, a
+saved QR image. The refusal says so, with the actual size.
+
+The accepted formats are **PNG and JPEG**, and nothing else. Each additional format is more
+decoder surface reached by attacker-chosen bytes for no use case anyone has asked for; SVG is
+scriptable and will not be added.
+
+Splitting an image verbatim also means **its metadata rides along** — EXIF, and with it any GPS
+coordinates the camera recorded. Deposplit does not strip it, because stripping it would be a
+re-encode. Nobody gains from this who could not already reconstruct the secret: holders see only
+shares, and the relay only ciphertext. It matters at the *export*, where the file leaves the app
+carrying whatever it arrived with.
 
 ## Crypto agility
 

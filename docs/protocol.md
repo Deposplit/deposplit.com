@@ -121,12 +121,35 @@ Three, none of them about people.
 `recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
 forbidden for `retrieval` and `removal`.
 
-`mime_type` is the sender's claim about what the secret is — `text/plain` for everything the
-apps can split today — carried so the recipient can decide how to render it once
-reconstructed. Like `label`, it is plaintext the relay routes without interpreting, and it is
-never checked against the payload, which the relay cannot read. It must be non-blank: `forOpen`
-renders an absent field and an empty one identically, so a blank value would be a claim the
-signature cannot tell apart from no claim at all.
+`mime_type` is the sender's claim about what the secret is — `text/plain` for typed text,
+`image/png` or `image/jpeg` for a picked image — carried so the recipient can decide how to
+render it once reconstructed. Like `label`, it is plaintext the relay routes without
+interpreting, and it is never checked against the payload, which the relay cannot read. It must
+be non-blank: `forOpen` renders an absent field and an empty one identically, so a blank value
+would be a claim the signature cannot tell apart from no claim at all.
+
+The clients do not simply believe whatever handed them a file: a picked image's type is read
+off its own leading bytes, so a claim a device makes about its *own* secret is true by
+construction. That is a client-side property and not something the relay can rely on — a
+different client, or a hostile one, may claim anything.
+
+### Request size
+
+Two separate bounds, with two different jobs.
+
+The relay refuses a ciphertext over **512 KiB** with `413`, and its body parser refuses any
+request over **1 MiB**, also with `413`. These are operator guards — a `deposit` row holds the
+only copy of a share in transit, so the relay is storage, and this is what stops one caller
+parking arbitrary bytes in it.
+
+The clients impose a much smaller limit of their own on the *secret* — see
+[security.md](security.md). The relay's bound is deliberately looser and must stay that way: it
+cannot know what any client's limit is, and a client raising its own should not require a relay
+change in lockstep.
+
+The parser's in-memory threshold and its hard limit are deliberately equal, so a body is never
+spooled to a temporary file on the way past. Those bytes are ciphertext, and the relay has no
+business writing them to disk.
 
 **`key_rotations`** — signed "I am now this key" notices. Columns: `id`, `old_verify_key`,
 `recipient_key`, `new_verify_key`, `new_enc_key`, `new_cipher_suite`, `signature`,

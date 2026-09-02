@@ -1101,6 +1101,69 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assertEquals(result, Left(Error.BadRequest))
   }
 
+  // --- ciphertext size ---
+  //
+  // The bound is the relay's own operator guard, not any client's secret-size limit, so these pin the relay's number
+  // rather than deriving it from what a client would send.
+  //
+  // These assert on the error alone, never on the whole Either. A failing `assertEquals(result, Left(...))` would ask
+  // munit to render the Right side's half-megabyte ciphertext into a diff, which takes long enough to look like a hung
+  // build — it did.
+
+  private val maxCiphertext = 512 * 1024
+
+  extension (result: Either[Error, ShareRequest]) private def errorOnly: Option[Error] = result.left.toOption
+
+  test("Deposit accepts a ciphertext exactly at the bound") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(Array.fill(maxCiphertext)(0xab.toByte))
+    )
+    assert(result.isRight)
+  }
+
+  test("Deposit refuses a ciphertext one byte over the bound") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(Array.fill(maxCiphertext + 1)(0xab.toByte))
+    )
+    assertEquals(result.errorOnly, Some(Error.PayloadTooLarge))
+  }
+
+  test("Retrieval approval refuses an oversized ciphertext") {
+    val (_, service) = newService()
+    val dep = deposit(service)
+    val retrieval = open(
+      service,
+      alice,
+      bob,
+      dep.secretId,
+      dep.label,
+      dep.secretCreatedAt,
+      ShareTransactionType.Retrieval,
+      Some(dep.id),
+      None
+    ).getOrElse(fail("retrieval failed"))
+    val result = respond(service, bob, retrieval.id, approved = true, Some(Array.fill(maxCiphertext + 1)(0xcd.toByte)))
+    assertEquals(result.errorOnly, Some(Error.PayloadTooLarge))
+  }
+
   // --- mimeType ---
 
   test("Deposit stores mimeType") {

@@ -24,8 +24,8 @@
 
 package value_objects
 
-/** The sender-declared media type of the secret a Deposit or Inventory row is about — `"text/plain"` for everything the
-  * apps can split today.
+/** The sender-declared media type of the secret a Deposit or Inventory row is about — `"text/plain"` for typed text,
+  * `"image/png"` or `"image/jpeg"` for a picked image.
   *
   * Sender-supplied and best-effort, exactly the trust level `label` already has: the relay routes it and never
   * interprets it, never sniffs the bytes, and could not check the claim if it wanted to — the payload is ciphertext it

@@ -20,19 +20,6 @@ Nothing here is blocked; it needs devices and an hour. Flows are written up in
 - [ ] `A` `I` BYOR variant: two relays on different ports, one contact with a `relayBaseUrl` override, one without — verify routing and independent soft-failure
 - [ ] `A` `I` reconstruction integrity with a surplus holder: confirm the advisory reports the margin honestly
 
-## Support more secret types — pictures and audio
-
-Placeholder for the actual input and rendering work once the MIME groundwork above is in.
-The "secret input methods" already contemplated: file upload, QR-code scan of a secret,
-share-sheet/intent handler, photo capture, document scanner with OCR, cloud-storage picker,
-NFC. Voice dictation is **not** planned — microphone access and speech-recognition services
-are an unacceptable attack surface for this app.
-
-- [ ] `A` `I` decide which input methods land first, and their per-platform APIs
-- [ ] `A` `I` image capture/selection end to end, including size limits
-- [ ] `A` `I` audio file selection end to end
-- [ ] `doc` update [docs/security.md](docs/security.md) if larger payloads change any assumption
-
 ## Freemium one-time unlock
 
 A single one-time in-app purchase removing the deposit cap and unlocking sender-side BYOR.
@@ -55,6 +42,8 @@ for the sender's choice would be backwards.
 
 ## Chores
 
+- [ ] `phon` **phon cannot upload an image.** Its hexagon already enforces the 256 KiB cap and recognises PNG/JPEG, but the deposit form is still text-only, so phon can demonstrate a `text/plain` deposit and nothing else. Adding a file input means switching `createMySecret` from a URL-encoded `Form` to a multipart body, and dropping the `.trim` that assumes the secret is text. Worth having for teaching: phon cannot reconstruct, so sending an image to a real device is the only way to show the flow without two phones.
+- [ ] `phon` **The deposit form's field labels are missing from `conf/messages`.** `secret`, `label` and `k` are referenced by `secretSharingForm.scala.html` but defined in neither locale, so Play renders the bare keys. Same for the flash keys `sharedSecret`, `createdContact` and `synchedInbox`.
 - [ ] `R` `phon` **`phon` has no `forOpen` byte vector.** `hexagons/phon` carries a fourth independent `PayloadCanonical`, but only relay, Android and iOS are pinned to the shared fixed-seed vector; phon's own tests exercise `forOpen` structurally, so it could drift from the other three and stay green. Copying `PayloadCanonicalVectorTests` into `hexagons/phon/src/test/scala/value_objects/svo/` is ~40 lines. Its doc comment no longer claims a vector test it hasn't got.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
@@ -62,6 +51,8 @@ for the sender's choice would be backwards.
 
 Not rejected — waiting on something.
 
+- [ ] `A` `I` **In-app camera capture as a secret input.** Today an image must already exist in the photo library or in Files, which means a photo of a seed phrase has been sitting in the camera roll — and syncing to iCloud or Google Photos — before it is ever split. A capture kept in memory and split immediately never touches either. Both platforms already declare a camera permission for QR scanning, and both already have a camera surface to copy (`DataScannerViewController`, CameraX).
+- [ ] `A` `I` **Widen the accepted image formats past PNG and JPEG.** HEIC is the obvious first candidate: an unmodified iPhone photo is HEIC, so today it is refused on type as well as size. Each addition is more decoder surface reached by attacker-chosen bytes, so this is a deliberate trade rather than an oversight. SVG stays out — it is scriptable.
 - [-] `R` `A` `I` **Airtable / Google Sheets relay kinds.** Wanted, but gated on the default relay demonstrating real adoption. Each non-REST kind needs its own adapter and wire shape, plus a `relayKind` discriminator on `Contact`; that is speculative surface area until people are actually using Deposplit. No design work before then.
 - [-] `R` `phon` `A` `I` **Relay row TTL.** Two retention classes — generous for consent-gated action requests, short and latest-wins for fire-and-forget pushes. No TTL or collection job exists; this is deployment configuration, not application logic, and no correctness property depends on *having* one — though one depends on how it is introduced, below. See "absence is never a signal" in [docs/protocol.md](docs/protocol.md). **Collection cannot land alone.** A `deposit` row carries the only copy of a share in transit, and the sender's retained blob is the prerequisite for surviving its collection — but nothing re-deposits from that blob today, so shipping a collection job without the client half would introduce exactly the loss the retention exists to prevent. The client half is bigger than it looks: a re-deposit mints a fresh request id relay-side, while the blob's `id` *is* the original request id — the key `ShareMetadata`, `syncDistributed` and `isRetentionStillPending` all join on — so both local records need re-keying. It need not detect collection, though. Attempt the re-deposit unconditionally and let `hasActiveDeposit` answer `Conflict` while the row is still there, which keeps "absence is never a signal" intact.
-- [-] `A` **Android lint in CI.** `.github/workflows/test.yml` runs `./gradlew test` only, so `:app:lintDebug` never fires there. Running it by hand found 29 untranslated German strings and a `CAMERA` permission that implicitly marked camera hardware required, hiding the app from Chromebooks; both are fixed and the tree is now at 0 errors, 26 warnings. A second workflow step would keep it that way, chiefly guarding `MissingTranslation` and `NewApi` — the latter being the only thing standing between `compileSdk 37` and `minSdk 29`. Waiting on an appetite for the cost: lint's checks change with AGP, so a Dependabot bump can fail a pull request for reasons unrelated to its own change. A baseline file would avoid that by freezing today's findings as acceptable, which is worse than an occasional red PR.
+- [-] `A` **Android lint in CI.** `.github/workflows/test.yml` runs `./gradlew test` only, so `:app:lintDebug` never fires there. Running it by hand found 29 untranslated German strings and a `CAMERA` permission that implicitly marked camera hardware required, hiding the app from Chromebooks; both are fixed and the tree is now at 0 errors, 28 warnings. A second workflow step would keep it that way, chiefly guarding `MissingTranslation` and `NewApi` — the latter being the only thing standing between `compileSdk 37` and `minSdk 29`. That is not hypothetical: image input reached for `InputStream.readNBytes`, which is API 33+, and `NewApi` was what caught it — nothing else in the toolchain complained, and it would have crashed on every device below Android 13. Waiting on an appetite for the cost: lint's checks change with AGP, so a Dependabot bump can fail a pull request for reasons unrelated to its own change. A baseline file would avoid that by freezing today's findings as acceptable, which is worse than an occasional red PR.

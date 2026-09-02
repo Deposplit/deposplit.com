@@ -26,6 +26,9 @@ package controllers.api
 
 import play.api.libs.json.*
 import play.api.mvc.BaseController
+import play.api.mvc.BodyParser
+import play.api.mvc.RawBuffer
+import play.api.mvc.Request
 import play.api.mvc.Result
 import value_objects.CipherSuite
 import value_objects.CustodyHeartbeat
@@ -46,11 +49,42 @@ trait ApiSupport { self: BaseController =>
   protected def errorJson(code: String, message: String): JsValue =
     Json.obj("code" -> code, "message" -> message)
 
+  /** Sized for the largest deposit a client can produce: a 256 KiB secret seals to roughly 256 KiB of ciphertext and
+    * ~341 KiB of standard base64 once it is in the JSON body, so a mebibyte leaves room for that and the envelope
+    * around it.
+    */
+  protected val maxRequestBodyBytes: Long = 1024 * 1024
+
+  /** The body parser for every action whose body is covered by a signature.
+    *
+    * The memory threshold and the hard limit are deliberately the *same* number. Play spools a raw body to a temporary
+    * file once it passes the threshold, and `RawBuffer.asBytes` then answers `None` — so with the two apart, an
+    * oversized body silently became an empty one and failed signature verification instead of being refused. Equal
+    * values mean Play answers 413 itself, and no request body is ever written to this relay's disk on the way past —
+    * which matters beyond tidiness, those bytes being ciphertext.
+    */
+  protected def signedBody: BodyParser[RawBuffer] =
+    parse.raw(memoryThreshold = maxRequestBodyBytes, maxLength = maxRequestBodyBytes)
+
+  /** The whole body, which every signed action needs in order to hash it. `None` is unreachable while [[signedBody]]
+    * keeps its two bounds equal; it is answered honestly rather than with an empty array, because an empty array is
+    * exactly what hid the bug above.
+    */
+  protected def signedBodyBytes(request: Request[RawBuffer]): Either[Result, Array[Byte]] =
+    request.body
+      .asBytes()
+      .map(_.toArray)
+      .toRight(
+        EntityTooLarge(errorJson("payload_too_large", "Request body exceeds the maximum size this relay accepts"))
+      )
+
   protected def domainErrorToResult(err: Error): Result = err match
-    case Error.NotFound   => NotFound(errorJson("not_found", "Resource not found"))
-    case Error.Conflict   => Conflict(errorJson("conflict", "Resource conflict"))
-    case Error.Forbidden  => Forbidden(errorJson("forbidden", "Access denied"))
-    case Error.BadRequest => BadRequest(errorJson("bad_request", "Invalid request"))
+    case Error.NotFound        => NotFound(errorJson("not_found", "Resource not found"))
+    case Error.Conflict        => Conflict(errorJson("conflict", "Resource conflict"))
+    case Error.Forbidden       => Forbidden(errorJson("forbidden", "Access denied"))
+    case Error.BadRequest      => BadRequest(errorJson("bad_request", "Invalid request"))
+    case Error.PayloadTooLarge =>
+      EntityTooLarge(errorJson("payload_too_large", "Payload exceeds the maximum size this relay stores"))
 
   protected def shareRequestJson(req: ShareRequest): JsValue =
     val base = Json.obj(

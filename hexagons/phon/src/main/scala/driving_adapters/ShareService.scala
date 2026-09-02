@@ -51,7 +51,9 @@ import value_objects.svo.RegenerateIdentityResult
 import value_objects.svo.RetainedDepositBlob
 import value_objects.svo.Role
 import value_objects.svo.Secret
+import value_objects.svo.SecretLimits
 import value_objects.svo.SecretState
+import value_objects.svo.SecretTooLargeException
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
@@ -139,6 +141,8 @@ class ShareService @Inject() (
       threshold: Int,
       mimeType: MimeType = MimeType.Default
   ): Unit =
+    if secret.length > SecretLimits.MaxSecretBytes then
+      throw SecretTooLargeException(secret.length, SecretLimits.MaxSecretBytes)
     val shares = SecretSharing.split(secret, contacts.size, threshold)
     val secretId = UUID.randomUUID()
     val createdAt = Instant.now()

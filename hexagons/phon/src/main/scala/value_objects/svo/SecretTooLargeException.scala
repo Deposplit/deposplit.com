@@ -22,11 +22,11 @@
  * THE SOFTWARE.
  */
 
-package value_objects
+package value_objects.svo
 
-enum Error:
-  case NotFound // resource doesn't exist, or caller isn't authorised to know it exists
-  case Conflict // resource already exists, or state transition is invalid
-  case Forbidden // caller is authenticated but not authorised to act on this resource
-  case BadRequest // caller provided semantically invalid input
-  case PayloadTooLarge // caller's input is well-formed but exceeds a size the relay is willing to store
+/** Thrown by `deposit` when a secret exceeds [[SecretLimits.MaxSecretBytes]].
+  *
+  * Carries the numbers rather than a sentence, so the caller can say what happened in its own language.
+  */
+final case class SecretTooLargeException(bytes: Int, limit: Int)
+    extends Exception(s"secret is $bytes bytes; the limit is $limit")

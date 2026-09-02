@@ -75,7 +75,7 @@ domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (299: relay 101, phon 123, root 75)
+sbt test                                    # all tests (308: relay 104, phon 127, root 77)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
@@ -88,12 +88,12 @@ The sibling repositories, for reference:
 
 ```bash
 # from Android/
-./gradlew test                    # JVM unit tests, no device needed (132 :hexagon, 20 :app)
+./gradlew test                    # JVM unit tests, no device needed (136 :hexagon, 20 :app)
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 
 # from iOS/hexagon/
-swift test                        # 127 tests
+swift test                        # 131 tests
 swift build
 ```
 

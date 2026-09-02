@@ -245,8 +245,9 @@ components:
           type: string
           format: byte
           nullable: true
+          maxLength: 524288
           description: >
-            Semantics differ by type:
+            At most 512 KiB decoded; a larger one is refused with 413. Semantics differ by type:
 
             `deposit`: populated by the sender at creation (opaque encrypted share bytes);
             delivered to the recipient in the PATCH response on approval and cleared from the relay.
@@ -511,6 +512,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '413':
+          description: >
+            The request body exceeds 1 MiB, or its ciphertext exceeds 512 KiB. These are the
+            relay's own storage bounds, deliberately looser than any client's own limit on the
+            size of a secret.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     get:
       operationId: listShareRequests
@@ -707,6 +717,14 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: Request is no longer pending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: >
+            The request body exceeds 1 MiB, or the ciphertext supplied with a retrieval approval
+            exceeds 512 KiB.
           content:
             application/json:
               schema:

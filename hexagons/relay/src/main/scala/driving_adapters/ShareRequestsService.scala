@@ -54,6 +54,19 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   private def validMimeType(mimeType: Option[MimeType]): Boolean =
     mimeType.exists(m => m.value.trim.nonEmpty && !m.value.exists(_.isControl))
 
+  /** An operator guard, not the product's secret-size limit. Shamir shares are byte-wise, so an S-byte secret becomes n
+    * ciphertexts of roughly S bytes each, all of which sit here until their holders pick them up — this is what stops
+    * one caller parking arbitrary bytes on the relay.
+    *
+    * Deliberately far looser than what any client will send, so raising a client's own cap stays a client-only change.
+    * Do not "fix" the mismatch by tightening this to match a client: the relay cannot know what a client's limit is,
+    * and does not want to.
+    */
+  private val maxCiphertextBytes = 512 * 1024
+
+  private def validCiphertextSize(ciphertext: Option[Array[Byte]]): Boolean =
+    ciphertext.forall(_.length <= maxCiphertextBytes)
+
   override def openShareRequest(
       senderKey: PublicKey,
       recipientKey: PublicKey,
@@ -86,6 +99,7 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
     transactionType match
       case ShareTransactionType.Deposit =>
         if ciphertext.isEmpty then return Left(Error.BadRequest)
+        if !validCiphertextSize(ciphertext) then return Left(Error.PayloadTooLarge)
         if !validKN(k, n) then return Left(Error.BadRequest)
         if !validMimeType(mimeType) then return Left(Error.BadRequest)
         if repository.hasActiveDeposit(secretId, recipientKey) then return Left(Error.Conflict)
@@ -151,6 +165,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
   ): Either[Error, ShareRequest] =
     if !recipientKey.verify(PayloadCanonical.forRespond(requestId, approved, ciphertext), recipientSignature) then
       return Left(Error.BadRequest)
+    // A retrieval approval is the other way ciphertext reaches this relay's storage, so it is bounded the same way.
+    if !validCiphertextSize(ciphertext) then return Left(Error.PayloadTooLarge)
     repository.getShareRequestById(requestId) match
       case None                                                  => Left(Error.NotFound)
       case Some(req) if !sameKey(req.recipientKey, recipientKey) => Left(Error.Forbidden)

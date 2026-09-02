@@ -42,9 +42,9 @@ class KeyRotationsController @Inject() (
   /** POST /key-rotations — push a signed rotation notice to one contact. The authenticated caller becomes
     * `oldVerifyKey`.
     */
-  def pushRotation() = Action(parse.raw) { (request: Request[RawBuffer]) =>
-    val bodyBytes = request.body.asBytes().map(_.toArray).getOrElse(Array.empty[Byte])
+  def pushRotation() = Action(signedBody) { (request: Request[RawBuffer]) =>
     val result = for
+      bodyBytes <- signedBodyBytes(request)
       callerKey <- AuthHelper.verify(request, bodyBytes)
       json <- parseJson(bodyBytes)
       rkStr <- (json \ "recipientKey")
