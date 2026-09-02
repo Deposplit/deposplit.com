@@ -202,9 +202,9 @@ class ShareRequestsServiceTests extends munit.FunSuite:
   /** Signs and opens a share request — the signing counterpart of `service.openShareRequest` used throughout these
     * tests, since a genuinely valid Ed25519 signature is now required.
     *
-    * `k`/`n` default to a valid pair (`Some(2)`/`Some(2)`) and are only actually threaded through for Deposit/Inventory
-    * — silently forced to `None` for Retrieval/Removal regardless of what's passed, since the domain requires them
-    * absent there. This keeps every call site predating `k`/`n` (Retrieval/Removal included) compiling unchanged.
+    * `k`/`n`/`mimeType` default to a valid trio and are only actually threaded through for Deposit/Inventory — silently
+    * forced to `None` for Retrieval/Removal regardless of what's passed, since the domain requires them absent there.
+    * This keeps every call site predating them (Retrieval/Removal included) compiling unchanged.
     */
   private def open(
       service: ShareRequestsService,
@@ -217,10 +217,12 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = Some(2),
-      n: Option[Int] = Some(2)
+      n: Option[Int] = Some(2),
+      mimeType: Option[MimeType] = Some(MimeType("text/plain"))
   ): Either[Error, ShareRequest] =
     val isRoot = transactionType == ShareTransactionType.Deposit || transactionType == ShareTransactionType.Inventory
     val (kk, nn) = if isRoot then (k, n) else (None, None)
+    val mt = if isRoot then mimeType else None
     val sig = signerFor(sender).sign(
       PayloadCanonical.forOpen(
         secretId,
@@ -231,7 +233,8 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         shareId,
         ciphertext,
         kk,
-        nn
+        nn,
+        mt
       )
     )
     service.openShareRequest(
@@ -245,6 +248,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       ciphertext,
       kk,
       nn,
+      mt,
       sig
     )
 
@@ -318,7 +322,8 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         None,
         Some(ciphertext),
         Some(2),
-        Some(2)
+        Some(2),
+        Some(MimeType("text/plain"))
       )
     )
     val result = service.openShareRequest(
@@ -332,6 +337,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Some(ciphertext),
       Some(2),
       Some(2),
+      Some(MimeType("text/plain")),
       wrongSig
     )
     assertEquals(result, Left(Error.BadRequest))
@@ -353,7 +359,8 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         None,
         Some(ciphertext),
         Some(2),
-        Some(2)
+        Some(2),
+        Some(MimeType("text/plain"))
       )
     )
     val result = service.openShareRequest(
@@ -367,6 +374,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Some(ciphertext),
       Some(2),
       Some(2),
+      Some(MimeType("text/plain")),
       sig
     )
     assertEquals(result, Left(Error.BadRequest))
@@ -1072,7 +1080,8 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Some(pickUp.id),
       None,
       Some(2),
-      Some(2)
+      Some(2),
+      None
     )
     val sig = aliceKeys.sign(canon)
     val result = service.openShareRequest(
@@ -1086,7 +1095,150 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       None,
       Some(2),
       Some(2),
+      None,
       sig
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  // --- mimeType ---
+
+  test("Deposit stores mimeType") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(ciphertext),
+      mimeType = Some(MimeType("image/png"))
+    )
+    val req = result.getOrElse(fail("deposit failed"))
+    assertEquals(req.mimeType.map(_.value), Some("image/png"))
+  }
+
+  test("Inventory stores mimeType") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      bob,
+      alice,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Inventory,
+      None,
+      None,
+      mimeType = Some(MimeType("image/jpeg"))
+    )
+    val req = result.getOrElse(fail("inventory push failed"))
+    assertEquals(req.mimeType.map(_.value), Some("image/jpeg"))
+  }
+
+  test("Deposit returns BadRequest when mimeType is missing") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(ciphertext),
+      mimeType = None
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  /** A blank mimeType signs to the same bytes as an absent one — `forOpen` renders both as an empty line — so storing
+    * it would let a row claim a type the signature cannot distinguish from claiming none.
+    */
+  test("Deposit returns BadRequest when mimeType is blank") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(ciphertext),
+      mimeType = Some(MimeType("   "))
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  /** `forOpen` joins its fields with newlines and escapes nothing, so a control character in a mimeType could forge a
+    * field boundary in the signed bytes.
+    */
+  test("Deposit returns BadRequest when mimeType contains a control character") {
+    val (_, service) = newService()
+    val result = open(
+      service,
+      alice,
+      bob,
+      freshSecretId(),
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(ciphertext),
+      mimeType = Some(MimeType("text/plain\n2\n3"))
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("Retrieval returns BadRequest when mimeType is present") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    val pickUp = open(
+      service,
+      alice,
+      bob,
+      secretId,
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Deposit,
+      None,
+      Some(ciphertext)
+    )
+      .getOrElse(fail("deposit failed"))
+    // Bypass the open() helper's auto-suppression to exercise the domain check directly.
+    val label = freshLabel()
+    val createdAt = Instant.now()
+    val canon = PayloadCanonical.forOpen(
+      secretId,
+      ShareTransactionType.Retrieval,
+      bob,
+      label,
+      createdAt,
+      Some(pickUp.id),
+      None,
+      None,
+      None,
+      Some(MimeType("text/plain"))
+    )
+    val result = service.openShareRequest(
+      alice,
+      bob,
+      secretId,
+      label,
+      createdAt,
+      ShareTransactionType.Retrieval,
+      Some(pickUp.id),
+      None,
+      None,
+      None,
+      Some(MimeType("text/plain")),
+      aliceKeys.sign(canon)
     )
     assertEquals(result, Left(Error.BadRequest))
   }

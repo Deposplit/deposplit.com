@@ -44,6 +44,16 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
     case (Some(kk), Some(nn)) => kk >= 2 && kk <= nn && nn <= 255
     case _                    => false
 
+  /** The relay never interprets a media type, so this checks only that the string can be *carried* honestly: present,
+    * non-blank, and free of control characters.
+    *
+    * Blank is refused because `PayloadCanonical.forOpen` renders both `None` and `""` as an empty line — a stored empty
+    * string would be a claim the signature cannot tell apart from claiming nothing. Control characters are refused
+    * because that construction has no escaping, so an embedded newline is indistinguishable from a field separator.
+    */
+  private def validMimeType(mimeType: Option[MimeType]): Boolean =
+    mimeType.exists(m => m.value.trim.nonEmpty && !m.value.exists(_.isControl))
+
   override def openShareRequest(
       senderKey: PublicKey,
       recipientKey: PublicKey,
@@ -55,6 +65,7 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       ciphertext: Option[Array[Byte]],
       k: Option[Int],
       n: Option[Int],
+      mimeType: Option[MimeType],
       senderSignature: Signature
   ): Either[Error, ShareRequest] =
     val canon =
@@ -67,7 +78,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         shareId,
         ciphertext,
         k,
-        n
+        n,
+        mimeType
       )
     if !senderKey.verify(canon, senderSignature) then return Left(Error.BadRequest)
     val isRoot = transactionType == ShareTransactionType.Deposit || transactionType == ShareTransactionType.Inventory
@@ -75,13 +87,15 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       case ShareTransactionType.Deposit =>
         if ciphertext.isEmpty then return Left(Error.BadRequest)
         if !validKN(k, n) then return Left(Error.BadRequest)
+        if !validMimeType(mimeType) then return Left(Error.BadRequest)
         if repository.hasActiveDeposit(secretId, recipientKey) then return Left(Error.Conflict)
       case ShareTransactionType.Inventory =>
         if ciphertext.isDefined then return Left(Error.BadRequest)
         if !validKN(k, n) then return Left(Error.BadRequest)
+        if !validMimeType(mimeType) then return Left(Error.BadRequest)
       // Fire-and-forget push (see ShareRequest's doc) — no conflict check, self-approved below.
       case _ =>
-        if ciphertext.isDefined || k.isDefined || n.isDefined then return Left(Error.BadRequest)
+        if ciphertext.isDefined || k.isDefined || n.isDefined || mimeType.isDefined then return Left(Error.BadRequest)
         if repository.hasPendingRequest(secretId, senderKey, recipientKey, transactionType) then
           return Left(Error.Conflict)
     val now = Instant.now()
@@ -101,6 +115,7 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       ciphertext = if transactionType == ShareTransactionType.Deposit then ciphertext else None,
       k = if isRoot then k else None,
       n = if isRoot then n else None,
+      mimeType = if isRoot then mimeType else None,
       senderSignature = senderSignature,
       recipientSignature = None
     )

@@ -78,7 +78,8 @@ trait ApiSupport { self: BaseController =>
         withRecipientSig + ("ciphertext" -> JsString(b64Enc.encodeToString(ct)))
       )
     val withK = req.k.fold(withCiphertext)(k => withCiphertext + ("k" -> JsNumber(k)))
-    req.n.fold(withK)(n => withK + ("n" -> JsNumber(n)))
+    val withN = req.n.fold(withK)(n => withK + ("n" -> JsNumber(n)))
+    req.mimeType.fold(withN)(m => withN + ("mimeType" -> JsString(m.value)))
 
   protected def keyRotationJson(r: KeyRotation): JsValue =
     Json.obj(

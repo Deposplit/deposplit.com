@@ -60,7 +60,8 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       sid: String = secretId,
       ct: String = "AQID",
       k: Int = 2,
-      n: Int = 3
+      n: Int = 3,
+      mime: String = "text/plain"
   ): Array[Byte] =
     val sig = sender.signOpen(
       sid,
@@ -71,7 +72,8 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       None,
       Some(ct),
       Some(k),
-      Some(n)
+      Some(n),
+      Some(mime)
     )
     s"""{
        |  "transactionType": "deposit",
@@ -82,6 +84,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
        |  "ciphertext":      "$ct",
        |  "k":               $k,
        |  "n":               $n,
+       |  "mimeType":        "$mime",
        |  "senderSignature": "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
@@ -157,13 +160,26 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "ciphertext").asOpt[String] mustBe None
       (json \ "k").as[Int] mustBe 2
       (json \ "n").as[Int] mustBe 3
+      (json \ "mimeType").as[String] mustBe "text/plain"
     }
 
     "reject a Deposit with missing k/n" in {
       val sid = UUID.randomUUID().toString
-      val sig = alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"))
+      val sig =
+        alice.signOpen(
+          sid,
+          "deposit",
+          bob.publicKeyHeader,
+          "x",
+          createdAt,
+          None,
+          Some("AQID"),
+          None,
+          None,
+          Some("text/plain")
+        )
       val body =
-        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","senderSignature":"$sig"}"""
+        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","mimeType":"text/plain","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, alice.post("/share-requests", body)).get
       status(result) mustBe BAD_REQUEST
@@ -172,9 +188,55 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "reject a Deposit with k > n" in {
       val sid = UUID.randomUUID().toString
       val sig =
-        alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(5), Some(3))
+        alice.signOpen(
+          sid,
+          "deposit",
+          bob.publicKeyHeader,
+          "x",
+          createdAt,
+          None,
+          Some("AQID"),
+          Some(5),
+          Some(3),
+          Some("text/plain")
+        )
       val body =
-        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":5,"n":3,"senderSignature":"$sig"}"""
+        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":5,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, alice.post("/share-requests", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    "reject a Deposit with a missing mimeType" in {
+      val sid = UUID.randomUUID().toString
+      val sig =
+        alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(2), Some(3))
+      val body =
+        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, alice.post("/share-requests", body)).get
+      status(result) mustBe BAD_REQUEST
+    }
+
+    // A blank mimeType signs to the same canonical bytes as an absent one, so the signature
+    // verifies and only the domain check stands between it and a stored row.
+    "reject a Deposit with a blank mimeType" in {
+      val sid = UUID.randomUUID().toString
+      val sig =
+        alice.signOpen(
+          sid,
+          "deposit",
+          bob.publicKeyHeader,
+          "x",
+          createdAt,
+          None,
+          Some("AQID"),
+          Some(2),
+          Some(3),
+          Some("")
+        )
+      val body =
+        s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"mimeType":"","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, alice.post("/share-requests", body)).get
       status(result) mustBe BAD_REQUEST
@@ -371,10 +433,11 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           None,
           Some("AQID"),
           Some(2),
-          Some(3)
+          Some(3),
+          Some("text/plain")
         )
       val freshDepositBody =
-        s"""{"transactionType":"deposit","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$freshDepositSig"}"""
+        s"""{"transactionType":"deposit","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$freshDepositSig"}"""
           .getBytes("UTF-8")
       val deposit2result = route(app, alice.post("/share-requests", freshDepositBody)).get
       status(deposit2result) mustBe CREATED
@@ -496,10 +559,11 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
         None,
         None,
         Some(2),
-        Some(3)
+        Some(3),
+        Some("text/plain")
       )
       val body =
-        s"""{"transactionType":"inventory","secretId":"$sid","label":"recovered secret","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"senderSignature":"$sig"}"""
+        s"""{"transactionType":"inventory","secretId":"$sid","label":"recovered secret","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, bob.post("/share-requests", body)).get
       status(result) mustBe CREATED
@@ -512,6 +576,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "shareId").asOpt[String] mustBe None
       (json \ "k").as[Int] mustBe 2
       (json \ "n").as[Int] mustBe 3
+      (json \ "mimeType").as[String] mustBe "text/plain"
 
       // Alice can already see it as approved — no PATCH needed.
       val listResult = route(app, alice.get("/share-requests?role=recipient&type=inventory&state=approved")).get
@@ -526,9 +591,20 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "reject an Inventory push with ciphertext" in {
       val sid = UUID.randomUUID().toString
       val sig =
-        bob.signOpen(sid, "inventory", alice.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(2), Some(3))
+        bob.signOpen(
+          sid,
+          "inventory",
+          alice.publicKeyHeader,
+          "x",
+          createdAt,
+          None,
+          Some("AQID"),
+          Some(2),
+          Some(3),
+          Some("text/plain")
+        )
       val body =
-        s"""{"transactionType":"inventory","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$sig"}"""
+        s"""{"transactionType":"inventory","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, bob.post("/share-requests", body)).get
       status(result) mustBe BAD_REQUEST
@@ -537,9 +613,21 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "never conflicts, even pushed repeatedly for the same secretId" in {
       val sid = UUID.randomUUID().toString
       def push() =
-        val sig = bob.signOpen(sid, "inventory", alice.publicKeyHeader, "x", createdAt, None, None, Some(2), Some(3))
+        val sig =
+          bob.signOpen(
+            sid,
+            "inventory",
+            alice.publicKeyHeader,
+            "x",
+            createdAt,
+            None,
+            None,
+            Some(2),
+            Some(3),
+            Some("text/plain")
+          )
         val body =
-          s"""{"transactionType":"inventory","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"senderSignature":"$sig"}"""
+          s"""{"transactionType":"inventory","secretId":"$sid","label":"x","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
             .getBytes("UTF-8")
         route(app, bob.post("/share-requests", body)).get
       status(push()) mustBe CREATED

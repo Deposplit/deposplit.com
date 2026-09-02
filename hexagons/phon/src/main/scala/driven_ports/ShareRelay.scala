@@ -27,6 +27,7 @@ package driven_ports
 import value_objects.svo.CipherSuite
 import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
+import value_objects.svo.MimeType
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
@@ -49,6 +50,7 @@ trait ShareRelay:
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
       n: Option[Int] = None,
+      mimeType: Option[MimeType] = None,
       senderSignature: Array[Byte]
   ): ShareRequest
 

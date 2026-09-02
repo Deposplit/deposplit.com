@@ -164,6 +164,32 @@ sender key loss are survivable.
 The relay is blind at every phase regardless: ciphertext at deposit, ciphertext at
 retrieval.
 
+## Rendering a reconstructed secret
+
+Every secret carries a sender-declared `mimeType` — `text/plain` for everything the apps can
+split today — which travels with the deposit payload and the `inventory` recovery push. It is
+a **claim**, at the same trust level as `label`: nobody sniffs the bytes to check it, and the
+relay could not check it if it wanted to, seeing only ciphertext.
+
+Reconstruction therefore forks on the declared type, and the fork is built to fail safe. Text
+renders as text only if the bytes really are valid UTF-8; an image goes through the platform's
+own sandboxed decoder; anything else, and any decode that fails, falls through to a generic
+binary view that shows the size and the declared type and offers an export. Nothing is decoded
+twice and nothing is decoded lossily, so the original bytes survive whichever branch runs.
+
+**A wrong or hostile `mimeType` is a rendering risk, never a confidentiality one.** It cannot
+reveal a secret to anyone who could not already reconstruct it: by the time the type is read,
+*k* holders have already consented and the plaintext is already on the device. The realistic
+harm is feeding attacker-chosen bytes to an image decoder, which is why decoding uses the
+platform's sandboxed decoder rather than a bundled library, and why every failure lands on the
+binary view instead of an error path.
+
+The export is the one genuinely new surface here: it writes reconstructed **plaintext** out of
+the app, to a location the user picks. The catalogue backup deliberately never does that — it
+carries contacts, levels and share metadata, no shares and no keys — so the two are not
+comparable, and the export is offered per reconstruction, at the user's request, rather than
+being anything the app does on its own.
+
 ## Crypto agility
 
 Ed25519 and X25519 are not post-quantum safe, and a system holding long-lived secrets is

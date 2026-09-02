@@ -74,8 +74,8 @@ class RequestSigner:
   // rationale (epoch-millis timestamps, lowercase UUIDs) behind this exact construction.
 
   /** Signs an `openShareRequest` payload. `secretCreatedAt` is the ISO-8601 wire string (e.g. "2026-01-01T00:00:00Z");
-    * `ciphertext` is the standard-base64 string as it appears on the wire. `k`/`n` are appended at the end of the
-    * sequence, mirroring PayloadCanonical.
+    * `ciphertext` is the standard-base64 string as it appears on the wire. `k`/`n`/`mimeType` are appended at the end
+    * of the sequence, mirroring PayloadCanonical.
     */
   def signOpen(
       secretId: String,
@@ -86,7 +86,8 @@ class RequestSigner:
       shareId: Option[String] = None,
       ciphertext: Option[String] = None,
       k: Option[Int] = None,
-      n: Option[Int] = None
+      n: Option[Int] = None,
+      mimeType: Option[String] = None
   ): String =
     val epochMs = java.time.Instant.parse(secretCreatedAt).toEpochMilli
     val canon = Seq(
@@ -98,7 +99,8 @@ class RequestSigner:
       shareId.getOrElse(""),
       ciphertext.getOrElse(""),
       k.fold("")(_.toString),
-      n.fold("")(_.toString)
+      n.fold("")(_.toString),
+      mimeType.getOrElse("")
     )
       .mkString("\n")
       .getBytes("UTF-8")

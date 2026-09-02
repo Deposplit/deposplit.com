@@ -43,6 +43,9 @@ import java.util.UUID
   * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal). Signed as part of
   * `senderSignature` so a holder can't misreport them without invalidating the row.
   *
+  * `mimeType` follows the same rule and is likewise signed. It is the sender's claim about what the secret is, kept so
+  * the recipient can decide how to render it after reconstruction; the relay never interprets it.
+  *
   * `state` is `Pending` at creation for Deposit/Retrieval/Removal, awaiting the recipient's approve/deny. Inventory is
   * different: it's a holder-initiated *push*, not a consent-gated request — nothing for the recipient to approve — so
   * it's created directly in `Approved` state (`respondedAt` set immediately, `recipientSignature` left None). The
@@ -68,6 +71,7 @@ case class ShareRequest(
     ciphertext: Option[Array[Byte]],
     k: Option[Int],
     n: Option[Int],
+    mimeType: Option[MimeType],
     senderSignature: Signature,
     recipientSignature: Option[Signature]
 )

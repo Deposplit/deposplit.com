@@ -41,6 +41,7 @@ import play.api.mvc.ControllerComponents
 import play.api.mvc.Cookie
 import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
+import value_objects.svo.MimeType
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
@@ -186,7 +187,10 @@ class PhonyPhoneController @Inject() (
             secretSharingRecord.secret.trim.getBytes(StandardCharsets.UTF_8),
             secretSharingRecord.label.trim,
             contactManagement.listContacts().filter(contact => contactIds.contains(contact.id)),
-            secretSharingRecord.k
+            secretSharingRecord.k,
+            // The form takes typed text and nothing else, so the type is not a guess. Stated rather
+            // than defaulted, so adding an upload here is visibly a change to this line.
+            MimeType("text/plain")
           )
           logger.debug("… shared secret")
           Redirect(routes.PhonyPhoneController.readPseudonym())

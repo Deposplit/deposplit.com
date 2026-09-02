@@ -28,6 +28,7 @@ import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.HeldShare
 import value_objects.svo.KeyConflict
+import value_objects.svo.MimeType
 import value_objects.svo.ReconstructionResult
 import value_objects.svo.RegenerateIdentityResult
 import value_objects.svo.Secret
@@ -39,7 +40,13 @@ import java.util.UUID
 
 trait ShareManagement:
   // ─── Sender ────────────────────────────────────────────────────────────────
-  def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit
+  def deposit(
+      secret: Array[Byte],
+      label: String,
+      contacts: List[Contact],
+      threshold: Int,
+      mimeType: MimeType = MimeType.Default
+  ): Unit
   def listSecrets(): List[Secret]
   def syncDistributed(): Unit
   def listDistributed(): List[ShareMetadata]

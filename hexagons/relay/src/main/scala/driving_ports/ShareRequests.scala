@@ -35,16 +35,17 @@ trait ShareRequests:
     *
     *   - Deposit: Alice deposits a share for Bob. `ciphertext` is required (`BadRequest` if absent). `k`/`n` are
     *     required and must satisfy `2 <= k <= n <= 255` (`BadRequest` otherwise), the same hard bound `split()` and
-    *     `combine()` enforce client-side. Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey)
-    *     already exists.
-    *   - Retrieval: Alice asks Bob to return a share. `ciphertext`, `k`, and `n` must be None. Returns `Conflict` if a
-    *     pending Retrieval for (secretId, senderKey, recipientKey) exists.
-    *   - Removal: Alice asks Bob to delete his local copy. `ciphertext`, `k`, and `n` must be None. Returns `Conflict`
-    *     if a pending Removal for (secretId, senderKey, recipientKey) exists.
+    *     `combine()` enforce client-side. `mimeType` is required and must be non-blank and free of control characters.
+    *     Returns `Conflict` if a non-denied Deposit for (secretId, recipientKey) already exists.
+    *   - Retrieval: Alice asks Bob to return a share. `ciphertext`, `k`, `n`, and `mimeType` must be None. Returns
+    *     `Conflict` if a pending Retrieval for (secretId, senderKey, recipientKey) exists.
+    *   - Removal: Alice asks Bob to delete his local copy. `ciphertext`, `k`, `n`, and `mimeType` must be None. Returns
+    *     `Conflict` if a pending Removal for (secretId, senderKey, recipientKey) exists.
     *   - Inventory: A holder (Bob) pushes a metadata-only report about a share of his back to its owner (Alice), during
-    *     identity recovery. `ciphertext` must be None; `k`/`n` are required (same bounds as Deposit). Unlike the other
-    *     three types this is **not consent-gated** — it's a fire-and-forget push, so the row is created directly in
-    *     `Approved` state with no conflict check; the recipient (Alice) polls for it and deletes it once consumed.
+    *     identity recovery. `ciphertext` must be None; `k`/`n`/`mimeType` are required (same rules as Deposit). Unlike
+    *     the other three types this is **not consent-gated** — it's a fire-and-forget push, so the row is created
+    *     directly in `Approved` state with no conflict check; the recipient (Alice) polls for it and deletes it once
+    *     consumed.
     *
     * `shareId` is ignored for Deposit and Inventory. For Retrieval and Removal it should be the id of the originating
     * Deposit request — the relay stores it opaquely for the client's benefit.
@@ -64,6 +65,7 @@ trait ShareRequests:
       ciphertext: Option[Array[Byte]],
       k: Option[Int],
       n: Option[Int],
+      mimeType: Option[MimeType],
       senderSignature: Signature
   ): Either[Error, ShareRequest]
 

@@ -63,7 +63,7 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 
 | Construction | Fields, in order |
 |---|---|
-| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `label`, `secretCreatedAt` (epoch ms), `shareId`, `ciphertext` (standard base64), `k`, `n` |
+| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `label`, `secretCreatedAt` (epoch ms), `shareId`, `ciphertext` (standard base64), `k`, `n`, `mimeType` |
 | `forRespond` | `requestId`, `"approved"` or `"denied"`, `ciphertext` |
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
 | `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut` |
@@ -74,6 +74,9 @@ Two rules govern changes here:
   cross-platform test vector and silently breaks interoperability between app versions.
 - **Sort anything set-like.** `forHeartbeat` sorts `secretIds` so the signed bytes do not
   depend on the order a client happened to build the list in.
+- **Nothing is escaped.** Fields are joined with newlines and nothing more, so a newline
+  inside a field would be indistinguishable from a separator. The relay rejects control
+  characters in `mimeType` for that reason.
 
 Cross-platform agreement is proven, not assumed: fixed-seed vector tests on all platforms
 assert the same canonical bytes and, where the signing library is deterministic, the same
@@ -87,10 +90,10 @@ something of Bob, Bob approves or denies — and one is a push.
 
 | Type | Direction | Carries | Purpose |
 |---|---|---|---|
-| `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, ciphertext | Give a holder a share. Delivered once on approval, then cleared from the row. |
+| `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType`, ciphertext | Give a holder a share. Delivered once on approval, then cleared from the row. |
 | `retrieval` | sender → holder → sender | references `secretId` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
 | `removal` | sender → holder | references the deposit | Ask a holder to discard a share. |
-| `inventory` | holder → owner | `secretId`, `label`, `secretCreatedAt`, `k`, `n` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
+| `inventory` | holder → owner | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
 
 `inventory` is the odd one out: it is created already `Approved`, has no pending phase and
 no conflict check, and the recipient deletes it once consumed. It self-approves because
@@ -114,9 +117,16 @@ Three, none of them about people.
 
 **`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`,
 `label`, `sender_key`, `recipient_key`, state, `share_id`, `ciphertext`, `k`, `n`,
-`secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
-`recipient_signature`. `k` and `n` are required for `deposit` and `inventory`, forbidden
-for `retrieval` and `removal`.
+`mime_type`, `secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
+`recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
+forbidden for `retrieval` and `removal`.
+
+`mime_type` is the sender's claim about what the secret is — `text/plain` for everything the
+apps can split today — carried so the recipient can decide how to render it once
+reconstructed. Like `label`, it is plaintext the relay routes without interpreting, and it is
+never checked against the payload, which the relay cannot read. It must be non-blank: `forOpen`
+renders an absent field and an empty one identically, so a blank value would be a claim the
+signature cannot tell apart from no claim at all.
 
 **`key_rotations`** — signed "I am now this key" notices. Columns: `id`, `old_verify_key`,
 `recipient_key`, `new_verify_key`, `new_enc_key`, `new_cipher_suite`, `signature`,

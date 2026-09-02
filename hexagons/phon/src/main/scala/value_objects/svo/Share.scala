@@ -73,9 +73,11 @@ case class ShareRequest(
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
-    // SSS threshold/share-count — populated for Deposit/Inventory, None for
+    // SSS threshold/share-count and the sender's declared media type — all populated for
+    // Deposit/Inventory, None for Retrieval/Removal.
     k: Option[Int] = None,
     n: Option[Int] = None,
+    mimeType: Option[MimeType] = None,
     senderSignature: Array[Byte],
     recipientSignature: Option[Array[Byte]]
 ):

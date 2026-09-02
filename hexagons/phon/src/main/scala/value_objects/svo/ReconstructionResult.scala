@@ -38,7 +38,11 @@ enum ReconstructionIntegrity extends Serializable:
   case Confirmed
   case ExcludedSuspects(excludedContactIds: Set[UUID])
 
+/** `mimeType` is the owner's own record of what she split, carried alongside the bytes so a caller deciding how to
+  * render them never has to go back to the `Secret` aggregate and risk pairing bytes with the wrong type.
+  */
 case class ReconstructionResult(
     secret: Array[Byte],
-    integrity: ReconstructionIntegrity
+    integrity: ReconstructionIntegrity,
+    mimeType: MimeType
 ) extends Serializable

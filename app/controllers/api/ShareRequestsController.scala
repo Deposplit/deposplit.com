@@ -81,6 +81,7 @@ class ShareRequestsController @Inject() (
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
       k = (json \ "k").asOpt[Int]
       n = (json \ "n").asOpt[Int]
+      mimeType = (json \ "mimeType").asOpt[String].map(MimeType.apply)
       sigStr <- (json \ "senderSignature")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "senderSignature is required")))
@@ -97,6 +98,7 @@ class ShareRequestsController @Inject() (
           ciphertext,
           k,
           n,
+          mimeType,
           senderSignature
         )
         .left

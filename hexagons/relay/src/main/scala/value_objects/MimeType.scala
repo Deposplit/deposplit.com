@@ -22,26 +22,21 @@
  * THE SOFTWARE.
  */
 
-package value_objects.svo
+package value_objects
 
-import java.time.Instant
-import java.util.UUID
-
-/** Two-state lifecycle. No `Discarded` tombstone: once every holder confirms deletion (or the sender force-forgets),
-  * the `Secret` record is removed outright.
+/** The sender-declared media type of the secret a Deposit or Inventory row is about — `"text/plain"` for everything the
+  * apps can split today.
+  *
+  * Sender-supplied and best-effort, exactly the trust level `label` already has: the relay routes it and never
+  * interprets it, never sniffs the bytes, and could not check the claim if it wanted to — the payload is ciphertext it
+  * cannot read. Only the recipient acts on it, when deciding how to render a reconstructed secret.
+  *
+  * No classifiers here (`isText`/`isImage` and the like live on the clients' own MimeType) because nothing in the relay
+  * ever needs to know what the string means.
   */
-enum SecretState:
-  case Active, Discarding
+opaque type MimeType = String
 
-/** Sender-side per-secret aggregate — the single source of truth for k/n/label/secretCreatedAt, keyed by secretId.
-  * `ShareMetadata` rows reference this rather than duplicating its fields.
-  */
-case class Secret(
-    id: UUID,
-    label: String,
-    mimeType: MimeType,
-    k: Int,
-    n: Int,
-    secretCreatedAt: Instant,
-    state: SecretState
-) extends Serializable
+object MimeType:
+  def apply(s: String): MimeType = s
+
+  extension (m: MimeType) def value: String = m

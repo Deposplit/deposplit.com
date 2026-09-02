@@ -44,7 +44,7 @@ info:
     ```
     secretId || "\n" || transactionType || "\n" || recipientKey(base64url) || "\n" || label || "\n"
       || epochMillis(secretCreatedAt) || "\n" || (shareId or "") || "\n" || (base64-standard(ciphertext) or "")
-      || "\n" || (k or "") || "\n" || (n or "")
+      || "\n" || (k or "") || "\n" || (n or "") || "\n" || (mimeType or "")
     ```
 
     `recipientSignature` (required on every `PATCH /share-requests/{requestId}`, including
@@ -182,8 +182,8 @@ components:
         to its owner, so a recovering owner (fresh device, empty local state) can rebuild their
         records after losing their old identity's key.
         Unlike the other three, this is **not** consent-gated: it self-approves at
-        creation (no `pending` phase), never carries `ciphertext`, and requires `k`/`n`. The
-        recipient polls for it and deletes the row once consumed.
+        creation (no `pending` phase), never carries `ciphertext`, and requires `k`/`n`/`mimeType`.
+        The recipient polls for it and deletes the row once consumed.
 
     ShareRequestState:
       type: string
@@ -198,8 +198,8 @@ components:
     ShareRequest:
       description: >
         A self-describing share request row. All four transaction types (deposit, retrieval,
-        removal, inventory) use the same flat structure. `ciphertext`, `shareId`, `k`, and `n`
-        semantics depend on `transactionType` — see field descriptions.
+        removal, inventory) use the same flat structure. `ciphertext`, `shareId`, `k`, `n`, and
+        `mimeType` semantics depend on `transactionType` — see field descriptions.
       type: object
       required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, transactionType, state, requestedAt, senderSignature]
       properties:
@@ -270,6 +270,14 @@ components:
           description: >
             SSS share count. Populated for `deposit` and `inventory` (required, `2 <= k <=
             n <= 255`); `null` for `retrieval`/`removal`.
+        mimeType:
+          type: string
+          nullable: true
+          description: >
+            The sender's claim about what the secret is, so the recipient can decide how to render
+            it once reconstructed. Populated for `deposit` and `inventory`; `null` for
+            `retrieval`/`removal`. Sender-supplied and never verified against the payload — the
+            relay routes it opaquely, exactly as it does `label`.
         senderSignature:
           type: string
           description: >
@@ -320,6 +328,13 @@ components:
           description: >
             Required for `deposit` and `inventory` requests (`2 <= k <= n <= 255`,
             `400` otherwise). Must be omitted for `retrieval`/`removal`.
+        mimeType:
+          type: string
+          minLength: 1
+          description: >
+            Required for `deposit` and `inventory` requests; must be non-blank and free of control
+            characters (`400` otherwise). Must be omitted for `retrieval`/`removal`. Not validated
+            against the payload — see `ShareRequest.mimeType`.
         senderSignature:
           type: string
           description: >

@@ -50,17 +50,18 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val privateKeySeed: Array[Byte] = (0 until 32).map(_.toByte).toArray
   private val expectedPublicKeyBase64Url = "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   private val expectedSignatureBase64Url =
-    "49sMax0jpKfyXdIIiwi6xeKKyK5MZwGOur9I499SXiTneVBYc5Juv215DTDcHhpphU2YGZpqMYRZKNFVILw7AA"
+    "AlvZLAx0pmA8B5C4JMcib_35wt0HIjtWWjQtj-f0dED0c6FVoJvdlMX0-pqnZmOhtSEnmB7IWe5s3dRIXkgvAw"
 
   private val secretId = SecretId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
   private val recipientKey = PublicKey.fromBytes(Array.fill(32)(0x02.toByte)).getOrElse(fail("bad fixture key"))
   private val label = Label("cross-platform test vector")
   private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
   private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
-  // k/n — appended at the end of the field sequence, so the fields above are byte-identical to
-  // the original vector; only the two new trailing lines are new.
+  // k/n, then mimeType — each appended at the end of the field sequence in turn, so the fields
+  // above are byte-identical to the vector that predates them.
   private val k = Some(2)
   private val n = Some(3)
+  private val mimeType = Some(MimeType("text/plain"))
 
   test("forOpen produces the fixed canonical bytes") {
     val canon = PayloadCanonical.forOpen(
@@ -72,10 +73,11 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       None,
       Some(ciphertext),
       k,
-      n
+      n,
+      mimeType
     )
     val expected =
-      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU=\n2\n3"
+      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU=\n2\n3\ntext/plain"
     assertEquals(new String(canon, "UTF-8"), expected)
   }
 
@@ -89,7 +91,8 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       None,
       Some(ciphertext),
       k,
-      n
+      n,
+      mimeType
     )
     val privKey = Ed25519PrivateKeyParameters(privateKeySeed, 0)
     val pubKey = privKey.generatePublicKey()
@@ -112,7 +115,8 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       None,
       Some(ciphertext),
       k,
-      n
+      n,
+      mimeType
     )
     val pk = PublicKey.fromBase64Url(expectedPublicKeyBase64Url).getOrElse(fail("bad fixture key"))
     val sig = Signature.fromBase64Url(expectedSignatureBase64Url).getOrElse(fail("bad fixture signature"))

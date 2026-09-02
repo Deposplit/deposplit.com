@@ -39,10 +39,12 @@ case class HeldShare(
     // The decrypted share, plaintext at rest: a single holder's share is
     // information-theoretically empty on its own, so this is safe to store unencrypted.
     plaintextShare: Array[Byte],
-    // SSS threshold/share-count, carried on the deposit that produced this share — reported back
-    // during identity recovery so a recovering owner can rebuild her Secret record.
+    // SSS threshold/share-count and the sender's declared media type, all carried on the deposit
+    // that produced this share — reported back during identity recovery so a recovering owner can
+    // rebuild her Secret record.
     k: Int,
-    n: Int
+    n: Int,
+    mimeType: MimeType
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case h: HeldShare => id == h.id

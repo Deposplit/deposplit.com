@@ -20,28 +20,6 @@ Nothing here is blocked; it needs devices and an hour. Flows are written up in
 - [ ] `A` `I` BYOR variant: two relays on different ports, one contact with a `relayBaseUrl` override, one without — verify routing and independent soft-failure
 - [ ] `A` `I` reconstruction integrity with a surplus holder: confirm the advisory reports the margin honestly
 
-## Persist the secret's MIME type
-
-`Secret` treats the payload as opaque bytes with no content type; the only hint is the
-free-text `label`. Both apps force-decode reconstructed secrets as UTF-8 — iOS falls back
-to base64, **Android has no fallback at all** and would visibly mangle a binary secret
-today. This is the data-model prerequisite for supporting anything but text.
-
-A free MIME string on `Secret`, defaulting to `"text/plain"`, threaded through the same
-journey as `k`/`n`: sender record → deposit payload → holder's `HeldShare` → `inventory`
-recovery push. No sniffing or validation against the actual bytes — sender-supplied and
-best-effort, the same trust level `label` already has.
-
-- [ ] `R` new `mime_type` column on `share_requests` (edit `1.sql` in place)
-- [ ] `R` `PayloadCanonical.forOpen` gains `mimeType` **appended at the tail** — append-only, see [docs/protocol.md](docs/protocol.md)
-- [ ] `R` `ShareRequestsService` and the Anorm repository carry it through; `conf/openapi.yaml` updated
-- [ ] `R` `phon` `A` `I` cross-platform `forOpen` vector tests updated in lockstep
-- [ ] `phon` `A` `I` `Secret` gains `mimeType`; `deposit()` gains an optional trailing param defaulting to `"text/plain"`
-- [ ] `phon` `A` `I` `HeldShare` gains `mimeType` alongside `k`/`n`
-- [ ] `phon` `A` `I` `inventory` payload gains `mimeType`, so recovery restores it
-- [ ] `A` `I` reconstruct render fork: `text/*` unchanged; `image/*` via the platform's own sandboxed decoder only; anything else or a decode failure → generic "binary data" view with export, never a crash
-- [ ] `doc` note in the render fork that a mismatched or malicious `mimeType` is a rendering-only risk, never a confidentiality one, and must fail safe onto the binary view
-
 ## Support more secret types — pictures and audio
 
 Placeholder for the actual input and rendering work once the MIME groundwork above is in.
@@ -77,6 +55,7 @@ for the sender's choice would be backwards.
 
 ## Chores
 
+- [ ] `R` `phon` **`phon` has no `forOpen` byte vector.** `hexagons/phon` carries a fourth independent `PayloadCanonical`, but only relay, Android and iOS are pinned to the shared fixed-seed vector; phon's own tests exercise `forOpen` structurally, so it could drift from the other three and stay green. Copying `PayloadCanonicalVectorTests` into `hexagons/phon/src/test/scala/value_objects/svo/` is ~40 lines. Its doc comment no longer claims a vector test it hasn't got.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Parked

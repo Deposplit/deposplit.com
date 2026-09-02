@@ -24,24 +24,16 @@
 
 package value_objects.svo
 
-import java.time.Instant
-import java.util.UUID
-
-/** Two-state lifecycle. No `Discarded` tombstone: once every holder confirms deletion (or the sender force-forgets),
-  * the `Secret` record is removed outright.
+/** The sender-declared media type of a secret — `"text/plain"` for everything that can be split today.
+  *
+  * Sender-supplied and best-effort, exactly the trust level `label` already has: nothing sniffs the bytes to check the
+  * claim. It rides the deposit payload and the inventory push so a holder can hand it back during recovery, and so a
+  * recipient can decide how to render a reconstructed secret.
+  *
+  * The mobile apps' MimeType additionally classifies (`isText`/`isImage`) for that rendering fork. phon has no
+  * reconstruct screen, so it carries the value without interpreting it.
   */
-enum SecretState:
-  case Active, Discarding
+case class MimeType(value: String) extends Serializable
 
-/** Sender-side per-secret aggregate — the single source of truth for k/n/label/secretCreatedAt, keyed by secretId.
-  * `ShareMetadata` rows reference this rather than duplicating its fields.
-  */
-case class Secret(
-    id: UUID,
-    label: String,
-    mimeType: MimeType,
-    k: Int,
-    n: Int,
-    secretCreatedAt: Instant,
-    state: SecretState
-) extends Serializable
+object MimeType:
+  val Default: MimeType = MimeType("text/plain")

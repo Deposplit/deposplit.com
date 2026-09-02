@@ -29,6 +29,7 @@ import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import value_objects.svo.Catalog
 import value_objects.svo.Contact
+import value_objects.svo.MimeType
 import value_objects.svo.Secret
 import value_objects.svo.SecretState
 import value_objects.svo.ShareMetadata
@@ -78,7 +79,7 @@ class CatalogServiceTests extends munit.FunSuite:
 
     val contact = makeContact("alice")
     contactRepo.save(contact)
-    val secret = Secret(UUID.randomUUID(), "test", 2, 3, Instant.now(), SecretState.Active)
+    val secret = Secret(UUID.randomUUID(), "test", MimeType.Default, 2, 3, Instant.now(), SecretState.Active)
     secretRepo.save(secret)
     val meta = ShareMetadata(UUID.randomUUID(), secret.id, contact.id)
     metaRepo.save(meta)

@@ -47,7 +47,8 @@ case class RetainedDepositBlob(
     secretCreatedAt: Instant,
     ciphertext: Array[Byte],
     k: Int,
-    n: Int
+    n: Int,
+    mimeType: MimeType
 ) extends Serializable:
   override def equals(other: Any): Boolean = other match
     case b: RetainedDepositBlob => id == b.id

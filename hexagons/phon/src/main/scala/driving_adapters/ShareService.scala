@@ -43,6 +43,7 @@ import value_objects.svo.Contact
 import value_objects.svo.CustodyHeartbeatTuning
 import value_objects.svo.HeldShare
 import value_objects.svo.KeyConflict
+import value_objects.svo.MimeType
 import value_objects.svo.PayloadCanonical
 import value_objects.svo.ReconstructionIntegrity
 import value_objects.svo.ReconstructionResult
@@ -112,7 +113,8 @@ class ShareService @Inject() (
         req.shareId,
         req.ciphertext,
         req.k,
-        req.n
+        req.n,
+        req.mimeType
       )
       identity.verify(canon, req.senderSignature, contact.verifyKey)
     }
@@ -130,7 +132,13 @@ class ShareService @Inject() (
 
   // ── Sender flows ──────────────────────────────────────────────────────────
 
-  override def deposit(secret: Array[Byte], label: String, contacts: List[Contact], threshold: Int): Unit =
+  override def deposit(
+      secret: Array[Byte],
+      label: String,
+      contacts: List[Contact],
+      threshold: Int,
+      mimeType: MimeType = MimeType.Default
+  ): Unit =
     val shares = SecretSharing.split(secret, contacts.size, threshold)
     val secretId = UUID.randomUUID()
     val createdAt = Instant.now()
@@ -146,7 +154,8 @@ class ShareService @Inject() (
           None,
           Some(ct),
           Some(threshold),
-          Some(contacts.size)
+          Some(contacts.size),
+          Some(mimeType)
         )
       val senderSignature = identity.sign(canon)
       val req = relayForContact(contact).openShareRequest(
@@ -159,6 +168,7 @@ class ShareService @Inject() (
         Some(ct),
         k = Some(threshold),
         n = Some(contacts.size),
+        mimeType = Some(mimeType),
         senderSignature = senderSignature
       )
       shareMetadataRepository.save(ShareMetadata(req.id, secretId, contact.id))
@@ -167,10 +177,12 @@ class ShareService @Inject() (
       // holder's X25519 key, so this device cannot decrypt it itself.
       Try(
         retainedDepositRepository
-          .save(RetainedDepositBlob(req.id, secretId, contact.id, label, createdAt, ct, threshold, contacts.size))
+          .save(
+            RetainedDepositBlob(req.id, secretId, contact.id, label, createdAt, ct, threshold, contacts.size, mimeType)
+          )
       )
     }
-    secretRepository.save(Secret(secretId, label, threshold, contacts.size, createdAt, SecretState.Active))
+    secretRepository.save(Secret(secretId, label, mimeType, threshold, contacts.size, createdAt, SecretState.Active))
 
   override def listSecrets(): List[Secret] = secretRepository.getAll()
 
@@ -393,7 +405,7 @@ class ShareService @Inject() (
       if !result.hasIntegrityMargin then ReconstructionIntegrity.NoMargin
       else if result.excludedIndices.isEmpty then ReconstructionIntegrity.Confirmed
       else ReconstructionIntegrity.ExcludedSuspects(result.excludedIndices.map(decryptedWithContact(_)._2))
-    ReconstructionResult(result.secret, integrity)
+    ReconstructionResult(result.secret, integrity, secret.mimeType)
 
   /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to Discarding
     * immediately, before any holder has responded.
@@ -431,11 +443,11 @@ class ShareService @Inject() (
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { senderContact =>
-          // A deposit without valid k/n can't happen against a conforming relay (required by
-          // ShareRequestsService) — skip defensively rather than store a share we can't later
-          // report thresholds for during recovery.
-          (req.k, req.n) match
-            case (Some(k), Some(n)) =>
+          // A deposit without valid k/n/mimeType can't happen against a conforming relay (all three
+          // required by ShareRequestsService) — skip defensively rather than store a share we can't
+          // later report thresholds for during recovery.
+          (req.k, req.n, req.mimeType) match
+            case (Some(k), Some(n), Some(mimeType)) =>
               // Order is load-bearing: approving is what clears the relay's only copy of the
               // ciphertext, so it is the last step of pickup and never the first. Decrypting and
               // storing first means a failure leaves the row pending with the relay's copy intact,
@@ -458,7 +470,8 @@ class ShareService @Inject() (
                         pickedUpAt = Instant.now(),
                         plaintextShare = plaintext,
                         k = k,
-                        n = n
+                        n = n,
+                        mimeType = mimeType
                       )
                     )
                     true
@@ -668,11 +681,13 @@ class ShareService @Inject() (
           .getOrElse(Nil)
       pushes.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { holderContact =>
-          (req.k, req.n) match
-            case (Some(k), Some(n)) =>
+          (req.k, req.n, req.mimeType) match
+            case (Some(k), Some(n), Some(mimeType)) =>
               if secretRepository.getAll().forall(_.id != req.secretId) then
                 Try(
-                  secretRepository.save(Secret(req.secretId, req.label, k, n, req.secretCreatedAt, SecretState.Active))
+                  secretRepository.save(
+                    Secret(req.secretId, req.label, mimeType, k, n, req.secretCreatedAt, SecretState.Active)
+                  )
                 )
               if shareMetadataRepository
                   .getAll()
@@ -699,7 +714,8 @@ class ShareService @Inject() (
           None,
           None,
           Some(share.k),
-          Some(share.n)
+          Some(share.n),
+          Some(share.mimeType)
         )
         val senderSignature = identity.sign(canon)
         relayForContact(contact).openShareRequest(
@@ -712,6 +728,7 @@ class ShareService @Inject() (
           None,
           k = Some(share.k),
           n = Some(share.n),
+          mimeType = Some(share.mimeType),
           senderSignature = senderSignature
         )
       }

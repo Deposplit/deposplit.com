@@ -41,8 +41,12 @@ object PayloadCanonical:
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
-    * `k`/`n` are appended at the end of the sequence, keeping the existing field order — and this construction's
-    * cross-platform byte-vector test — undisturbed.
+    * `k`/`n`, then `mimeType`, are each appended at the end of the sequence in turn, keeping the field order that
+    * predates them undisturbed.
+    *
+    * Unlike the relay's, Android's and iOS's implementations, this one is **not** pinned by a fixed-seed byte vector —
+    * only structurally, by the signature round-trips in `ShareServiceSignatureTests`. It could therefore drift from the
+    * other three without any test here noticing.
     */
   def forOpen(
       secretId: UUID,
@@ -53,7 +57,8 @@ object PayloadCanonical:
       shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
-      n: Option[Int] = None
+      n: Option[Int] = None,
+      mimeType: Option[MimeType] = None
   ): Array[Byte] =
     Seq(
       secretId.toString,
@@ -64,7 +69,8 @@ object PayloadCanonical:
       shareId.fold("")(_.toString),
       ciphertext.fold("")(base64Std.encodeToString),
       k.fold("")(_.toString),
-      n.fold("")(_.toString)
+      n.fold("")(_.toString),
+      mimeType.fold("")(_.value)
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
 
   /** Signed by the recipient when responding to a share request (`recipientSignature`). */

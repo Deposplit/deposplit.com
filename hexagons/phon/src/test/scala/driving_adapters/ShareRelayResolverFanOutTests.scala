@@ -27,6 +27,7 @@ package driving_adapters
 import driven_ports.ShareRelay
 import driven_ports.ShareRelayResolver
 import value_objects.svo.*
+import value_objects.svo.MimeType
 
 import java.time.Instant
 import java.util.UUID
@@ -78,7 +79,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       None,
       Some(ciphertext),
       Some(2),
-      Some(3)
+      Some(3),
+      Some(MimeType.Default)
     )
     ShareRequest(
       id = id,
@@ -95,6 +97,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       ciphertext = Some(ciphertext),
       k = Some(2),
       n = Some(3),
+      mimeType = Some(MimeType.Default),
       senderSignature = senderKeys.sign(canon),
       recipientSignature = None
     )
