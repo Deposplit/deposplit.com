@@ -1,7 +1,5 @@
-scalaVersion := "3.3.8"
-// https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html
-// scalacOptions += "-Yexplicit-nulls"
-// but waiting for Scala LTS with https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html#java-interoperability-and-flexible-types
+scalaVersion := "3.9.0"
+scalacOptions += "-Yexplicit-nulls" // https://docs.scala-lang.org/scala3/reference/experimental/explicit-nulls.html#java-interoperability-and-flexible-types
 
 libraryDependencies += "jakarta.inject" % "jakarta.inject-api" % "2.0.1"
 libraryDependencies += "org.bouncycastle" % "bcprov-jdk18on" % "1.85.2"

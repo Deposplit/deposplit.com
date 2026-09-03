@@ -18,7 +18,7 @@ lazy val root = (project in file("."))
 lazy val relay = (project in file("hexagons/relay"))
 lazy val phon = (project in file("hexagons/phon"))
 
-scalaVersion := "3.3.8"
+scalaVersion := "3.9.0"
 
 libraryDependencies += guice
 libraryDependencies += jdbc

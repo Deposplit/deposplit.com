@@ -103,7 +103,7 @@ class MarkdownController @Inject() (val controllerComponents: ControllerComponen
         .flatMap(is =>
           parser
             .parse(
-              Source.fromInputStream(is)(Codec.UTF8).mkString
+              Source.fromInputStream(is)(using Codec.UTF8).mkString
             ) // or use java.nio.Files, cf. Scala for the Impatient (§9.2) and https://horstmann.com/unblog/2023-04-09/index.html
             .flatMap(doc => renderer.render(doc).map((getDocTitle(doc), _)))
             .toOption
