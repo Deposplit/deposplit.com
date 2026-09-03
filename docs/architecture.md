@@ -105,6 +105,12 @@ given contact names. Operations spanning several contacts fan out across every d
 relay involved, each independently soft-failed so one unreachable host cannot blank out
 the rest.
 
+Naming a relay by hand — this device's default, or a specific contact's — is part of the
+one-time Premium unlock, enforced entirely in the clients. A relay carried in a scanned QR
+code is free, because that is the contact stating where their own mailbox is rather than a
+choice the scanner made. The relay knows none of this: it has no notion of payment, and a
+self-hosted instance has no reason to care either.
+
 **phon is for teaching and testing only, and can be ignored.** It is a browser-based
 emulator that mimics a native app against a live relay, useful for demonstrating the
 protocol without three physical devices. It is not a product surface, holds no real keys,

@@ -121,6 +121,11 @@ sbt run -Dconfig.file=conf/localhost.conf                      # port 9000
 sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9001     # port 9001
 ```
 
+Both relay editors sit behind the Premium unlock, so unlock first: on iOS buy it in the
+Simulator (the scheme carries `Deposplit.storekit`, so no App Store Connect record is
+needed); on Android set `FAKE_PREMIUM=true` in `local.properties` and rebuild, since Play
+Billing cannot run without a Play Console listing.
+
 Give one contact a `relayBaseUrl` override pointing at 9001 and leave another with no
 override. Then verify that deposit, pickup, retrieval and removal all route through the
 override for the first contact while the second still round-trips through the default —

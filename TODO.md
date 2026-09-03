@@ -20,26 +20,6 @@ Nothing here is blocked; it needs devices and an hour. Flows are written up in
 - [ ] `A` `I` BYOR variant: two relays on different ports, one contact with a `relayBaseUrl` override, one without — verify routing and independent soft-failure
 - [ ] `A` `I` reconstruction integrity with a surplus holder: confirm the advisory reports the margin honestly
 
-## Freemium one-time unlock
-
-A single one-time in-app purchase removing the deposit cap and unlocking sender-side BYOR.
-Enforcement is client-side only and therefore honour-system by design — the relay never
-learns payment status. Keep the paywall light-touch.
-
-Free: up to *n* **`ACTIVE`** secrets (not lifetime deposits, so discarding frees a slot
-immediately and a re-split never double-counts), via deposplit.com only. Premium: unlimited,
-plus per-contact relay overrides for outgoing shares. Accepting shares from someone else's
-relay is always free — that traffic never touches deposplit.com, and charging a custodian
-for the sender's choice would be backwards.
-
-- [ ] `A` `I` `PurchaseRepository` port (`isPremium()`, `secretsDepositedCount()`)
-- [ ] `A` `I` deposit-flow limit check; gate sender-side relay override on `isPremium()`
-- [ ] `I` StoreKit 2 adapter
-- [ ] `A` Google Play Billing adapter
-- [ ] `A` `I` paywall screen, on free-cap hit or on a free user configuring an override
-- [ ] `A` `I` free cap counts `ACTIVE` secrets only — enforce against `Secret` state
-- [ ] `A` `I` **debug-only fake-Premium `PurchaseRepository`.** Gating the Settings relay editor removes the only way to point a dev build at a local relay. Mirror Android's existing `SKIP_BIOMETRIC` pattern: a `local.properties`/`BuildConfig` flag, real enforcement always on in release.
-
 ## Chores
 
 - [ ] `phon` **phon cannot upload an image.** Its hexagon already enforces the 256 KiB cap and recognises PNG/JPEG, but the deposit form is still text-only, so phon can demonstrate a `text/plain` deposit and nothing else. Adding a file input means switching `createMySecret` from a URL-encoded `Form` to a multipart body, and dropping the `.trim` that assumes the secret is text. Worth having for teaching: phon cannot reconstruct, so sending an image to a real device is the only way to show the flow without two phones.
@@ -51,6 +31,8 @@ Not rejected — waiting on something.
 
 - [ ] `A` `I` **In-app camera capture as a secret input.** Today an image must already exist in the photo library or in Files, which means a photo of a seed phrase has been sitting in the camera roll — and syncing to iCloud or Google Photos — before it is ever split. A capture kept in memory and split immediately never touches either. Both platforms already declare a camera permission for QR scanning, and both already have a camera surface to copy (`DataScannerViewController`, CameraX).
 - [ ] `A` `I` **Widen the accepted image formats past PNG and JPEG.** HEIC is the obvious first candidate: an unmodified iPhone photo is HEIC, so today it is refused on type as well as size. Each addition is more decoder surface reached by attacker-chosen bytes, so this is a deliberate trade rather than an oversight. SVG stays out — it is scriptable.
+- [ ] `A` **Google Play Billing adapter.** The entitlement port, both gates and the paywall ship; on Android there is simply nothing behind the purchase button, and the screen says so. Blocked on Play infrastructure rather than on code: Play Billing talks to the Play Store app and has no offline mode, so one test purchase needs a Play Console entry for `com.deposplit`, the `com.deposplit.premium` product active, a build on at least the internal test track, and a registered license tester — and Google scopes testing to hardware devices, with the emulator's purchase flow unreliable even on a Play system image. When it lands it only has to write the preference `SharedPreferencesPurchaseRepository` already reads; nothing else moves. iOS needed none of this, because a StoreKit configuration file buys the unlock in the Simulator with no App Store Connect record at all.
+- [ ] `I` **Rehearse the iOS purchase against the App Store Sandbox.** StoreKit Testing in Xcode proves the code path but not the App Store Connect record: the product has to exist there with a real price, and be bought once by a sandbox Apple ID on a physical device before release. No code change expected — the local `Deposplit.storekit` becomes redundant for that run rather than wrong.
 - [ ] `R` `A` `I` **Airtable / Google Sheets relay kinds.** Wanted, but gated on the default relay demonstrating real adoption. Each non-REST kind needs its own adapter and wire shape, plus a `relayKind` discriminator on `Contact`; that is speculative surface area until people are actually using Deposplit. No design work before then.
 - [ ] `R` `phon` `A` `I` **Relay row TTL.** Two retention classes — generous for consent-gated action requests, short and latest-wins for fire-and-forget pushes. No TTL or collection job exists; this is deployment configuration, not application logic, and no correctness property depends on *having* one — though one depends on how it is introduced, below. See "absence is never a signal" in [docs/protocol.md](docs/protocol.md). **Collection cannot land alone.** A `deposit` row carries the only copy of a share in transit, and the sender's retained blob is the prerequisite for surviving its collection — but nothing re-deposits from that blob today, so shipping a collection job without the client half would introduce exactly the loss the retention exists to prevent. The client half is bigger than it looks: a re-deposit mints a fresh request id relay-side, while the blob's `id` *is* the original request id — the key `ShareMetadata`, `syncDistributed` and `isRetentionStillPending` all join on — so both local records need re-keying. It need not detect collection, though. Attempt the re-deposit unconditionally and let `hasActiveDeposit` answer `Conflict` while the row is still there, which keeps "absence is never a signal" intact.
 
