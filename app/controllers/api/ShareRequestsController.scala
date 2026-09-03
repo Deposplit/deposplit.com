@@ -77,7 +77,6 @@ class ShareRequestsController @Inject() (
         .toRight(BadRequest(errorJson("missing_field", "secretCreatedAt is required")))
       secretCreatedAt <- parseInstant(createdAtStr)
         .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
-      shareId = (json \ "shareId").asOpt[String].flatMap(parseUuid)
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
       k = (json \ "k").asOpt[Int]
       n = (json \ "n").asOpt[Int]
@@ -94,7 +93,6 @@ class ShareRequestsController @Inject() (
           Label(labelStr),
           secretCreatedAt,
           transactionType,
-          shareId,
           ciphertext,
           k,
           n,

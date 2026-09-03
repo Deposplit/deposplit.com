@@ -50,7 +50,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val privateKeySeed: Array[Byte] = (0 until 32).map(_.toByte).toArray
   private val expectedPublicKeyBase64Url = "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   private val expectedSignatureBase64Url =
-    "AlvZLAx0pmA8B5C4JMcib_35wt0HIjtWWjQtj-f0dED0c6FVoJvdlMX0-pqnZmOhtSEnmB7IWe5s3dRIXkgvAw"
+    "WFKVgN38zr_3fiLZ1UpxnrvUoW0KA-XjD1ml-VyfITDuCMv9D9uT0ryaHCiHYtWc9_rSpOKDw4kjbtqHMRPwBA"
 
   private val secretId = SecretId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
   private val recipientKey = PublicKey.fromBytes(Array.fill(32)(0x02.toByte)).getOrElse(fail("bad fixture key"))
@@ -70,14 +70,13 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       recipientKey,
       label,
       secretCreatedAt,
-      None,
       Some(ciphertext),
       k,
       n,
       mimeType
     )
     val expected =
-      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\n\nAQIDBAU=\n2\n3\ntext/plain"
+      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\nAQIDBAU=\n2\n3\ntext/plain"
     assertEquals(new String(canon, "UTF-8"), expected)
   }
 
@@ -88,7 +87,6 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       recipientKey,
       label,
       secretCreatedAt,
-      None,
       Some(ciphertext),
       k,
       n,
@@ -112,7 +110,6 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       recipientKey,
       label,
       secretCreatedAt,
-      None,
       Some(ciphertext),
       k,
       n,

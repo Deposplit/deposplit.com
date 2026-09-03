@@ -29,10 +29,6 @@ import java.util.UUID
 
 /** A share request row — self-describing with embedded routing metadata.
   *
-  * `shareId` is None for Deposit and Inventory rows (both are roots — the former the share record itself, the latter a
-  * report about one). For Retrieval and Removal rows it holds the id of the originating Deposit request, supplied by
-  * the client and stored opaquely by the relay.
-  *
   * `ciphertext` semantics differ by type:
   *   - Deposit: provided by Alice at creation; delivered to Bob on approval and cleared.
   *   - Retrieval: provided by Bob on approval; stored until Alice collects it.
@@ -65,7 +61,6 @@ case class ShareRequest(
     secretCreatedAt: Instant,
     transactionType: ShareTransactionType,
     state: ShareRequestState,
-    shareId: Option[UUID],
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],

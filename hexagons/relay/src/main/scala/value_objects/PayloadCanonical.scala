@@ -54,7 +54,9 @@ object PayloadCanonical:
     *
     * `k`/`n` were added for identity recovery, `mimeType` for rendering a reconstructed secret — all three populated
     * for Deposit and Inventory, `None` for Retrieval/Removal, and each appended at the end of the sequence in turn to
-    * keep the existing field order (and its cross-platform byte-vector test) undisturbed.
+    * keep the existing field order (and its cross-platform byte-vector test) undisturbed. Appending is the only safe
+    * way to change this sequence; the one field ever removed went before launch, when no released client could be
+    * broken by the shift.
     *
     * A `None` and an empty-string `mimeType` produce identical bytes here, which is why `ShareRequestsService` refuses
     * to store an empty one: otherwise a row could claim a type the signature does not distinguish from claiming none.
@@ -65,7 +67,6 @@ object PayloadCanonical:
       recipientKey: PublicKey,
       label: Label,
       secretCreatedAt: Instant,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
       n: Option[Int] = None,
@@ -77,7 +78,6 @@ object PayloadCanonical:
       recipientKey.toBase64Url,
       label.value,
       secretCreatedAt.toEpochMilli.toString,
-      shareId.fold("")(_.toString),
       ciphertext.fold("")(base64Std.encodeToString),
       k.fold("")(_.toString),
       n.fold("")(_.toString),

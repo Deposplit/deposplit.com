@@ -43,7 +43,7 @@ info:
 
     ```
     secretId || "\n" || transactionType || "\n" || recipientKey(base64url) || "\n" || label || "\n"
-      || epochMillis(secretCreatedAt) || "\n" || (shareId or "") || "\n" || (base64-standard(ciphertext) or "")
+      || epochMillis(secretCreatedAt) || "\n" || (base64-standard(ciphertext) or "")
       || "\n" || (k or "") || "\n" || (n or "") || "\n" || (mimeType or "")
     ```
 
@@ -198,8 +198,8 @@ components:
     ShareRequest:
       description: >
         A self-describing share request row. All four transaction types (deposit, retrieval,
-        removal, inventory) use the same flat structure. `ciphertext`, `shareId`, `k`, `n`, and
-        `mimeType` semantics depend on `transactionType` — see field descriptions.
+        removal, inventory) use the same flat structure. `ciphertext`, `k`, `n`, and `mimeType`
+        semantics depend on `transactionType` — see field descriptions.
       type: object
       required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, transactionType, state, requestedAt, senderSignature]
       properties:
@@ -223,14 +223,6 @@ components:
           $ref: '#/components/schemas/ShareTransactionType'
         state:
           $ref: '#/components/schemas/ShareRequestState'
-        shareId:
-          type: string
-          format: uuid
-          nullable: true
-          description: >
-            For `retrieval` and `removal` rows: the `id` of the originating `deposit` request,
-            supplied by the client and stored opaquely by the relay. `null` for `deposit` and
-            `inventory` rows (both are roots).
         requestedAt:
           type: string
           format: date-time
@@ -307,12 +299,6 @@ components:
         secretCreatedAt:
           type: string
           format: date-time
-        shareId:
-          type: string
-          format: uuid
-          description: >
-            Required for `retrieval` and `removal` requests: the `id` of the originating `deposit` row.
-            Must be omitted or null for `deposit` and `inventory` requests.
         ciphertext:
           type: string
           format: byte
@@ -478,12 +464,12 @@ paths:
         **deposit**: Sender deposits an encrypted share for the recipient. `ciphertext` and
         `k`/`n` are required. At most one non-denied deposit may exist per (secretId, recipientKey) pair.
 
-        **retrieval / removal**: Sender opens a consent request. `shareId` (the originating deposit id)
-        should be supplied so the recipient can look up the share in their local storage.
+        **retrieval / removal**: Sender opens a consent request. It carries no pointer to the
+        originating deposit and needs none — the recipient finds the share by `secretId`.
         At most one pending request of each type may exist per (secretId, senderKey, recipientKey) triple.
 
         **inventory**: A holder pushes a metadata-only report about a share back to its
-        owner. `k`/`n` are required; `ciphertext` and `shareId` must be omitted. Not consent-gated
+        owner. `k`/`n` are required and `ciphertext` must be omitted. Not consent-gated
         — the row is created directly in state `approved`, and there is no conflict check (a
         holder may push repeatedly; the relay stays a dumb, idempotent mailbox).
       tags: [ShareRequests]

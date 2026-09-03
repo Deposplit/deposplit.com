@@ -61,7 +61,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
       label: String,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
       n: Option[Int] = None,
@@ -77,7 +76,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
         "transactionType" -> transactionType.wireValue,
         "senderSignature" -> encodeBase64Url(senderSignature)
       )
-      .deepMerge(shareId.fold(Json.obj())(id => Json.obj("shareId" -> id.toString)))
       .deepMerge(ciphertext.fold(Json.obj())(ct => Json.obj("ciphertext" -> encodeBase64(ct))))
       .deepMerge(k.fold(Json.obj())(v => Json.obj("k" -> v)))
       .deepMerge(n.fold(Json.obj())(v => Json.obj("n" -> v)))
@@ -231,7 +229,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
         case "denied"    => ShareRequestState.Denied
         case "withdrawn" => ShareRequestState.Withdrawn
         case other       => throw IllegalArgumentException(s"Unknown state: $other"),
-      shareId = (json \ "shareId").asOpt[String].map(UUID.fromString),
       requestedAt = Instant.parse((json \ "requestedAt").as[String]),
       respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
       ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64),

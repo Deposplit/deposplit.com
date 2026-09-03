@@ -38,7 +38,7 @@ import java.util.UUID
 
 trait ShareRelay:
   /** Open a Deposit, Retrieval, or Removal request on the relay. For Deposit: ciphertext must be supplied (the
-    * encrypted share). For Retrieval/Removal: shareId should carry the originating Deposit's id; ciphertext is absent.
+    * encrypted share). For Retrieval/Removal: ciphertext is absent.
     */
   def openShareRequest(
       secretId: UUID,
@@ -46,7 +46,6 @@ trait ShareRelay:
       label: String,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
       n: Option[Int] = None,

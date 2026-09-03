@@ -214,7 +214,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       label: Label,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = Some(2),
       n: Option[Int] = Some(2),
@@ -230,7 +229,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         recipient,
         label,
         secretCreatedAt,
-        shareId,
         ciphertext,
         kk,
         nn,
@@ -244,7 +242,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       label,
       secretCreatedAt,
       transactionType,
-      shareId,
       ciphertext,
       kk,
       nn,
@@ -276,7 +273,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     ).getOrElse(fail("deposit failed"))
 
@@ -292,7 +288,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     assert(result.isRight)
@@ -319,7 +314,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         bob,
         label,
         createdAt,
-        None,
         Some(ciphertext),
         Some(2),
         Some(2),
@@ -333,7 +327,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       label,
       createdAt,
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       Some(2),
       Some(2),
@@ -356,7 +349,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         bob,
         Label("other label"),
         createdAt,
-        None,
         Some(ciphertext),
         Some(2),
         Some(2),
@@ -370,7 +362,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       label,
       createdAt,
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       Some(2),
       Some(2),
@@ -391,7 +382,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     val result = open(
@@ -402,7 +392,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     assertEquals(result, Left(Error.Conflict))
@@ -419,7 +408,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -432,7 +420,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     assertEquals(result, Left(Error.Conflict))
@@ -449,7 +436,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -462,7 +448,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     assert(result.isRight)
@@ -541,7 +526,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -553,7 +537,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None
     )
     val result = open(
@@ -564,7 +547,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None
     )
     assertEquals(result, Left(Error.Conflict))
@@ -581,7 +563,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -593,7 +574,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None
     )
     assert(
@@ -605,7 +585,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         freshLabel(),
         Instant.now(),
         ShareTransactionType.Removal,
-        Some(pickUp.id),
         None
       ).isRight
     )
@@ -624,7 +603,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -636,7 +614,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUpReq.id),
       None
     )
       .getOrElse(fail("retrieve request failed"))
@@ -658,7 +635,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -670,7 +646,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUpReq.id),
       None
     )
       .getOrElse(fail("retrieve request failed"))
@@ -688,7 +663,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -700,7 +674,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUpReq.id),
       None
     )
       .getOrElse(fail("retrieve request failed"))
@@ -723,7 +696,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -735,7 +707,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Removal,
-      Some(pickUpReq.id),
       None
     )
       .getOrElse(fail("delete request failed"))
@@ -817,7 +788,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -829,7 +799,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None
     )
       .getOrElse(fail("retrieve request failed"))
@@ -908,7 +877,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -921,7 +889,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(dep.id),
       None
     )
       .getOrElse(fail("retrieval failed"))
@@ -941,7 +908,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -955,7 +921,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
     assert(redeposit.isRight)
@@ -973,7 +938,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       k = Some(3),
       n = Some(5)
@@ -993,7 +957,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       k = None,
       n = Some(5)
@@ -1011,7 +974,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       k = Some(1),
       n = Some(5)
@@ -1029,7 +991,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       k = Some(6),
       n = Some(5)
@@ -1047,7 +1008,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       k = Some(2),
       n = Some(256)
@@ -1066,7 +1026,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -1077,7 +1036,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       bob,
       freshLabel(),
       Instant.now(),
-      Some(pickUp.id),
       None,
       Some(2),
       Some(2),
@@ -1091,7 +1049,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None,
       Some(2),
       Some(2),
@@ -1124,7 +1081,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(Array.fill(maxCiphertext)(0xab.toByte))
     )
     assert(result.isRight)
@@ -1140,7 +1096,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(Array.fill(maxCiphertext + 1)(0xab.toByte))
     )
     assertEquals(result.errorOnly, Some(Error.PayloadTooLarge))
@@ -1157,7 +1112,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       dep.label,
       dep.secretCreatedAt,
       ShareTransactionType.Retrieval,
-      Some(dep.id),
       None
     ).getOrElse(fail("retrieval failed"))
     val result = respond(service, bob, retrieval.id, approved = true, Some(Array.fill(maxCiphertext + 1)(0xcd.toByte)))
@@ -1176,7 +1130,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       mimeType = Some(MimeType("image/png"))
     )
@@ -1195,7 +1148,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Instant.now(),
       ShareTransactionType.Inventory,
       None,
-      None,
       mimeType = Some(MimeType("image/jpeg"))
     )
     val req = result.getOrElse(fail("inventory push failed"))
@@ -1212,7 +1164,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       mimeType = None
     )
@@ -1232,7 +1183,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       mimeType = Some(MimeType("   "))
     )
@@ -1252,7 +1202,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext),
       mimeType = Some(MimeType("text/plain\n2\n3"))
     )
@@ -1270,7 +1219,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Deposit,
-      None,
       Some(ciphertext)
     )
       .getOrElse(fail("deposit failed"))
@@ -1283,7 +1231,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       bob,
       label,
       createdAt,
-      Some(pickUp.id),
       None,
       None,
       None,
@@ -1296,7 +1243,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       label,
       createdAt,
       ShareTransactionType.Retrieval,
-      Some(pickUp.id),
       None,
       None,
       None,
@@ -1318,7 +1264,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Inventory,
-      None,
       None,
       k = Some(2),
       n = Some(3)
@@ -1343,7 +1288,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Instant.now(),
       ShareTransactionType.Inventory,
       None,
-      None,
       k = Some(2),
       n = Some(3)
     )
@@ -1366,7 +1310,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Inventory,
-      None,
       Some(ciphertext),
       k = Some(2),
       n = Some(3)
@@ -1384,7 +1327,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Inventory,
-      None,
       None,
       k = Some(1),
       n = Some(1)
@@ -1404,7 +1346,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       Instant.now(),
       ShareTransactionType.Inventory,
       None,
-      None,
       k = Some(2),
       n = Some(3)
     )
@@ -1416,7 +1357,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Inventory,
-      None,
       None,
       k = Some(2),
       n = Some(3)
@@ -1434,7 +1374,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       freshLabel(),
       Instant.now(),
       ShareTransactionType.Inventory,
-      None,
       None,
       k = Some(2),
       n = Some(3)

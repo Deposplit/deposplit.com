@@ -47,9 +47,6 @@ trait ShareRequests:
     *     directly in `Approved` state with no conflict check; the recipient (Alice) polls for it and deletes it once
     *     consumed.
     *
-    * `shareId` is ignored for Deposit and Inventory. For Retrieval and Removal it should be the id of the originating
-    * Deposit request — the relay stores it opaquely for the client's benefit.
-    *
     * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the other arguments —
     * defense-in-depth alongside the transport-auth signature already checked by the caller (`AuthHelper`). Returns
     * `BadRequest` if it doesn't verify.
@@ -61,7 +58,6 @@ trait ShareRequests:
       label: Label,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int],
       n: Option[Int],

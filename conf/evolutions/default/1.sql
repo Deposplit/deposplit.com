@@ -28,9 +28,9 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 -- must never be read as a signal, only an explicitly observed 'withdrawn' row counts. See
 -- ShareRequests.withdrawShareRequests and docs/protocol.md.
 --
--- share_id is NULL for deposit and inventory rows (both are roots). For retrieval and removal
--- rows it carries the id of the originating deposit request, supplied by the client. The relay
--- stores it opaquely without enforcing a foreign key (stateless relay design).
+-- A retrieval or removal row carries no pointer to the deposit it follows, and needs none.
+-- (secret_id, recipient_key) already identifies the live deposit. That is the pair the
+-- uq_deposit_active index below enforces, and the pair both parties match on.
 --
 -- k and n are the SSS threshold/share-count populated for deposit and inventory only (NULL for
 -- retrieval/removal), reported by holders during recovery as a cross-holder
@@ -56,7 +56,9 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 --
 -- Note: partial unique indexes would add defence-in-depth but H2 does not support them.
 -- The application layer (ShareRequestsService) enforces uniqueness constraints instead.
--- Add to production PostgreSQL separately:
+-- Add to production PostgreSQL separately. (A semicolon anywhere in these comments splits the
+-- script, so whatever follows one is parsed as SQL. The two below are safe only because each
+-- falls at the end of its line, leaving the next fragment starting with a comment marker.)
 --   CREATE UNIQUE INDEX uq_deposit_active
 --       ON share_requests (secret_id, recipient_key)
 --       WHERE transaction_type = 'deposit' AND state NOT IN ('denied', 'withdrawn');
@@ -71,7 +73,6 @@ CREATE TABLE share_requests (
     recipient_key     BYTEA                    NOT NULL,
     transaction_type  share_transaction_type   NOT NULL,
     state             share_request_state      NOT NULL DEFAULT 'pending',
-    share_id          UUID,
     ciphertext        BYTEA,
     k                 INTEGER,
     n                 INTEGER,

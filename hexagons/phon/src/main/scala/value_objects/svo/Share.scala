@@ -68,8 +68,6 @@ case class ShareRequest(
     secretCreatedAt: Instant,
     transactionType: ShareTransactionType,
     state: ShareRequestState,
-    /** For Retrieval/Removal rows: the originating Deposit request's id. */
-    shareId: Option[UUID],
     requestedAt: Instant,
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
@@ -90,7 +88,7 @@ case class ShareRequest(
   * its parent `Secret` (by `secretId`) rather than duplicating `label`/`secretCreatedAt`.
   */
 case class ShareMetadata(
-    id: UUID, // Deposit request ID — used as shareId in Retrieval/Removal requests
+    id: UUID, // Deposit request ID
     secretId: UUID,
     // The holder's stable local contact id — not their Ed25519 key — so this record survives a
     // holder key rotation/recovery.

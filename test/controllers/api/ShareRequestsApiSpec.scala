@@ -70,7 +70,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       recipient.publicKeyHeader,
       "test secret",
       createdAt,
-      None,
       Some(ct),
       Some(k),
       Some(n),
@@ -90,36 +89,32 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
        |}""".stripMargin.getBytes("UTF-8")
 
   private def retrievalBody(
-      shareId: String,
       recipient: RequestSigner,
       sender: RequestSigner = alice
   ): Array[Byte] =
     val sig =
-      sender.signOpen(secretId, "retrieval", recipient.publicKeyHeader, "test secret", createdAt, Some(shareId), None)
+      sender.signOpen(secretId, "retrieval", recipient.publicKeyHeader, "test secret", createdAt, None)
     s"""{
        |  "transactionType": "retrieval",
        |  "secretId":        "$secretId",
        |  "label":           "test secret",
        |  "recipientKey":    "${recipient.publicKeyHeader}",
        |  "secretCreatedAt": "$createdAt",
-       |  "shareId":         "$shareId",
        |  "senderSignature": "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
   private def removalBody(
-      shareId: String,
       recipient: RequestSigner,
       sender: RequestSigner = alice
   ): Array[Byte] =
     val sig =
-      sender.signOpen(secretId, "removal", recipient.publicKeyHeader, "test secret", createdAt, Some(shareId), None)
+      sender.signOpen(secretId, "removal", recipient.publicKeyHeader, "test secret", createdAt, None)
     s"""{
        |  "transactionType": "removal",
        |  "secretId":        "$secretId",
        |  "label":           "test secret",
        |  "recipientKey":    "${recipient.publicKeyHeader}",
        |  "secretCreatedAt": "$createdAt",
-       |  "shareId":         "$shareId",
        |  "senderSignature": "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
@@ -154,7 +149,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "secretCreatedAt").asOpt[String] must not be empty
       (json \ "requestedAt").asOpt[String] must not be empty
       (json \ "respondedAt").asOpt[String] mustBe None
-      (json \ "shareId").asOpt[String] mustBe None
       (json \ "senderSignature").asOpt[String] must not be empty
       (json \ "recipientSignature").asOpt[String] mustBe None
       // ciphertext not returned on Deposit creation (only on approval)
@@ -173,7 +167,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           bob.publicKeyHeader,
           "x",
           createdAt,
-          None,
           Some("AQID"),
           None,
           None,
@@ -195,7 +188,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           bob.publicKeyHeader,
           "x",
           createdAt,
-          None,
           Some("AQID"),
           Some(5),
           Some(3),
@@ -211,7 +203,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "reject a Deposit with a missing mimeType" in {
       val sid = UUID.randomUUID().toString
       val sig =
-        alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"), Some(2), Some(3))
+        alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, Some("AQID"), Some(2), Some(3))
       val body =
         s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","k":2,"n":3,"senderSignature":"$sig"}"""
           .getBytes("UTF-8")
@@ -230,7 +222,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           bob.publicKeyHeader,
           "x",
           createdAt,
-          None,
           Some("AQID"),
           Some(2),
           Some(3),
@@ -250,7 +241,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "reject a Deposit without ciphertext" in {
       val sid = UUID.randomUUID().toString
-      val sig = alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, None)
+      val sig = alice.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None)
       val body =
         s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
@@ -261,7 +252,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "reject a Deposit with a senderSignature that doesn't verify" in {
       val sid = UUID.randomUUID().toString
       // Signed by bob instead of the caller (alice) — verifies against the wrong key.
-      val sig = bob.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, None, Some("AQID"))
+      val sig = bob.signOpen(sid, "deposit", bob.publicKeyHeader, "x", createdAt, Some("AQID"))
       val body =
         s"""{"transactionType":"deposit","secretId":"$sid","label":"x","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","ciphertext":"AQID","senderSignature":"$sig"}"""
           .getBytes("UTF-8")
@@ -373,21 +364,20 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   "POST /share-requests (Retrieval)" should {
 
     "open a Retrieval request and return a pending ShareRequest" in {
-      val result = route(app, alice.post("/share-requests", retrievalBody(depositId, bob))).get
+      val result = route(app, alice.post("/share-requests", retrievalBody(bob))).get
       status(result) mustBe CREATED
       val json = contentAsJson(result)
       retrievalId = (json \ "id").as[String]
       retrievalId must not be empty
       (json \ "transactionType").as[String] mustBe "retrieval"
       (json \ "state").as[String] mustBe "pending"
-      (json \ "shareId").as[String] mustBe depositId
       (json \ "requestedAt").asOpt[String] must not be empty
       (json \ "respondedAt").asOpt[String] mustBe None
       (json \ "ciphertext").asOpt[String] mustBe None
     }
 
     "reject a duplicate pending Retrieval for the same (secretId, senderKey, recipientKey)" in {
-      val result = route(app, alice.post("/share-requests", retrievalBody(depositId, bob))).get
+      val result = route(app, alice.post("/share-requests", retrievalBody(bob))).get
       status(result) mustBe CONFLICT
     }
   }
@@ -431,7 +421,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           bob.publicKeyHeader,
           "cascade test",
           createdAt,
-          None,
           Some("AQID"),
           Some(2),
           Some(3),
@@ -446,9 +435,9 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
       // Open a Removal request
       val removalSig =
-        alice.signOpen(freshSecretId, "removal", bob.publicKeyHeader, "cascade test", createdAt, Some(deposit2Id), None)
+        alice.signOpen(freshSecretId, "removal", bob.publicKeyHeader, "cascade test", createdAt, None)
       val removalReqBody =
-        s"""{"transactionType":"removal","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","shareId":"$deposit2Id","senderSignature":"$removalSig"}"""
+        s"""{"transactionType":"removal","secretId":"$freshSecretId","label":"cascade test","recipientKey":"${bob.publicKeyHeader}","secretCreatedAt":"$createdAt","senderSignature":"$removalSig"}"""
           .getBytes("UTF-8")
       val removalResult = route(app, alice.post("/share-requests", removalReqBody)).get
       status(removalResult) mustBe CREATED
@@ -558,7 +547,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
         "recovered secret",
         createdAt,
         None,
-        None,
         Some(2),
         Some(3),
         Some("text/plain")
@@ -574,7 +562,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "state").as[String] mustBe "approved"
       (json \ "respondedAt").asOpt[String] must not be empty
       (json \ "recipientSignature").asOpt[String] mustBe None
-      (json \ "shareId").asOpt[String] mustBe None
       (json \ "k").as[Int] mustBe 2
       (json \ "n").as[Int] mustBe 3
       (json \ "mimeType").as[String] mustBe "text/plain"
@@ -598,7 +585,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
           alice.publicKeyHeader,
           "x",
           createdAt,
-          None,
           Some("AQID"),
           Some(2),
           Some(3),
@@ -621,7 +607,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
             alice.publicKeyHeader,
             "x",
             createdAt,
-            None,
             None,
             Some(2),
             Some(3),

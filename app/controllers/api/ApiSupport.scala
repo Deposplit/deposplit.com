@@ -100,7 +100,6 @@ trait ApiSupport { self: BaseController =>
         case ShareRequestState.Approved  => "approved"
         case ShareRequestState.Denied    => "denied"
         case ShareRequestState.Withdrawn => "withdrawn"),
-      "shareId" -> req.shareId.map(_.toString),
       "requestedAt" -> req.requestedAt.toString,
       "respondedAt" -> req.respondedAt.map(_.toString),
       "senderSignature" -> req.senderSignature.toBase64Url

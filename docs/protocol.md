@@ -63,7 +63,7 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 
 | Construction | Fields, in order |
 |---|---|
-| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `label`, `secretCreatedAt` (epoch ms), `shareId`, `ciphertext` (standard base64), `k`, `n`, `mimeType` |
+| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `label`, `secretCreatedAt` (epoch ms), `ciphertext` (standard base64), `k`, `n`, `mimeType` |
 | `forRespond` | `requestId`, `"approved"` or `"denied"`, `ciphertext` |
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
 | `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut` |
@@ -115,11 +115,16 @@ by silently eroding redundancy, never an authoritative signal.
 
 Three, none of them about people.
 
-**`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`,
-`label`, `sender_key`, `recipient_key`, `state`, `share_id`, `ciphertext`, `k`, `n`,
-`mime_type`, `secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
+**`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`, `label`,
+`sender_key`, `recipient_key`, `state`, `ciphertext`, `k`, `n`, `mime_type`,
+`secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
 `recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
 forbidden for `retrieval` and `removal`.
+
+A `retrieval` or `removal` row carries no pointer to the `deposit` it follows. It needs none:
+`(secret_id, recipient_key)` already identifies the live deposit — the relay enforces exactly
+that pair — so both parties match on it. A row that named a specific deposit would additionally
+be worthless to a holder whose sender has since recovered onto a fresh device.
 
 `mime_type` is the sender's claim about what the secret is — `text/plain` for typed text,
 `image/png` or `image/jpeg` for a picked image — carried so the recipient can decide how to

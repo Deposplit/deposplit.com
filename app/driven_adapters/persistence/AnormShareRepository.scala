@@ -73,7 +73,6 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Instant]("secret_created_at") ~
       get[String]("transaction_type") ~
       get[String]("state") ~
-      get[Option[UUID]]("share_id") ~
       get[Instant]("requested_at") ~
       get[Option[Instant]]("responded_at") ~
       get[Option[Array[Byte]]]("ciphertext") ~
@@ -82,7 +81,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[Option[String]]("mime_type") ~
       get[Array[Byte]]("sender_signature") ~
       get[Option[Array[Byte]]]("recipient_signature") map {
-        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ tt ~ st ~ shId ~ reqAt ~ resAt ~ ct ~ k ~ n ~ mime ~ sSig ~ rSig =>
+        case id ~ sid ~ sk ~ rk ~ lbl ~ sca ~ tt ~ st ~ reqAt ~ resAt ~ ct ~ k ~ n ~ mime ~ sSig ~ rSig =>
           ShareRequest(
             id = id,
             secretId = SecretId(sid),
@@ -97,7 +96,6 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
               case "denied"    => ShareRequestState.Denied
               case "withdrawn" => ShareRequestState.Withdrawn
               case other       => sys.error(s"unknown state: $other"),
-            shareId = shId,
             requestedAt = reqAt,
             respondedAt = resAt,
             ciphertext = ct,
@@ -127,12 +125,12 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO share_requests
-          (id, secret_id, label, sender_key, recipient_key, transaction_type, state, share_id,
+          (id, secret_id, label, sender_key, recipient_key, transaction_type, state,
            ciphertext, k, n, mime_type, secret_created_at, requested_at, responded_at,
            sender_signature, recipient_signature)
         VALUES
           ({id}::uuid, {secretId}::uuid, {label}, {senderKey}, {recipientKey},
-           {transactionType}, {state}, {shareId}::uuid, {ciphertext}, {k}, {n}, {mimeType},
+           {transactionType}, {state}, {ciphertext}, {k}, {n}, {mimeType},
            {secretCreatedAt}, {requestedAt}, {respondedAt}, {senderSignature}, {recipientSignature})
       """)
         .on(
@@ -143,7 +141,6 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           "recipientKey" -> request.recipientKey.toBytes,
           "transactionType" -> request.transactionType.wireValue,
           "state" -> stateStr(request.state),
-          "shareId" -> request.shareId.map(_.toString).orNull,
           "ciphertext" -> request.ciphertext.orNull,
           "k" -> request.k,
           "n" -> request.n,

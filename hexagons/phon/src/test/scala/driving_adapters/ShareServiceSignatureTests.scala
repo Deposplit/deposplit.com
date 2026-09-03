@@ -166,7 +166,6 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
       label: String,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
-      shareId: Option[UUID],
       ciphertext: Option[Array[Byte]],
       k: Option[Int],
       n: Option[Int],
@@ -185,7 +184,6 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
       secretCreatedAt = secretCreatedAt,
       transactionType = transactionType,
       state = if selfApproved then ShareRequestState.Approved else ShareRequestState.Pending,
-      shareId = shareId,
       requestedAt = now,
       respondedAt = if selfApproved then Some(now) else None,
       ciphertext = None,
@@ -333,7 +331,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Deposit,
       state = ShareRequestState.Pending,
-      shareId = None,
       requestedAt = Instant.now(),
       respondedAt = None,
       ciphertext = Some(ciphertext),
@@ -352,7 +349,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
         row.recipientKey,
         row.label,
         row.secretCreatedAt,
-        row.shareId,
         row.ciphertext,
         row.k,
         row.n,
@@ -497,7 +493,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       label,
       createdAt,
       None,
-      None,
       Some(k),
       Some(n),
       Some(MimeType.Default)
@@ -513,7 +508,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretCreatedAt = createdAt,
       transactionType = ShareTransactionType.Inventory,
       state = ShareRequestState.Approved,
-      shareId = None,
       requestedAt = now,
       respondedAt = Some(now),
       ciphertext = None,
@@ -826,7 +820,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Deposit,
       state = state,
-      shareId = None,
       requestedAt = Instant.now(),
       respondedAt = if state == ShareRequestState.Pending then None else Some(Instant.now()),
       ciphertext = None,
@@ -1025,7 +1018,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val secretId = UUID.randomUUID()
     metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
     val retrievalRow = bareDepositRow(UUID.randomUUID(), secretId, aliceContact.verifyKey, ShareRequestState.Approved)
-      .copy(transactionType = ShareTransactionType.Retrieval, shareId = Some(depositId))
+      .copy(transactionType = ShareTransactionType.Retrieval)
     relay.pending = List(retrievalRow)
 
     svc.syncDistributed()
@@ -1267,7 +1260,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Retrieval,
       state = ShareRequestState.Approved,
-      shareId = Some(UUID.randomUUID()),
       requestedAt = Instant.now(),
       respondedAt = Some(Instant.now()),
       ciphertext = Some(ciphertext),
@@ -1288,7 +1280,6 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Retrieval,
       state = ShareRequestState.Pending,
-      shareId = Some(UUID.randomUUID()),
       requestedAt = Instant.now(),
       respondedAt = None,
       ciphertext = None,

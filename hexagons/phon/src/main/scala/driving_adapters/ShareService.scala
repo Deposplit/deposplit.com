@@ -112,7 +112,6 @@ class ShareService @Inject() (
         req.recipientKey,
         req.label,
         req.secretCreatedAt,
-        req.shareId,
         req.ciphertext,
         req.k,
         req.n,
@@ -155,7 +154,6 @@ class ShareService @Inject() (
           contact.verifyKey,
           label,
           createdAt,
-          None,
           Some(ct),
           Some(threshold),
           Some(contacts.size),
@@ -168,7 +166,6 @@ class ShareService @Inject() (
         label,
         createdAt,
         ShareTransactionType.Deposit,
-        None,
         Some(ct),
         k = Some(threshold),
         n = Some(contacts.size),
@@ -309,11 +306,10 @@ class ShareService @Inject() (
       val targets = if confirmed.size >= secret.k then confirmed else deposited
       targets.foreach { meta =>
         contactRepository.getById(meta.contactId).foreach { contact =>
-          // Matched on secretId plus the holder's key. Not the local shareId — a recovered
-          // ShareMetadata's id is a freshly generated local UUID with no relay-row counterpart.
-          // And not secretId alone — every holder of a secret shares it, so one standing row would
-          // silence the whole fan-out. A holder who rotated keys since the row was opened no
-          // longer matches, which is right: that row is unreachable under the new key anyway.
+          // Matched on secretId plus the holder's key. Not secretId alone — every holder of a
+          // secret shares it, so one standing row would silence the whole fan-out. A holder who
+          // rotated keys since the row was opened no longer matches, which is right: that row is
+          // unreachable under the new key anyway.
           val hasActive = existing.exists(r =>
             r.secretId == meta.secretId &&
               r.recipientKey.sameElements(contact.verifyKey) &&
@@ -327,7 +323,6 @@ class ShareService @Inject() (
                 contact.verifyKey,
                 secret.label,
                 secret.secretCreatedAt,
-                Some(meta.id),
                 None
               )
               val senderSignature = identity.sign(canon)
@@ -337,7 +332,6 @@ class ShareService @Inject() (
                 secret.label,
                 secret.secretCreatedAt,
                 ShareTransactionType.Retrieval,
-                Some(meta.id),
                 None,
                 senderSignature = senderSignature
               )
@@ -364,7 +358,6 @@ class ShareService @Inject() (
       contact.verifyKey,
       secret.label,
       secret.secretCreatedAt,
-      Some(shareId),
       None
     )
     val senderSignature = identity.sign(canon)
@@ -374,7 +367,6 @@ class ShareService @Inject() (
       secret.label,
       secret.secretCreatedAt,
       transactionType,
-      Some(shareId),
       None,
       senderSignature = senderSignature
     )
@@ -723,7 +715,6 @@ class ShareService @Inject() (
           share.label,
           share.createdAt,
           None,
-          None,
           Some(share.k),
           Some(share.n),
           Some(share.mimeType)
@@ -735,7 +726,6 @@ class ShareService @Inject() (
           share.label,
           share.createdAt,
           ShareTransactionType.Inventory,
-          None,
           None,
           k = Some(share.k),
           n = Some(share.n),
@@ -762,8 +752,8 @@ class ShareService @Inject() (
       throw SignatureVerificationException(s"senderSignature does not verify for request $requestId")
     val ciphertext =
       if approved && request.transactionType == ShareTransactionType.Retrieval then
-        // Matched on secretId, not the sender's local shareId — that id is meaningless to this
-        // device once identities can be rebuilt independently after recovery.
+        // Matched on secretId: the request names the secret, and a holder keeps one share per
+        // secret per sender.
         val plaintext = shareRepository
           .getPlaintextShare(request.secretId)
           .getOrElse(throw IllegalStateException(s"Share for secret ${request.secretId} not in local storage"))
