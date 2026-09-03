@@ -7,7 +7,7 @@ the reasoning behind it.
 
 ## Addressing: keys, not accounts
 
-There is no registration. A caller *is* their Ed25519 public key, and every row the relay
+There is no registration. A caller *is* their public verify key, and every row the relay
 stores embeds both `sender_key` and `recipient_key`. Rows are therefore **self-describing**:
 authorising a request never requires looking up another row, a session, or a user record.
 The relay's entire authorisation rule is *"does the key that signed this request match a
@@ -29,9 +29,9 @@ of a given key. Three headers carry it:
 
 | Header | Contents |
 |---|---|
-| `X-Deposplit-Verify-Key` | The caller's Ed25519 public verify key, base64url |
+| `X-Deposplit-Verify-Key` | The caller's public verify key, base64url |
 | `X-Deposplit-Nonce` | `<unix-ms>.<random>`, unique per request |
-| `X-Deposplit-Signature` | Ed25519 signature over the canonical string, base64url |
+| `X-Deposplit-Signature` | Digital signature over the canonical string, base64url |
 
 The canonical string is:
 
@@ -90,7 +90,7 @@ something of Bob, Bob approves or denies — and one is a push.
 
 | Type | Direction | Carries | Purpose |
 |---|---|---|---|
-| `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType`, ciphertext | Give a holder a share. Delivered once on approval, then cleared from the row. |
+| `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType`, `ciphertext` | Give a holder a share. Delivered once on approval, then cleared from the row. |
 | `retrieval` | sender → holder → sender | references `secretId` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
 | `removal` | sender → holder | references the deposit | Ask a holder to discard a share. |
 | `inventory` | holder → owner | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
@@ -116,7 +116,7 @@ by silently eroding redundancy, never an authoritative signal.
 Three, none of them about people.
 
 **`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`,
-`label`, `sender_key`, `recipient_key`, state, `share_id`, `ciphertext`, `k`, `n`,
+`label`, `sender_key`, `recipient_key`, `state`, `share_id`, `ciphertext`, `k`, `n`,
 `mime_type`, `secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
 `recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
 forbidden for `retrieval` and `removal`.

@@ -14,7 +14,7 @@ info:
     |---|---|
     | `X-Deposplit-Verify-Key` | Caller's public verify key (base64url — see `PublicKey` schema) |
     | `X-Deposplit-Nonce` | Per-request unique string in the form `<unix-ms>.<random>` — server rejects requests whose embedded timestamp is more than 5 minutes old |
-    | `X-Deposplit-Signature` | Base64url Ed25519 signature (RFC 8032) |
+    | `X-Deposplit-Signature` | Base64url signature under the caller's cipher suite (see `CipherSuite`) |
 
     The signature covers the canonical string:
 
@@ -28,17 +28,17 @@ info:
 
     ## Payload signatures
 
-    Two additional Ed25519 signatures ride with every `ShareRequest` row, independent of the
+    Two additional digital signatures ride with every `ShareRequest` row, independent of the
     transport-auth signature above. The transport signature authenticates the HTTP caller for one
     specific call and is never persisted — it gives a later reader of a row (via `GET`) nothing to
     re-verify authorship against. `senderSignature` and `recipientSignature` close that gap: any
-    holder of the author's Ed25519 public key can independently re-verify who authored a row,
+    holder of the author's public verify key can independently re-verify who authored a row,
     regardless of which relay served it. This is what makes BYOR (routing a contact's shares
     through a relay other than deposplit.com, e.g. a self-hosted instance) safe — a passive
     third-party relay performs no verification of its own, so recipients verify client-side
     instead.
 
-    `senderSignature` (required on every `POST /share-requests`) is an Ed25519 signature by the
+    `senderSignature` (required on every `POST /share-requests`) is a digital signature by the
     caller (who becomes `senderKey`) over:
 
     ```
@@ -48,7 +48,7 @@ info:
     ```
 
     `recipientSignature` (required on every `PATCH /share-requests/{requestId}`, including
-    denials) is an Ed25519 signature by the caller (who must be `recipientKey`) over:
+    denials) is a digital signature by the caller (who must be `recipientKey`) over:
 
     ```
     requestId || "\n" || ("approved" or "denied") || "\n" || (base64-standard(ciphertext) or "")
@@ -61,7 +61,7 @@ info:
     defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
     this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
 
-    `signature` on a `POST /key-rotations` push follows the same pattern: a signature
+    `signature` on a `POST /key-rotations` push follows the same pattern: a digital signature
     by the caller (who becomes `oldVerifyKey`) over:
 
     ```
@@ -74,8 +74,8 @@ info:
     use; there is no `oldCipherSuite` field, since the recipient already has it pinned on the
     existing contact record being rotated away from.
 
-    `signature` on a `POST /custody-heartbeats` push follows the same pattern: an
-    Ed25519 signature by the caller (who becomes `holderKey`) over:
+    `signature` on a `POST /custody-heartbeats` push follows the same pattern: a
+    digital signature by the caller (who becomes `holderKey`) over:
 
     ```
     ownerKey(base64url) || "\n" || sortedSecretIds(comma-joined, lowercase) || "\n" || optedOut("true"|"false")
@@ -282,13 +282,13 @@ components:
         senderSignature:
           type: string
           description: >
-            Base64url Ed25519 signature by senderKey — see "Payload signatures" above.
+            Base64url digital signature by senderKey — see "Payload signatures" above.
             Set at creation, never cleared.
         recipientSignature:
           type: string
           nullable: true
           description: >
-            Base64url Ed25519 signature by recipientKey — see "Payload signatures" above.
+            Base64url digital signature by recipientKey — see "Payload signatures" above.
             Null while the request is pending.
 
     OpenShareRequestBody:
@@ -339,7 +339,7 @@ components:
         senderSignature:
           type: string
           description: >
-            Base64url Ed25519 signature by the caller over this request's canonical bytes —
+            Base64url digital signature by the caller over this request's canonical bytes —
             see "Payload signatures" above. Returns `400` if it doesn't verify.
 
     X25519PublicKey:
@@ -378,7 +378,7 @@ components:
         signature:
           type: string
           description: >
-            Base64url signature by oldVerifyKey — see "Payload signatures" above.
+            Base64url digital signature by oldVerifyKey — see "Payload signatures" above.
         createdAt:
           type: string
           format: date-time
@@ -398,7 +398,7 @@ components:
         signature:
           type: string
           description: >
-            Base64url signature by the caller over this notice's canonical bytes — see
+            Base64url digital signature by the caller over this notice's canonical bytes — see
             "Payload signatures" above. Returns `400` if it doesn't verify.
 
     CustodyHeartbeat:
@@ -433,7 +433,7 @@ components:
         signature:
           type: string
           description: >
-            Base64url Ed25519 signature by holderKey — see "Payload signatures" above.
+            Base64url digital signature by holderKey — see "Payload signatures" above.
         createdAt:
           type: string
           format: date-time
@@ -454,7 +454,7 @@ components:
         signature:
           type: string
           description: >
-            Base64url Ed25519 signature by the caller over this heartbeat's canonical bytes — see
+            Base64url digital signature by the caller over this heartbeat's canonical bytes — see
             "Payload signatures" above. Returns `400` if it doesn't verify.
 
     Error:
@@ -687,7 +687,7 @@ paths:
                 recipientSignature:
                   type: string
                   description: >
-                    Base64url Ed25519 signature by the caller over this response's canonical
+                    Base64url digital signature by the caller over this response's canonical
                     bytes — see "Payload signatures" above. Required unconditionally, including
                     denials. Returns `400` if it doesn't verify.
       responses:

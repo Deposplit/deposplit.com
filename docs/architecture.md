@@ -75,7 +75,7 @@ C4Container
 
     Rel(sharer, app, "Splits, deposits, reconstructs")
     Rel(holder, app, "Approves, denies, safekeeps")
-    Rel(app, web, "Deposits and collects ciphertext", "JSON/HTTPS, Ed25519-signed")
+    Rel(app, web, "Deposits and collects ciphertext", "JSON/HTTPS, signed")
     Rel(app, relay2, "Same API, per-contact override", "JSON/HTTPS")
     Rel(web, db, "Reads and writes rows", "Anorm")
     Rel(phon, web, "Pretends to be a native app", "JSON/HTTP")
@@ -126,7 +126,7 @@ C4Component
 
     Container_Boundary(web, "Web app") {
         Component(ctrl, "API controllers", "Play", "ShareRequests, KeyRotations, CustodyHeartbeats")
-        Component(auth, "AuthHelper and filters", "Play", "Verifies the per-request Ed25519 signature")
+        Component(auth, "AuthHelper and filters", "Play", "Verifies the per-request signature")
         Component(gui, "Landing page", "Twirl + HTMX", "Marketing copy rendered from Markdown")
 
         Component(dports, "Driving ports", "Scala traits", "ShareRequests, KeyRotations, CustodyHeartbeats")
