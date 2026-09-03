@@ -227,8 +227,10 @@ class ShareService @Inject() (
       Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval), Some(ShareRequestState.Approved)))
         .getOrElse(Nil)
         .foreach { req =>
-          req.shareId.foreach { shareId =>
-            existingMetadata.find(_.id == shareId).foreach { meta =>
+          // Matched on secretId plus the holder's key, the same pair requestAll fans out on —
+          // the row itself carries no pointer back to this device's records, and needs none.
+          contactRepository.getByVerifyKey(req.recipientKey).foreach { contact =>
+            existingMetadata.find(m => m.secretId == req.secretId && m.contactId == contact.id).foreach { meta =>
               Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(Instant.now()))))
             }
           }
@@ -258,12 +260,17 @@ class ShareService @Inject() (
       discarding.foreach { secret =>
         val metasForSecret = shareMetadataRepository.getAll().filter(_.secretId == secret.id)
         metasForSecret.foreach { meta =>
-          removalRequests
-            .find { case (_, r) => r.shareId.contains(meta.id) && r.state == ShareRequestState.Approved }
-            .foreach { case (relay, _) =>
-              Try(relay.deleteShareRequest(meta.id))
-              Try(shareMetadataRepository.delete(meta.id))
-            }
+          contactRepository.getById(meta.contactId).foreach { contact =>
+            removalRequests
+              .find { case (_, r) =>
+                r.secretId == meta.secretId && r.recipientKey.sameElements(contact.verifyKey) &&
+                r.state == ShareRequestState.Approved
+              }
+              .foreach { case (relay, _) =>
+                Try(relay.deleteShareRequest(meta.id))
+                Try(shareMetadataRepository.delete(meta.id))
+              }
+          }
         }
         val remaining = shareMetadataRepository.getAll().filter(_.secretId == secret.id)
         if remaining.isEmpty then Try(secretRepository.delete(secret.id))
