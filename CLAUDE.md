@@ -89,6 +89,7 @@ The sibling repositories, for reference:
 ```bash
 # from Android/
 ./gradlew test                    # JVM unit tests, no device needed (136 :hexagon, 20 :app)
+./gradlew :app:lintDebug          # the four gated lint checks
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 
