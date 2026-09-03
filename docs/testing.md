@@ -40,8 +40,8 @@ This is a one-time step per fresh install; the setting persists across restarts.
 The full social flow needs **three instances** — Alice plus two holders. Three emulators,
 three simulators, or a mix.
 
-- *Android*: create two extra AVDs (API 29+) in the Device Manager and launch them
-  alongside the first.
+- *Android*: create two extra AVDs (API 35+, matching `minSdk`) in the Device Manager and
+  launch them alongside the first.
 - *iOS*: Xcode runs one simulator from the Run button, but you can open more via
   **Xcode → Open Developer Tool → Simulator**, then **File → Open Simulator**.
 
@@ -149,8 +149,10 @@ in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
   reports the margin honestly rather than claiming more confidence than it has.
 - **Verification levels.** Manual key entry defaults to `VERY_LOW` and offers `LOW`/`HIGH`
   but never `VERY_HIGH`; QR scan defaults to `VERY_HIGH`.
-- **Biometric behaviour on Android differs by API level.** On API 30+ the prompt offers
-  "or use PIN"; on API 29 it is biometric-only, because the combined
-  `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` authenticator is unavailable there.
+- **Biometric availability, not biometric API level.** Every device Deposplit installs on
+  offers "or use PIN", because `minSdk` is 35 and the combined
+  `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` authenticator is only missing below API 30. What
+  still varies is the *device*: check an emulator with no enrolment, which must explain
+  itself rather than offer a button that cannot work.
 - **Key-change indicator.** After a contact rotates keys, their retrieval requests should
   carry the "key changed N days ago" warning — and only retrieval requests.

@@ -13,12 +13,62 @@ Shipped work is not recorded here. What the system does and why is documented in
 
 ## End-to-end interop testing
 
-Nothing here is blocked; it needs devices and an hour. Flows are written up in
-[docs/testing.md](docs/testing.md).
+Nothing here is blocked; it needs devices and an hour. [docs/testing.md](docs/testing.md) is
+the how — starting a relay, pointing three instances at it, and what each flow proves. This
+is the checklist for that document: tick an item only after running it on real instances
+against a live relay, never after reading the code.
 
-- [ ] `A` `I` Android deposits → iOS approves → retrieval → Android reconstructs, against a live `sbt run`
-- [ ] `A` `I` BYOR variant: two relays on different ports, one contact with a `relayBaseUrl` override, one without — verify routing and independent soft-failure
-- [ ] `A` `I` reconstruction integrity with a surplus holder: confirm the advisory reports the margin honestly
+Items marked **(not written up)** have no flow in `docs/testing.md` yet, so they carry enough
+detail here to be run as they stand. Promote one into that document if it earns a permanent
+place rather than growing this list into a second manual.
+
+### The documented flows
+
+- [ ] `A` `I` **Flow 1 — happy path.** 2-of-2 across two holders. Watch step 10: pickup is where the holder decrypts and where the relay stops holding anything.
+- [ ] `A` `I` **Flow 2 — deny and re-request.**
+- [ ] `A` `I` **Flow 3 — sender-initiated removal.** The deposit row cascades to its retrieval and removal rows.
+- [ ] `A` `I` **Flow 4 — holder-initiated deletion.** Alice must learn of it, and never by a row simply going missing.
+- [ ] `A` `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
+- [ ] `A` `I` **Flow 6 — cross-platform.** The highest-value flow in the document: the only test that proves CryptoKit and BouncyCastle agree on a live wire rather than only on the vectors.
+- [ ] `A` `I` **Flow 7 — BYOR.** Two relays, one contact overridden and one not; killing one degrades only that contact. Needs the Premium unlock first.
+- [ ] `A` `I` **Flow 8 — locale.** German throughout, dates in `dd.MM.yyyy`. Worth re-running now that several strings take format arguments.
+
+### The documented edge cases
+
+- [ ] `A` `I` Fresh keypairs after reinstall — existing contacts can no longer decrypt shares sent to the old ones.
+- [ ] `A` `I` Reconstruct stays hidden until *k* approved retrievals exist for the same `secretId`.
+- [ ] `A` `I` 2-of-3 with only two approvals still reconstructs.
+- [ ] `A` `I` Integrity margin with a surplus holder: the advisory reports the margin honestly rather than claiming more confidence than it has.
+- [ ] `A` `I` Verification levels: manual entry never offers `VERY_HIGH`; a QR scan defaults to it.
+- [ ] `A` Biometric on a device with no enrolment explains itself instead of offering a button that cannot work.
+- [ ] `A` `I` The key-change indicator appears on retrieval requests, and only on those.
+
+### Pictures (not written up)
+
+- [ ] `A` `I` **A JPEG survives the round trip byte for byte.** Deposit a JPEG on one platform, reconstruct on the other, export it, and `cmp` against the source file. JPEG rather than PNG on purpose: export used to re-encode to PNG while naming the file from the declared type, so a re-encode would hand back PNG bytes under a `.jpg` name and look right in a viewer.
+- [ ] `A` `I` **The size cap holds at both ends.** A secret of exactly 256 KiB deposits and reconstructs — that is ~262 KB of ciphertext and ~341 KiB of base64 body, so it also proves the relay's 512 KiB and 1 MiB bounds have real headroom. One byte over is refused at pick time, naming the file's actual size, without the file being read into memory first.
+- [ ] `I` **A straight-from-camera photo is refused by type.** An unmodified iPhone photo is HEIC. It must be turned away as an unsupported type, never silently transcoded to JPEG behind the user's back — verbatim or refused is the whole rule.
+- [ ] `A` `I` **A repair carries an image through untouched.** Reconstruct an image secret, re-split it through the repair flow, reconstruct again, and `cmp` against the original. This is the path where bytes used to round-trip through a `String` and come back corrupted.
+- [ ] `A` `I` **EXIF rides along, including GPS.** Deposit a photo carrying location EXIF and confirm it is still there after reconstruction on the other platform. [docs/security.md](docs/security.md) says this is deliberate; confirm the document and the code still agree.
+
+### Freemium (not written up)
+
+- [ ] `A` `I` **The cap counts active secrets, not lifetime deposits.** Three active secrets; the fourth is refused. Discard one and the fourth succeeds immediately — before any holder has confirmed the removal, since a discarding secret gives its slot up at once.
+- [ ] `A` `I` **A repair at the cap is not blocked.** With three active secrets, run a repair through to the re-deposit. It must go through: the replacement supersedes an active secret rather than adding a fourth.
+- [ ] `I` **Buying unlocks both relay editors without a relaunch.** Buy in the Simulator against the scheme's StoreKit configuration, then check Settings and Add Contact — both fields become editable, because they observe the store. Delete the transaction under Debug → StoreKit → Manage Transactions and confirm both lock again.
+- [ ] `A` `I` **A free device can still share with a self-hoster.** Scan a QR whose payload names a non-default relay, on a device without Premium. The contact must be added with the override intact and deposits must route to that relay. This is the free half of BYOR, and the one gate whose mis-scoping would break interop rather than merely annoy.
+
+### Identity and trust (not written up)
+
+- [ ] `A` `I` **A share sealed before a rotation still opens after it.** Alice deposits for Bob, then regenerates her identity before Bob picks the share up. Bob's pickup must succeed from the retained previous key, and his later retrieval must come back sealed to Alice's *new* key. Run it with Alice and Bob on different platforms.
+- [ ] `A` `I` **A rotation from a key flagged compromised is refused auto-accept.** Mark a contact's key compromised on one platform, then push a rotation from that contact on the other. It must land as a `KeyConflict` for manual resolution, never as a silent relink.
+- [ ] `A` `I` **Identity recovery rebuilds the sender's view.** Alice reinstalls with fresh keys, relinks with Bob, and Bob pushes recovery metadata. Alice's Distributed view must come back — metadata only, with no share bytes crossing the wire.
+- [ ] `A` `I` **A holder who opts out of heartbeating stops counting as confirmed.** Opt out on the holder, then check the sender: the health signal degrades, and a recent timestamp alone must not make that holder count as confirmed.
+
+### The relay under load and restart (not written up)
+
+- [ ] `R` `A` `I` **A restart mid-flight loses nothing.** `conf/localhost.conf` is file-backed H2, so a deposit made before a relay restart must still be collectable after it. Kill the relay between deposit and pickup and confirm the share arrives.
+- [ ] `R` `A` `I` **Two senders, one holder.** Bob holds shares from both Alice and Carol. Deleting all of Alice's from Bob's Held view must leave Carol's untouched, and Carol's sender view unaffected.
 
 ## Chores
 
