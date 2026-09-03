@@ -32,18 +32,24 @@ import value_objects.svo.UnsupportedTransportSuiteException
 class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
   private var registered = false
   private var _pseudonym = ""
-  private var _edPk, _edSk, _xPk, _xSk: Array[Byte] = Array.empty
-  private var _previousXSk: Option[Array[Byte]] = None
+  private var _verifyKey, _signKey, _encKey, _decKey: Array[Byte] = Array.empty
+  private var _previousDecKey: Option[Array[Byte]] = None
 
   override def isRegistered(): Boolean = registered
 
-  override def save(pseudonym: String, edPk: Array[Byte], edSk: Array[Byte], xPk: Array[Byte], xSk: Array[Byte]): Unit =
+  override def save(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit =
     _pseudonym = pseudonym
-    _edPk = edPk
-    _edSk = edSk
-    _xPk = xPk
-    _xSk = xSk
-    _previousXSk = None
+    _verifyKey = verifyKey
+    _signKey = signKey
+    _encKey = encKey
+    _decKey = decKey
+    _previousDecKey = None
     registered = true
 
   override def rotate(
@@ -52,18 +58,18 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
       encKey: Array[Byte],
       decKey: Array[Byte]
   ): Unit =
-    _previousXSk = Some(_xSk)
-    _edPk = verifyKey
-    _edSk = signKey
-    _xPk = encKey
-    _xSk = decKey
+    _previousDecKey = Some(_decKey)
+    _verifyKey = verifyKey
+    _signKey = signKey
+    _encKey = encKey
+    _decKey = decKey
 
   override def pseudonym(): String = _pseudonym
-  override def verifyKey(): Array[Byte] = _edPk
-  override def signKey(): Array[Byte] = _edSk
-  override def encKey(): Array[Byte] = _xPk
-  override def decKey(): Array[Byte] = _xSk
-  override def previousDecKey(): Option[Array[Byte]] = _previousXSk
+  override def verifyKey(): Array[Byte] = _verifyKey
+  override def signKey(): Array[Byte] = _signKey
+  override def encKey(): Array[Byte] = _encKey
+  override def decKey(): Array[Byte] = _decKey
+  override def previousDecKey(): Option[Array[Byte]] = _previousDecKey
   override def forget(): Unit = registered = false
 
 /** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify` — the phon-side
