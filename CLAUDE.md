@@ -75,7 +75,7 @@ domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (308: relay 104, phon 127, root 77)
+sbt test                                    # all tests (315: relay 104, phon 134, root 77)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist

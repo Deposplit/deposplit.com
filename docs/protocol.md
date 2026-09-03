@@ -78,10 +78,11 @@ Two rules govern changes here:
   inside a field would be indistinguishable from a separator. The relay rejects control
   characters in `mimeType` for that reason.
 
-Cross-platform agreement is proven, not assumed: fixed-seed vector tests on all platforms
-assert the same canonical bytes and, where the signing library is deterministic, the same
-signature. (Apple's CryptoKit hedges its signatures, so on iOS the vector tests assert
-canonical-bytes equality and verification against a fixed signature instead.)
+Cross-platform agreement is proven, not assumed: fixed-seed vector tests on all four
+implementations — relay, phon, Android and iOS — assert the same canonical bytes and, where
+the signing library is deterministic, the same signature. (Apple's CryptoKit hedges its
+signatures, so on iOS the vector tests assert canonical-bytes equality and verification
+against a fixed signature instead.)
 
 ## Transaction types
 

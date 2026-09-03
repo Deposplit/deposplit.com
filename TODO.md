@@ -43,7 +43,6 @@ for the sender's choice would be backwards.
 ## Chores
 
 - [ ] `phon` **phon cannot upload an image.** Its hexagon already enforces the 256 KiB cap and recognises PNG/JPEG, but the deposit form is still text-only, so phon can demonstrate a `text/plain` deposit and nothing else. Adding a file input means switching `createMySecret` from a URL-encoded `Form` to a multipart body, and dropping the `.trim` that assumes the secret is text. Worth having for teaching: phon cannot reconstruct, so sending an image to a real device is the only way to show the flow without two phones.
-- [ ] `R` `phon` **`phon` has no `forOpen` byte vector.** `hexagons/phon` carries a fourth independent `PayloadCanonical`, but only relay, Android and iOS are pinned to the shared fixed-seed vector; phon's own tests exercise `forOpen` structurally, so it could drift from the other three and stay green. Copying `PayloadCanonicalVectorTests` into `hexagons/phon/src/test/scala/value_objects/svo/` is ~40 lines. Its doc comment no longer claims a vector test it hasn't got.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Parked

@@ -35,11 +35,12 @@ import java.util.UUID
   * SSS test vectors (`ShamirTest.kt` / `ShamirSecretSharingTests.swift`). Ed25519 sign/verify interop across
   * BouncyCastle/CryptoKit is already proven via the transport-auth signature; what this vector actually exercises is
   * the *canonical byte construction* itself — a field-order or encoding slip on any one platform would silently produce
-  * a different signature than the other two even though each platform's own sign/verify round-trips fine internally.
+  * a different signature than the other three even though each platform's own sign/verify round-trips fine internally.
   *
   * Identical fixed inputs, keypair, and expected outputs are checked into
+  * `hexagons/phon/src/test/scala/value_objects/svo/PayloadCanonicalVectorTests.scala`,
   * `Android/hexagon/src/test/kotlin/com/deposplit/value_objects/PayloadCanonicalVectorTest.kt` and
-  * `iOS/hexagon/Tests/PayloadCanonicalVectorTests.swift`. All three must produce byte-identical canonical bytes and the
+  * `iOS/hexagon/Tests/PayloadCanonicalVectorTests.swift`. All four must produce byte-identical canonical bytes and the
   * same signature for the same 32-byte private key seed.
   */
 class PayloadCanonicalVectorTests extends munit.FunSuite:

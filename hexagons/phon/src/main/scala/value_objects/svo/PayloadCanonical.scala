@@ -44,9 +44,9 @@ object PayloadCanonical:
     * `k`/`n`, then `mimeType`, are each appended at the end of the sequence in turn, keeping the field order that
     * predates them undisturbed.
     *
-    * Unlike the relay's, Android's and iOS's implementations, this one is **not** pinned by a fixed-seed byte vector —
-    * only structurally, by the signature round-trips in `ShareServiceSignatureTests`. It could therefore drift from the
-    * other three without any test here noticing.
+    * Pinned to the same fixed-seed byte vector as the relay's, Android's and iOS's implementations — see
+    * `PayloadCanonicalVectorTests`. The signature round-trips in `ShareServiceSignatureTests` only check this
+    * construction against itself, so they cannot catch all four implementations disagreeing; the vector can.
     */
   def forOpen(
       secretId: UUID,
