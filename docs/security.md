@@ -17,6 +17,7 @@ watches all traffic still learns nothing worth having.
 | A malicious holder who lies at reconstruction | Detected, and with enough margin identified and excluded. See *Reconstruction integrity*. |
 | Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind biometrics. |
 | Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). |
+| A stolen device backup or transfer image | One share per secret held, plus the contact graph and the secret labels. Below threshold on its own; the attacker's next step is *k* more backups. See *Data at rest, and what a backup carries*. |
 | Fewer than *k* holders colluding | Nothing. This is the guarantee Shamir actually provides. |
 | *k* holders colluding | Full reconstruction. This is by design and cannot be defended against — choosing *k* is choosing who you trust collectively. |
 
@@ -163,6 +164,60 @@ sender key loss are survivable.
 
 The relay is blind at every phase regardless: ciphertext at deposit, ciphertext at
 retrieval.
+
+## Data at rest, and what a backup carries
+
+Seven JSON files, unwrapped, in app-private storage — `filesDir` on Android, the Documents
+directory on iOS, which is not exposed to the Files app:
+
+| File | Holds |
+|---|---|
+| `shares.json` | the plaintext shares held for other people, one per secret |
+| `contacts.json` | pseudonyms, public keys, verification levels, relay overrides |
+| `distributed_shares.json` | which contact holds which secret's share |
+| `secrets.json` | your own secrets' labels, `k`, `n`, `mimeType` |
+| `retained_deposits.json` | ciphertext sealed to holders' keys, which even the sender cannot open |
+| `key_conflicts.json`, `contact_relinks.json` | unresolved key changes, and who has re-verified this device |
+
+Plus a small amount of preference state: pseudonym, entitlement, default relay, and on Android
+the two public keys.
+
+**The private keys are not among them, on either platform.** The Keystore does not export key
+material, and every iOS Keychain item is `ThisDeviceOnly` — which there covers the *public*
+halves too, so a restored iPhone comes back with no identity at all, while a restored Android
+still holds public keys and would otherwise show a QR code for an identity nobody can use. Both
+cases are detected at launch; see *After a phone switch* in [trust-model.md](trust-model.md).
+
+**All of it rides the platform's backup and its device-to-device transfer, deliberately.** Two
+reasons, and the second is the one that decides it.
+
+A backup is one more copy of one device, so it inherits the property the whole design already
+rests on: no single device holds enough. A holder's share is information-theoretically
+independent of its secret, exactly as it is on the device it was copied from.
+
+And excluding the held shares would turn a routine phone switch into the loss that is hardest to
+notice. A holder's restored phone would have no record it ever held anything, so it could not
+report the gap, and the owner would see only their redundancy quietly degrading — for every
+secret that holder guards, at once. The cost of switching backup off is not paid by the person
+who switches it off.
+
+What an attacker gains from a stolen backup is therefore bounded, but not nothing, and the
+revealing part is not the shares. An owner's copy names all *n* of their holders and which
+secret each one guards. Reach *k* of those holders' backups and the secret reconstructs with no
+consent and no live device — the same shape as the argument that rejected per-share commitments
+above, with the difference that commitments would have collapsed the attack to a *single*
+backup, while this still costs *k*, spent against people who do not know one another. The labels
+in `secrets.json` are worth more to a targeted attacker than any share in the file.
+
+The platforms protect the copy unequally, and only one of them can be improved by the user.
+Android encrypts its backup with the device's screen lock. iCloud Backup is encrypted to Apple's
+keys unless **Advanced Data Protection** is switched on, which is the single most useful thing
+an iPhone user can do for the data described here.
+
+Both platforms now let the user exclude an individual app — iOS under iCloud Backup, Android
+since version 16 under Google Backup — and on Android doing so also deletes what has already
+been backed up. So this is a decision the app states rather than one it makes, and both apps
+state it in Settings, consequence included.
 
 ## Rendering a reconstructed secret
 

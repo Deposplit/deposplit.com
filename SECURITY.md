@@ -60,6 +60,11 @@ findings that matter most are ones that break that assumption.
 - Verification levels are user-asserted claims, not cryptographic proofs.
 - Holders store their share as plaintext locally. A single share below the threshold carries
   no information about the secret.
+- Those local files ride the platform's cloud backup and device-to-device transfer, by
+  decision rather than by default. Excluding them would make every phone switch a silent
+  redundancy loss for the people whose shares that device guards. What a stolen backup does
+  and does not yield is in [docs/security.md](docs/security.md) under *Data at rest, and what
+  a backup carries*.
 - The freemium entitlement is client-side and honour-system by design.
 - `phon`, the phone emulator, is a development tool. Its known exposure gap is tracked in
   [TODO.md](TODO.md); reports about it are welcome but low priority.
