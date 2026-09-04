@@ -34,6 +34,7 @@ alongside them. Non-developers should read the landing page instead.
 | [docs/protocol.md](docs/protocol.md) | The relay wire protocol, signatures, and delivery model |
 | [docs/security.md](docs/security.md) | Threat model, cryptographic constructions, crypto agility |
 | [docs/trust-model.md](docs/trust-model.md) | Verification, rotation, revocation, recovery, custody monitoring |
+| [docs/privacy.md](docs/privacy.md) | What the project itself may observe: logging, metrics, crash reports, libraries |
 | [docs/testing.md](docs/testing.md) | Manual end-to-end flows across three devices |
 | [TODO.md](TODO.md) | Open work |
 | [SECURITY.md](SECURITY.md) | Reporting a vulnerability |

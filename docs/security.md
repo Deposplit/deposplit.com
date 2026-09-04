@@ -2,7 +2,8 @@
 
 What Deposplit protects, how, and — just as important — what it does not protect. The
 human-facing rules that sit on top of these primitives are in
-[trust-model.md](trust-model.md).
+[trust-model.md](trust-model.md); what the project is allowed to observe about its own users
+is in [privacy.md](privacy.md).
 
 ## Threat model
 
