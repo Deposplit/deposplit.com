@@ -39,8 +39,14 @@ trait Identity:
 
   def register(pseudonym: String): Unit
   def pseudonym(): String
-  def verifyKey(): Array[Byte]
-  def encKey(): Array[Byte]
+
+  /** This device's own public keys, or `None` when they are gone or cannot be read — an ordinary state on a phone
+    * restored from a backup, whose files came across without the keys. Optional rather than throwing, for the same
+    * reason as `IdentityStore.previousDecKey`: absence is a state to handle, not an exception. Callers wanting the
+    * fuller answer — gone versus merely locked — ask [[integrity]].
+    */
+  def verifyKey(): Option[Array[Byte]]
+  def encKey(): Option[Array[Byte]]
   def sign(message: Array[Byte]): Array[Byte]
 
   /** Verifies an Ed25519 `signature` over `message` against `publicKey` (someone else's, not this identity's own). Used

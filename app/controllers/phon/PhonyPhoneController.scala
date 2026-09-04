@@ -75,11 +75,13 @@ class PhonyPhoneController @Inject() (
   }
 
   def readPseudonym() = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
+    val keys = identity.verifyKey().zip(identity.encKey())
+    if identity.isRegistered() && keys.isDefined then
+      val (verifyKey, encKey) = keys.get
       Ok(
         views.html.Phon
           .phonyPhone(
-            QrPayload(identity.pseudonym(), identity.verifyKey(), identity.encKey(), Some("http://localhost:9000")),
+            QrPayload(identity.pseudonym(), verifyKey, encKey, Some("http://localhost:9000")),
             contactManagement,
             contactForm
           )
@@ -94,10 +96,12 @@ class PhonyPhoneController @Inject() (
   }
 
   def readQrCode() = Action { implicit request: Request[AnyContent] =>
-    if !identity.isRegistered() then Conflict
+    val keys = identity.verifyKey().zip(identity.encKey())
+    if !identity.isRegistered() || keys.isEmpty then Conflict
     else
+      val (verifyKey, encKey) = keys.get
       val payload =
-        QrPayload.encode(identity.pseudonym(), identity.verifyKey(), identity.encKey(), Some("http://localhost:9000"))
+        QrPayload.encode(identity.pseudonym(), verifyKey, encKey, Some("http://localhost:9000"))
       val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 256, 256)
       val image = MatrixToImageWriter.toBufferedImage(bitMatrix)
       val baos = java.io.ByteArrayOutputStream()

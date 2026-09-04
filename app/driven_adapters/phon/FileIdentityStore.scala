@@ -62,7 +62,7 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
 
   override def signKey(): Array[Byte] = optionalIdentity.get.signKey
 
-  override def verifyKey(): Array[Byte] = optionalIdentity.get.verifyKey
+  override def verifyKey(): Option[Array[Byte]] = optionalIdentity.map(_.verifyKey)
 
   override def isRegistered(): Boolean = optionalIdentity.isDefined
 
@@ -99,7 +99,7 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
 
   override def previousDecKey(): Option[Array[Byte]] = optionalIdentity.flatMap(_.previousDecKey)
 
-  override def encKey(): Array[Byte] = optionalIdentity.get.encKey
+  override def encKey(): Option[Array[Byte]] = optionalIdentity.map(_.encKey)
 
   override def forget() =
     optionalIdentity = None

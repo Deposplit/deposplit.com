@@ -65,9 +65,9 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
     _decKey = decKey
 
   override def pseudonym(): String = _pseudonym
-  override def verifyKey(): Array[Byte] = _verifyKey
+  override def verifyKey(): Option[Array[Byte]] = Some(_verifyKey)
   override def signKey(): Array[Byte] = _signKey
-  override def encKey(): Array[Byte] = _encKey
+  override def encKey(): Option[Array[Byte]] = Some(_encKey)
   override def decKey(): Array[Byte] = _decKey
   override def previousDecKey(): Option[Array[Byte]] = _previousDecKey
   override def forget(): Unit = registered = false
@@ -87,7 +87,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val alice = newIdentity()
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
-    assert(alice.verify(message, sig, alice.verifyKey()))
+    assert(alice.verify(message, sig, alice.verifyKey().get))
   }
 
   test("verify returns false for a tampered message") {
@@ -95,7 +95,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
     val tampered = "hello depospliz".getBytes("UTF-8")
-    assert(!alice.verify(tampered, sig, alice.verifyKey()))
+    assert(!alice.verify(tampered, sig, alice.verifyKey().get))
   }
 
   test("verify returns false when checked against a different key") {
@@ -103,7 +103,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val bob = newIdentity()
     val message = "hello deposplit".getBytes("UTF-8")
     val sig = alice.sign(message)
-    assert(!bob.verify(message, sig, bob.verifyKey()))
+    assert(!bob.verify(message, sig, bob.verifyKey().get))
   }
 
   // ---------------------------------------------------------------------------
@@ -112,22 +112,22 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
   test("generateNewKeyPair does not touch storage") {
     val alice = newIdentity()
-    val originalVerifyKey = alice.verifyKey()
-    val originalEncKey = alice.encKey()
+    val originalVerifyKey = alice.verifyKey().get
+    val originalEncKey = alice.encKey().get
     val candidate = alice.generateNewKeyPair()
     assert(!candidate.verifyKey.sameElements(originalVerifyKey))
     assert(!candidate.encKey.sameElements(originalEncKey))
     // Unpersisted — the live identity hasn't moved.
-    assert(alice.verifyKey().sameElements(originalVerifyKey))
-    assert(alice.encKey().sameElements(originalEncKey))
+    assert(alice.verifyKey().get.sameElements(originalVerifyKey))
+    assert(alice.encKey().get.sameElements(originalEncKey))
   }
 
   test("activateKeyPair persists the new keys and preserves the pseudonym") {
     val alice = newIdentity()
     val candidate = alice.generateNewKeyPair()
     alice.activateKeyPair(candidate)
-    assert(alice.verifyKey().sameElements(candidate.verifyKey))
-    assert(alice.encKey().sameElements(candidate.encKey))
+    assert(alice.verifyKey().get.sameElements(candidate.verifyKey))
+    assert(alice.encKey().get.sameElements(candidate.encKey))
     assertEquals(alice.pseudonym(), "test")
   }
 
@@ -139,35 +139,35 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val alice = newIdentity()
     val bob = newIdentity()
     val share = "one share".getBytes("UTF-8")
-    val sealedToAlicesOldKey = bob.encrypt(share, alice.encKey())
+    val sealedToAlicesOldKey = bob.encrypt(share, alice.encKey().get)
 
     alice.activateKeyPair(alice.generateNewKeyPair())
 
-    assert(alice.decrypt(sealedToAlicesOldKey, bob.encKey()).sameElements(share))
+    assert(alice.decrypt(sealedToAlicesOldKey, bob.encKey().get).sameElements(share))
   }
 
   test("decrypt does not reach back past one generation") {
     val alice = newIdentity()
     val bob = newIdentity()
-    val sealedToAlicesOldestKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey())
+    val sealedToAlicesOldestKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey().get)
 
     alice.activateKeyPair(alice.generateNewKeyPair())
     alice.activateKeyPair(alice.generateNewKeyPair())
 
     // Deliberate: one generation covers the deposit-to-pickup window, and no more key material than that lingers at
     // rest.
-    intercept[Exception](alice.decrypt(sealedToAlicesOldestKey, bob.encKey()))
+    intercept[Exception](alice.decrypt(sealedToAlicesOldestKey, bob.encKey().get))
   }
 
   test("encrypt never seals under the displaced key") {
     val alice = newIdentity()
     val bob = newIdentity()
-    val alicesOldEncKey = alice.encKey()
+    val alicesOldEncKey = alice.encKey().get
     alice.activateKeyPair(alice.generateNewKeyPair())
 
-    val sealed_ = alice.encrypt("outgoing".getBytes("UTF-8"), bob.encKey())
+    val sealed_ = alice.encrypt("outgoing".getBytes("UTF-8"), bob.encKey().get)
 
-    assert(bob.decrypt(sealed_, alice.encKey()).sameElements("outgoing".getBytes("UTF-8")))
+    assert(bob.decrypt(sealed_, alice.encKey().get).sameElements("outgoing".getBytes("UTF-8")))
     intercept[Exception](bob.decrypt(sealed_, alicesOldEncKey))
   }
 
@@ -175,18 +175,18 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val alice = IdentityService(InMemoryForgettableIdentityStore())
     alice.register("test")
     val bob = newIdentity()
-    val sealedToAlicesOldKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey())
+    val sealedToAlicesOldKey = bob.encrypt("one share".getBytes("UTF-8"), alice.encKey().get)
     alice.activateKeyPair(alice.generateNewKeyPair())
 
     // Registration is a new identity, not a continuation of the old one, so nothing carries over.
     alice.register("test")
 
-    intercept[Exception](alice.decrypt(sealedToAlicesOldKey, bob.encKey()))
+    intercept[Exception](alice.decrypt(sealedToAlicesOldKey, bob.encKey().get))
   }
 
   test("sign after activateKeyPair verifies against the new key not the old") {
     val alice = newIdentity()
-    val oldVerifyKey = alice.verifyKey()
+    val oldVerifyKey = alice.verifyKey().get
     val candidate = alice.generateNewKeyPair()
     alice.activateKeyPair(candidate)
     val message = "post-rotation message".getBytes("UTF-8")
@@ -206,21 +206,21 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
     // Alice (sender) encrypts to Bob's public enc key; Bob (recipient) decrypts with his own
     // private key + Alice's public enc key — the same static-static DH shape ShareService uses.
-    val ciphertext = alice.encrypt(plaintext, bob.encKey())
+    val ciphertext = alice.encrypt(plaintext, bob.encKey().get)
 
     assertEquals(ciphertext.head, TransportSuite.current.tag)
-    val decrypted = bob.decrypt(ciphertext, alice.encKey())
+    val decrypted = bob.decrypt(ciphertext, alice.encKey().get)
     assert(decrypted.sameElements(plaintext))
   }
 
   test("decrypt throws UnsupportedTransportSuiteException for an unrecognized suite tag") {
     val alice = newIdentity()
     val bob = newIdentity()
-    val ciphertext = alice.encrypt("hi".getBytes("UTF-8"), bob.encKey())
+    val ciphertext = alice.encrypt("hi".getBytes("UTF-8"), bob.encKey().get)
     val tampered = Array(0x7f.toByte) ++ ciphertext.drop(1)
 
     intercept[UnsupportedTransportSuiteException] {
-      bob.decrypt(tampered, alice.encKey())
+      bob.decrypt(tampered, alice.encKey().get)
     }
   }
 
@@ -229,6 +229,6 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val bob = newIdentity()
 
     intercept[UnsupportedTransportSuiteException] {
-      bob.decrypt(Array.emptyByteArray, alice.encKey())
+      bob.decrypt(Array.emptyByteArray, alice.encKey().get)
     }
   }

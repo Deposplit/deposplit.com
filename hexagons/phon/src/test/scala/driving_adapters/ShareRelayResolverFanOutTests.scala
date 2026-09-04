@@ -120,8 +120,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       identity = bobIdentity
     )
 
-    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.verifyKey())
-    val fromCharlieOnByor = depositRow(UUID.randomUUID(), charlieKeys, bobIdentity.verifyKey())
+    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.verifyKey().get)
+    val fromCharlieOnByor = depositRow(UUID.randomUUID(), charlieKeys, bobIdentity.verifyKey().get)
     defaultRelay.pending = List(fromAliceOnDefault)
     defaultRelay.byId = Map(fromAliceOnDefault.id -> fromAliceOnDefault)
     byorRelay.pending = List(fromCharlieOnByor)
@@ -154,7 +154,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       identity = bobIdentity
     )
 
-    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.verifyKey())
+    val fromAliceOnDefault = depositRow(UUID.randomUUID(), aliceKeys, bobIdentity.verifyKey().get)
     defaultRelay.pending = List(fromAliceOnDefault)
     defaultRelay.byId = Map(fromAliceOnDefault.id -> fromAliceOnDefault)
 

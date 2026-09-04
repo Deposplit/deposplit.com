@@ -65,10 +65,15 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     if !identityStore.isRegistered() then IdentityIntegrity.Intact
     else
       try
+        // The private keys are read first on purpose. They are the half that can distinguish locked from empty, so
+        // reading the optional public keys ahead of them would report a merely locked device as KeysLost — and
+        // KeysLost is what offers to mint a replacement identity over a working one.
         val derivedVerifyKey = Ed25519PrivateKeyParameters(identityStore.signKey()).generatePublicKey().getEncoded
         val derivedEncKey = X25519PrivateKeyParameters(identityStore.decKey()).generatePublicKey().getEncoded
-        val matches =
-          derivedVerifyKey.sameElements(identityStore.verifyKey()) && derivedEncKey.sameElements(identityStore.encKey())
+        val matches = (identityStore.verifyKey(), identityStore.encKey()) match
+          case (Some(storedVerifyKey), Some(storedEncKey)) =>
+            derivedVerifyKey.sameElements(storedVerifyKey) && derivedEncKey.sameElements(storedEncKey)
+          case _ => false
         if matches then IdentityIntegrity.Intact else IdentityIntegrity.KeysLost
       catch
         case _: IdentityStorageUnavailableException => IdentityIntegrity.Unreadable
@@ -104,9 +109,9 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
 
   override def pseudonym(): String = identityStore.pseudonym()
 
-  override def verifyKey(): Array[Byte] = identityStore.verifyKey()
+  override def verifyKey(): Option[Array[Byte]] = identityStore.verifyKey()
 
-  override def encKey(): Array[Byte] = identityStore.encKey()
+  override def encKey(): Option[Array[Byte]] = identityStore.encKey()
 
   override def sign(message: Array[Byte]): Array[Byte] =
     val sk = Ed25519PrivateKeyParameters(identityStore.signKey())

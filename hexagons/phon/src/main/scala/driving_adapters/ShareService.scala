@@ -529,25 +529,28 @@ class ShareService @Inject() (
   // delivery. Unknown senders and forged signatures are silently skipped, same posture as
   // processRotations().
   private def processHeartbeats(): Unit =
-    val myKey = identity.verifyKey()
-    val existingMetadata = shareMetadataRepository.getAll()
-    allRelays().foreach { relay =>
-      val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
-      notices.foreach { notice =>
-        contactRepository.getByVerifyKey(notice.holderKey).foreach { contact =>
-          val canon = PayloadCanonical.forHeartbeat(myKey, notice.secretIds, notice.optedOut)
-          if identity.verify(canon, notice.signature, notice.holderKey) then
-            if notice.optedOut then
-              Try(contactRepository.save(contact.copy(heartbeatOptedOutAt = Some(notice.createdAt))))
-            else
-              if contact.heartbeatOptedOutAt.isDefined then
-                Try(contactRepository.save(contact.copy(heartbeatOptedOutAt = None)))
-              notice.secretIds.foreach { secretId =>
-                existingMetadata.find(m => m.secretId == secretId && m.contactId == contact.id).foreach { meta =>
-                  Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(notice.createdAt))))
-                  if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
+    // Nothing here can be verified without our own key, so a device whose key storage is locked does nothing and
+    // picks this up on a later pass rather than failing every notice.
+    identity.verifyKey().foreach { myKey =>
+      val existingMetadata = shareMetadataRepository.getAll()
+      allRelays().foreach { relay =>
+        val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
+        notices.foreach { notice =>
+          contactRepository.getByVerifyKey(notice.holderKey).foreach { contact =>
+            val canon = PayloadCanonical.forHeartbeat(myKey, notice.secretIds, notice.optedOut)
+            if identity.verify(canon, notice.signature, notice.holderKey) then
+              if notice.optedOut then
+                Try(contactRepository.save(contact.copy(heartbeatOptedOutAt = Some(notice.createdAt))))
+              else
+                if contact.heartbeatOptedOutAt.isDefined then
+                  Try(contactRepository.save(contact.copy(heartbeatOptedOutAt = None)))
+                notice.secretIds.foreach { secretId =>
+                  existingMetadata.find(m => m.secretId == secretId && m.contactId == contact.id).foreach { meta =>
+                    Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(notice.createdAt))))
+                    if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
+                  }
                 }
-              }
+          }
         }
       }
     }

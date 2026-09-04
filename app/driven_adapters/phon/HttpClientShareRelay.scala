@@ -174,12 +174,13 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     val nonce = generateNonce()
     val canonical = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(bodyBytes)}"
     val sig = identity.sign(canonical.getBytes("UTF-8"))
+    val verifyKey = identity.verifyKey().getOrElse(throw IllegalStateException("This device has no usable identity"))
 
     val builder = HttpRequest
       .newBuilder()
       .uri(URI.create(s"$baseUrl$path"))
       .header("Accept", "application/json")
-      .header("X-Deposplit-Verify-Key", encodeBase64Url(identity.verifyKey()))
+      .header("X-Deposplit-Verify-Key", encodeBase64Url(verifyKey))
       .header("X-Deposplit-Nonce", nonce)
       .header("X-Deposplit-Signature", encodeBase64Url(sig))
 
