@@ -87,11 +87,7 @@ There is nothing to undo, which is the whole reason to write the rules now:
 | Relay | No metrics, no tracing, no access log, no rate limiter. The only `logger.` calls in the repository belong to `phon`, a development tool that is not routed in production. The root logger is at `WARN`, with `play` at `INFO` and `application` at `DEBUG`, and there is no custom `ErrorHandler` — so Play's default one logs an unhandled server error together with the request method and URI. No headers and no body: quiet, but not silent. |
 | Android | Three permissions — `INTERNET`, `CAMERA`, `USE_BIOMETRIC`. Dependencies are AndroidX, Compose, kotlinx-serialization, CameraX, ZXing and BouncyCastle. No Firebase, no Crashlytics, no Play Services analytics. |
 | iOS | One package reference, the local `hexagon`. No remote packages at all. One usage-description string, for the camera. |
-| Landing page | One cookie, `PLAY_LANG`, two letters, written only when a visitor picks a language. One third-party request: the Bootstrap Icons stylesheet and its fonts from jsDelivr — everything else is served from the site itself. |
-
-The CDN request is the only outward one in the list, and it is small: a visitor's browser tells
-jsDelivr their address and which page they were on. It is worth closing by serving the icon font
-from the site like every other asset, rather than defending.
+| Landing page | One cookie, `PLAY_LANG`, two letters, written only when a visitor picks a language. No third-party request. |
 
 ## What the rules already settle
 
