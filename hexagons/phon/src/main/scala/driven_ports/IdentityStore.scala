@@ -24,6 +24,8 @@
 
 package driven_ports
 
+import java.time.Instant
+
 /* IdentityStore manages exactly one thing: the current user's keypair and pseudonym. There's no list, no ID-based
  * lookup, no getAll(). The interface is essentially a typed credential store — save(...) once at registration, then
  * read individual fields. Calling it IdentityRepository would imply a collection of identities could exist, which
@@ -57,6 +59,12 @@ trait IdentityStore:
   ): Unit
 
   def pseudonym(): String
+
+  /* When the identity this device holds today was established — set by save(), and deliberately left alone by
+   * rotate(). Rotation is continuous with what came before and propagates itself through signed notices every contact
+   * auto-accepts; registration is a break every contact has to be told about by hand. None on a device registered
+   * before this was recorded. */
+  def identityCreatedAt(): Option[Instant]
 
   /* This device's own public keys, or None when they are gone or cannot be read. Optional rather than throwing, for
    * the same reason as previousDecKey() below: absence is an ordinary state on a restored device, not an exception.

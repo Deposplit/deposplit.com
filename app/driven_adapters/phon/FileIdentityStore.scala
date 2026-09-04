@@ -33,6 +33,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.ObjectInputStream
+import java.time.Instant
 import java.io.ObjectOutputStream
 import driven_ports.ForgettableIdentityStore
 
@@ -42,7 +43,8 @@ case class DevIdentity(
     verifyKey: Array[Byte],
     decKey: Array[Byte],
     encKey: Array[Byte],
-    previousDecKey: Option[Array[Byte]]
+    previousDecKey: Option[Array[Byte]],
+    identityCreatedAt: Option[Instant]
 ) extends Serializable
 
 @Singleton
@@ -75,7 +77,7 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
       encKey: Array[Byte],
       decKey: Array[Byte]
   ): Unit =
-    persist(DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey, None))
+    persist(DevIdentity(pseudonym, signKey, verifyKey, decKey, encKey, None, Some(Instant.now())))
 
   override def rotate(
       verifyKey: Array[Byte],
@@ -84,7 +86,19 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
       decKey: Array[Byte]
   ): Unit =
     val current = optionalIdentity.get
-    persist(DevIdentity(current.pseudonym, signKey, verifyKey, decKey, encKey, Some(current.decKey)))
+    // identityCreatedAt is carried across deliberately: a rotation is continuous with what came before and tells
+    // every contact itself, so it must not put them on the awaiting-relink list.
+    persist(
+      DevIdentity(
+        current.pseudonym,
+        signKey,
+        verifyKey,
+        decKey,
+        encKey,
+        Some(current.decKey),
+        current.identityCreatedAt
+      )
+    )
 
   private def persist(devIdentity: DevIdentity): Unit =
     val createdNewFile = file.createNewFile()
@@ -100,6 +114,8 @@ class FileIdentityStore @Inject() (config: Configuration) extends ForgettableIde
   override def previousDecKey(): Option[Array[Byte]] = optionalIdentity.flatMap(_.previousDecKey)
 
   override def encKey(): Option[Array[Byte]] = optionalIdentity.map(_.encKey)
+
+  override def identityCreatedAt(): Option[Instant] = optionalIdentity.flatMap(_.identityCreatedAt)
 
   override def forget() =
     optionalIdentity = None

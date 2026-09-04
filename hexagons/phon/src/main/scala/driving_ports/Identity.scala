@@ -27,6 +27,8 @@ package driving_ports
 import value_objects.svo.IdentityIntegrity
 import value_objects.svo.KeyPairMaterial
 
+import java.time.Instant
+
 trait Identity:
   def isRegistered(): Boolean
 
@@ -39,6 +41,11 @@ trait Identity:
 
   def register(pseudonym: String): Unit
   def pseudonym(): String
+
+  /** When the identity this device holds today was established. Moves on registration and stays put across a rotation —
+    * see `IdentityStore.identityCreatedAt`. `None` on a device registered before this was recorded.
+    */
+  def identityCreatedAt(): Option[Instant]
 
   /** This device's own public keys, or `None` when they are gone or cannot be read — an ordinary state on a phone
     * restored from a backup, whose files came across without the keys. Optional rather than throwing, for the same

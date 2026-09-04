@@ -23,6 +23,7 @@
  */
 
 import com.google.inject.AbstractModule
+import driven_ports.ContactRelinkRepository
 import driven_ports.ContactRepository
 import driven_ports.ForgettableIdentityStore
 import driven_ports.IdentityStore
@@ -37,6 +38,7 @@ import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import driving_ports.Identity
 import driving_ports.ShareManagement
+import driven_adapters.phon.FileContactRelinkRepository
 import driven_adapters.phon.FileContactRepository
 import driven_adapters.phon.FileIdentityStore
 import driven_adapters.phon.FileKeyConflictRepository
@@ -55,10 +57,12 @@ class PhonModule extends AbstractModule:
   override def configure(): Unit =
     // when FileIdentityStore was still a Scala object: bind(classOf[IdentityStore]).toInstance(FileIdentityStore)
     bind(classOf[ForgettableIdentityStore]).to(classOf[FileIdentityStore])
+    bind(classOf[IdentityStore]).to(classOf[FileIdentityStore])
     bind(classOf[ForgettableIdentity]).to(classOf[IdentityService])
     bind(classOf[Identity]).to(classOf[IdentityService])
     bind(classOf[ShareEncryption]).to(classOf[IdentityService])
     bind(classOf[ContactRepository]).to(classOf[FileContactRepository])
+    bind(classOf[ContactRelinkRepository]).to(classOf[FileContactRelinkRepository])
     bind(classOf[ContactManagement]).to(classOf[ContactService])
     bind(classOf[ShareManagement]).to(classOf[ShareService])
     bind(classOf[SecretRepository]).to(classOf[FileSecretRepository])

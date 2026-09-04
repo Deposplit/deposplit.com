@@ -103,7 +103,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
   test("syncInbox polls both the default relay and a contact's BYOR relay, merging results") {
     val defaultRelay = FakeShareRelay()
     val byorRelay = FakeShareRelay()
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
@@ -114,7 +115,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
@@ -137,7 +139,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
   test("syncInbox still processes the reachable relay when the other is unreachable") {
     val defaultRelay = FakeShareRelay()
     val byorRelay = FakeShareRelay(unreachable = true)
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
@@ -148,7 +151,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity

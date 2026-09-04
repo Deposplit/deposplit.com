@@ -34,6 +34,7 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
   private var _pseudonym = ""
   private var _verifyKey, _signKey, _encKey, _decKey: Array[Byte] = Array.empty
   private var _previousDecKey: Option[Array[Byte]] = None
+  private var _identityCreatedAt: Option[java.time.Instant] = None
 
   override def isRegistered(): Boolean = registered
 
@@ -50,6 +51,8 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
     _encKey = encKey
     _decKey = decKey
     _previousDecKey = None
+    // Mirrors the real adapters: registration starts a new identity, rotation continues one.
+    _identityCreatedAt = Some(java.time.Instant.now())
     registered = true
 
   override def rotate(
@@ -70,6 +73,7 @@ class InMemoryForgettableIdentityStore extends ForgettableIdentityStore:
   override def encKey(): Option[Array[Byte]] = Some(_encKey)
   override def decKey(): Array[Byte] = _decKey
   override def previousDecKey(): Option[Array[Byte]] = _previousDecKey
+  override def identityCreatedAt(): Option[java.time.Instant] = _identityCreatedAt
   override def forget(): Unit = registered = false
 
 /** Mirrors hexagons/relay's PublicKeyTests valid/tampered/wrong-key trio, for `IdentityService.verify` — the phon-side

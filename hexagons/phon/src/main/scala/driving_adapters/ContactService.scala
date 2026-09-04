@@ -24,20 +24,48 @@
 
 package driving_adapters
 
+import driven_ports.ContactRelinkRepository
 import driven_ports.ContactRepository
+import driven_ports.IdentityStore
 import driving_ports.ContactManagement
 import jakarta.inject.Inject
 import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
+import value_objects.svo.ContactRelink
 import value_objects.svo.VerificationLevel
 
 import java.time.Instant
 import java.util.UUID
 
-class ContactService @Inject() (contactRepository: ContactRepository) extends ContactManagement:
+class ContactService @Inject() (
+    contactRepository: ContactRepository,
+    identityStore: IdentityStore,
+    relinkRepository: ContactRelinkRepository
+) extends ContactManagement:
 
   def listContacts(): List[Contact] =
     contactRepository.getAll()
+
+  override def contactsAwaitingRelink(): List[Contact] =
+    // No recorded start means no basis to judge, and flagging every contact on a guess would be a false alarm on a
+    // device that never lost anything.
+    identityStore
+      .identityCreatedAt()
+      .fold(Nil) { identityCreatedAt =>
+        contactRepository.getAll().filter { contact =>
+          contact.addedAt.isBefore(identityCreatedAt) &&
+          relinkRepository.get(contact.id).forall(_.observedAt.isBefore(identityCreatedAt))
+        }
+      }
+
+  override def markRelinked(contactId: UUID): Unit =
+    // Called once per inbound row as well as by the user, so it skips the write when the answer would not change —
+    // otherwise a single poll would rewrite the store for every row it reads.
+    val alreadyKnown = for
+      identityCreatedAt <- identityStore.identityCreatedAt()
+      recorded <- relinkRepository.get(contactId)
+    yield !recorded.observedAt.isBefore(identityCreatedAt)
+    if !alreadyKnown.getOrElse(false) then relinkRepository.save(ContactRelink(contactId, Instant.now()))
 
   // No cipherSuite parameter: manual entry has no wire payload to read one from, and only one
   // suite exists to assume — see ContactManagement.addManually.

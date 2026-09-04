@@ -446,6 +446,7 @@ class ShareService @Inject() (
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { senderContact =>
+          noteRelinked(senderContact)
           // A deposit without valid k/n/mimeType can't happen against a conforming relay (all three
           // required by ShareRequestsService) — skip defensively rather than store a share we can't
           // later report thresholds for during recovery.
@@ -528,6 +529,14 @@ class ShareService @Inject() (
   // deletes a heartbeat row — see CustodyHeartbeat for why it's a standing status, not a one-shot
   // delivery. Unknown senders and forged signatures are silently skipped, same posture as
   // processRotations().
+  // Anything arriving from a contact proves they hold this device's current key, because the relay only ever returns
+  // rows addressed to the caller — so every inbound path notes it, and a contact who has relinked drops off the
+  // awaiting-relink list without anyone tapping anything. Rows this device created itself, which syncDistributed reads
+  // back, prove nothing about the contact and are deliberately not counted. Never allowed to break a sync pass.
+  private def noteRelinked(contact: Contact): Unit =
+    Try(contactManagement.markRelinked(contact.id))
+    ()
+
   private def processHeartbeats(): Unit =
     // Nothing here can be verified without our own key, so a device whose key storage is locked does nothing and
     // picks this up on a later pass rather than failing every notice.
@@ -537,6 +546,7 @@ class ShareService @Inject() (
         val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
         notices.foreach { notice =>
           contactRepository.getByVerifyKey(notice.holderKey).foreach { contact =>
+            noteRelinked(contact)
             val canon = PayloadCanonical.forHeartbeat(myKey, notice.secretIds, notice.optedOut)
             if identity.verify(canon, notice.signature, notice.holderKey) then
               if notice.optedOut then
@@ -574,6 +584,7 @@ class ShareService @Inject() (
       val notices = Try(relay.listRotations()).getOrElse(Nil)
       notices.foreach { notice =>
         contactRepository.getByVerifyKey(notice.oldVerifyKey).foreach { contact =>
+          noteRelinked(contact)
           val canon = PayloadCanonical.forRotation(
             notice.recipientKey,
             notice.newVerifyKey,
@@ -687,6 +698,7 @@ class ShareService @Inject() (
           .getOrElse(Nil)
       pushes.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { holderContact =>
+          noteRelinked(holderContact)
           (req.k, req.n, req.mimeType) match
             case (Some(k), Some(n), Some(mimeType)) =>
               if secretRepository.getAll().forall(_.id != req.secretId) then

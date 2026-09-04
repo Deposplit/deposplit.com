@@ -51,6 +51,7 @@ import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 
 import java.security.SecureRandom
+import java.time.Instant
 import scala.util.Try
 
 class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extends ForgettableIdentity, ShareEncryption:
@@ -108,6 +109,8 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   override def unregister() = identityStore.forget()
 
   override def pseudonym(): String = identityStore.pseudonym()
+
+  override def identityCreatedAt(): Option[Instant] = identityStore.identityCreatedAt()
 
   override def verifyKey(): Option[Array[Byte]] = identityStore.verifyKey()
 

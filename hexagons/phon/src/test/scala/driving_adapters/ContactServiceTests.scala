@@ -24,9 +24,12 @@
 
 package driving_adapters
 
+import driven_ports.ContactRelinkRepository
 import driven_ports.ContactRepository
+import driven_ports.IdentityStore
 import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
+import value_objects.svo.ContactRelink
 import value_objects.svo.VerificationLevel
 
 import java.time.Instant
@@ -40,6 +43,37 @@ private class InMemoryContactRepositoryForContactServiceTest extends ContactRepo
   override def getById(id: UUID): Option[Contact] = contacts.find(_.id == id)
   override def save(contact: Contact): Unit = contacts = contact :: contacts.filterNot(_.id == contact.id)
   override def delete(contactId: UUID): Unit = contacts = contacts.filterNot(_.id == contactId)
+
+private class InMemoryContactRelinkRepositoryForContactServiceTest extends ContactRelinkRepository:
+  private var relinks: List[ContactRelink] = Nil
+  override def getAll(): List[ContactRelink] = relinks
+  override def get(contactId: UUID): Option[ContactRelink] = relinks.find(_.contactId == contactId)
+  override def save(relink: ContactRelink): Unit =
+    relinks = relink :: relinks.filterNot(_.contactId == relink.contactId)
+
+/** Only identityCreatedAt() is read by ContactService; the rest of the port is never reached. */
+private class FakeIdentityStoreForContactServiceTest(createdAt: Option[Instant] = None) extends IdentityStore:
+  override def isRegistered(): Boolean = createdAt.isDefined
+  override def save(
+      pseudonym: String,
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit = ()
+  override def rotate(
+      verifyKey: Array[Byte],
+      signKey: Array[Byte],
+      encKey: Array[Byte],
+      decKey: Array[Byte]
+  ): Unit = ()
+  override def pseudonym(): String = ""
+  override def identityCreatedAt(): Option[Instant] = createdAt
+  override def verifyKey(): Option[Array[Byte]] = None
+  override def signKey(): Array[Byte] = Array.emptyByteArray
+  override def encKey(): Option[Array[Byte]] = None
+  override def decKey(): Array[Byte] = Array.emptyByteArray
+  override def previousDecKey(): Option[Array[Byte]] = None
 
 // updateContact — contact-update-in-place, preserving contactId, used both for benign key
 // rotation and holder-driven recovery relinking.
@@ -57,7 +91,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact preserves contactId while changing keys") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
     val newEd = Array.fill(32)(0x03.toByte)
@@ -74,7 +112,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact can change only one key") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
     val newEd = Array.fill(32)(0x05.toByte)
@@ -88,7 +130,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact throws for an unknown contactId") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     intercept[IllegalStateException] {
       svc.updateContact(UUID.randomUUID(), verifyKey = Some(Array.fill(32)(0x01.toByte)))
@@ -99,7 +145,11 @@ class ContactServiceTests extends munit.FunSuite:
   // the no-picker-UI VeryHigh default a bare key change would otherwise apply.
   test("updateContact honors an explicit verificationLevel instead of defaulting to VeryHigh on a key change") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
     val newEd = Array.fill(32)(0x06.toByte)
@@ -113,7 +163,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact still defaults to VeryHigh on a key change when no explicit level is given") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact().copy(verificationLevel = VerificationLevel.Low)
     repo.save(original)
 
@@ -126,7 +180,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact sets keyChangedAt only when keys actually change") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
     assertEquals(original.keyChangedAt, None)
@@ -140,7 +198,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("markKeyCompromised flags the contact's current key by default") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
 
@@ -153,7 +215,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("markKeyCompromised is idempotent for an already-flagged key") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original.copy(revokedVerifyKeys = List(original.verifyKey)))
 
@@ -164,7 +230,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("markKeyCompromised can flag an explicit key other than the current one") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
     val oldKey = Array.fill(32)(0x09.toByte)
@@ -181,7 +251,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("addFromQr stores the asserted cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     svc.addFromQr("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
 
@@ -190,7 +264,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("addManually defaults to the current cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
 
@@ -199,7 +277,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("addFromQr rejects a verify key whose length does not match the asserted cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     intercept[IllegalArgumentException] {
       svc.addFromQr("bob", Array.fill(16)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
@@ -208,7 +290,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact rejects a new key whose length does not match the effective cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
 
@@ -219,7 +305,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("updateContact forces a fresh verification level on a cipherSuite-only change") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact().copy(verificationLevel = VerificationLevel.Low)
     repo.save(original)
 
@@ -237,7 +327,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("renameContact sets a nickname without touching keys, level, or keyChangedAt") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
 
@@ -255,7 +349,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("renameContact trims and collapses a blank nickname to None") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact()
     repo.save(original)
 
@@ -268,7 +366,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("renameContact can clear an existing nickname") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
     val original = makeContact().copy(nickname = Some("Paul"))
     repo.save(original)
 
@@ -279,7 +381,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("renameContact throws for an unknown contactId") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     intercept[IllegalStateException] {
       svc.renameContact(UUID.randomUUID(), Some("Paul"))
@@ -288,7 +394,11 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("addManually and addFromQr trim and normalize the nickname") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), nickname = Some("  Bobby  "))
     svc.addFromQr(
@@ -306,9 +416,73 @@ class ContactServiceTests extends munit.FunSuite:
 
   test("addManually and addFromQr default the nickname to None when omitted") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
-    val svc = ContactService(repo)
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
 
     svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
 
     assertEquals(repo.getAll().head.nickname, None)
+  }
+
+  // ---------------------------------------------------------------------------
+  // contactsAwaitingRelink() — who still holds a key this device no longer signs with
+  // ---------------------------------------------------------------------------
+
+  private val identityBorn: Instant = Instant.parse("2026-06-01T00:00:00Z")
+
+  private def awaitingSetup(identityCreatedAt: Option[Instant]) =
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val relinks = InMemoryContactRelinkRepositoryForContactServiceTest()
+    val svc = ContactService(repo, FakeIdentityStoreForContactServiceTest(identityCreatedAt), relinks)
+    (svc, repo, relinks)
+
+  test("a contact added before the current identity is awaiting relink") {
+    val (svc, repo, _) = awaitingSetup(Some(identityBorn))
+    val older = makeContact().copy(addedAt = identityBorn.minusSeconds(60))
+    repo.save(older)
+    assertEquals(svc.contactsAwaitingRelink().map(_.id), List(older.id))
+  }
+
+  test("a contact added after the current identity is not") {
+    val (svc, repo, _) = awaitingSetup(Some(identityBorn))
+    repo.save(makeContact().copy(addedAt = identityBorn.plusSeconds(60)))
+    assert(svc.contactsAwaitingRelink().isEmpty)
+  }
+
+  // Anything arriving from a contact is proof, since the relay only returns rows addressed to the caller's current key.
+  test("a relink recorded since the current identity clears the contact") {
+    val (svc, repo, _) = awaitingSetup(Some(identityBorn))
+    val older = makeContact().copy(addedAt = identityBorn.minusSeconds(60))
+    repo.save(older)
+    svc.markRelinked(older.id)
+    assert(svc.contactsAwaitingRelink().isEmpty)
+  }
+
+  // A relink from before this identity existed was to the key that is gone, so it proves nothing.
+  test("a relink older than the current identity does not clear the contact") {
+    val (svc, repo, relinks) = awaitingSetup(Some(identityBorn))
+    val older = makeContact().copy(addedAt = identityBorn.minusSeconds(120))
+    repo.save(older)
+    relinks.save(ContactRelink(older.id, identityBorn.minusSeconds(60)))
+    assertEquals(svc.contactsAwaitingRelink().map(_.id), List(older.id))
+  }
+
+  // No recorded start is no basis to judge — flagging every contact on a guess would be a false alarm on a device that
+  // never lost anything.
+  test("an unrecorded identity start puts nobody on the list") {
+    val (svc, repo, _) = awaitingSetup(None)
+    repo.save(makeContact().copy(addedAt = Instant.EPOCH))
+    assert(svc.contactsAwaitingRelink().isEmpty)
+  }
+
+  test("markRelinked is idempotent") {
+    val (svc, repo, relinks) = awaitingSetup(Some(identityBorn))
+    val older = makeContact().copy(addedAt = identityBorn.minusSeconds(60))
+    repo.save(older)
+    svc.markRelinked(older.id)
+    svc.markRelinked(older.id)
+    assertEquals(relinks.getAll().size, 1)
   }

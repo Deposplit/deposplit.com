@@ -72,7 +72,6 @@ place rather than growing this list into a second manual.
 
 ## Chores
 
-- [ ] `A` `I` **A restored device has no list of who still needs to re-verify it.** After creating new keys it tells the user to meet every contact, and then tracks nothing — there is no standing "these contacts have not re-verified you" list, so remembering is left to the user. The list is derivable from what is already stored, since a contact whose record still names this device's previous key has not relinked; what it needs is somewhere to mark a relink as done, which is new state on `Contact` and is why it did not land with the launch gate.
 - [ ] `phon` **phon cannot upload an image.** Its hexagon already enforces the 256 KiB cap and recognises PNG/JPEG, but the deposit form is still text-only, so phon can demonstrate a `text/plain` deposit and nothing else. Adding a file input means switching `createMySecret` from a URL-encoded `Form` to a multipart body, and dropping the `.trim` that assumes the secret is text. Worth having for teaching: phon cannot reconstruct, so sending an image to a real device is the only way to show the flow without two phones.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 

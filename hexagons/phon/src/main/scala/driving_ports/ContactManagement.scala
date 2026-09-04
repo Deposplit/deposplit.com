@@ -31,6 +31,22 @@ import value_objects.svo.VerificationLevel
 
 trait ContactManagement:
   def listContacts(): List[Contact]
+
+  /** Contacts who still hold a key this device no longer signs with, and so cannot address it any more. A contact added
+    * before the current identity was established has by construction never seen it, unless something has arrived from
+    * them since — the relay only returns rows addressed to the caller's current key, so receiving anything at all is
+    * proof they relinked.
+    *
+    * Empty after a rotation, which propagates on its own; this is for the case that cannot, where the keys were lost
+    * and the rotation notice could never be signed. Empty too on a device with no recorded `identityCreatedAt`, rather
+    * than flagging every contact on a guess.
+    */
+  def contactsAwaitingRelink(): List[Contact]
+
+  /** Records that this contact has relinked, when nothing will arrive to prove it — a contact who holds no share and
+    * sends nothing produces no evidence, so without this the list could never empty. Idempotent.
+    */
+  def markRelinked(contactId: UUID): Unit
   // nickname lets a nickname be set at add-time rather than only via a later
   // renameContact call; it is purely local and never transmitted anywhere.
   def addManually(

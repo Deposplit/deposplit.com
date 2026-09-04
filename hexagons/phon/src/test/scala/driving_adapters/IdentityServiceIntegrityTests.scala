@@ -38,6 +38,7 @@ class RestorableIdentityStore extends ForgettableIdentityStore:
   private var _pseudonym = ""
   private var _verifyKey, _signKey, _encKey, _decKey: Array[Byte] = Array.empty
   private var _previousDecKey: Option[Array[Byte]] = None
+  private var _identityCreatedAt: Option[java.time.Instant] = None
 
   /** Thrown by every private-key read, standing in for key storage that no longer yields its contents. */
   var privateKeyFailure: Option[Exception] = None
@@ -60,6 +61,8 @@ class RestorableIdentityStore extends ForgettableIdentityStore:
     _encKey = encKey
     _decKey = decKey
     _previousDecKey = None
+    // Mirrors the real adapters: registration starts a new identity, rotation continues one.
+    _identityCreatedAt = Some(java.time.Instant.now())
     registered = true
 
   override def rotate(
@@ -85,6 +88,7 @@ class RestorableIdentityStore extends ForgettableIdentityStore:
   override def encKey(): Option[Array[Byte]] = Option.when(publicKeysReadable)(_encKey)
   override def decKey(): Array[Byte] = privateKeyFailure.fold(_decKey)(throw _)
   override def previousDecKey(): Option[Array[Byte]] = _previousDecKey
+  override def identityCreatedAt(): Option[java.time.Instant] = _identityCreatedAt
   override def forget(): Unit = registered = false
 
 class IdentityServiceIntegrityTests extends munit.FunSuite:

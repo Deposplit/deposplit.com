@@ -265,6 +265,14 @@ private class FixedShareRelayResolver(relay: ShareRelay) extends driven_ports.Sh
   * sender, or a genuine contact's key but a forged or mismatched signature) instead of trusting whatever the relay
   * returns, and `respond` must reject explicitly.
   */
+class InMemoryContactRelinkRepositoryForShareServiceTests extends driven_ports.ContactRelinkRepository:
+  private var relinks: List[value_objects.svo.ContactRelink] = Nil
+  override def getAll(): List[value_objects.svo.ContactRelink] = relinks
+  override def get(contactId: java.util.UUID): Option[value_objects.svo.ContactRelink] =
+    relinks.find(_.contactId == contactId)
+  override def save(relink: value_objects.svo.ContactRelink): Unit =
+    relinks = relink :: relinks.filterNot(_.contactId == relink.contactId)
+
 class ShareServiceSignatureTests extends munit.FunSuite:
 
   private val aliceKeys = TestKeyPair.generate()
@@ -293,7 +301,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       FakeKeyConflictRepository,
       FakeRetainedDepositRepository
   ) =
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(contacts)
@@ -307,7 +316,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       shareMetadataRepository = metaRepo,
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = conflictRepo,
       retainedDepositRepository = retainedRepo,
       identity = bobIdentity
@@ -453,7 +463,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       relay: FakeShareRelay,
       contacts: List[Contact] = List(aliceContact)
   ): (ShareService, IdentityService, FakeShareRepository, FakeSecretRepository, FakeShareMetadataRepository) =
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val shareRepo = FakeShareRepository()
     val secretRepo = FakeSecretRepository()
@@ -466,7 +477,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       shareMetadataRepository = metaRepo,
       secretRepository = secretRepo,
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
@@ -1505,7 +1517,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   test("syncInbox still picks up a deposit sealed to the encKey rotated away from") {
     val aliceIdentity = IdentityService(InMemoryForgettableIdentityStore())
     aliceIdentity.register("alice")
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     // Alice signs with the fixture keypair but agrees with her real X25519 key — the two keypairs are independent,
     // exactly as they are in production.
@@ -1520,7 +1533,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
@@ -1583,7 +1597,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val defaultRelay = FakeShareRelay()
     val byorRelay = FakeShareRelay()
     byorRelay.throwOnPushRotation = true
-    val bobIdentity = IdentityService(InMemoryForgettableIdentityStore())
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
@@ -1593,7 +1608,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
-      contactManagement = ContactService(contactRepo),
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
       retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
