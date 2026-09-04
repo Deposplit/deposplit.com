@@ -24,10 +24,19 @@
 
 package driving_ports
 
+import value_objects.svo.IdentityIntegrity
 import value_objects.svo.KeyPairMaterial
 
 trait Identity:
   def isRegistered(): Boolean
+
+  /** Whether the private keys this device believes it has are still there and still match the public keys it
+    * advertises. Total and non-throwing: a device that cannot answer the question reports
+    * [[IdentityIntegrity.Unreadable]] rather than failing, and an unregistered device reports
+    * [[IdentityIntegrity.Intact]] because it has nothing to have lost.
+    */
+  def integrity(): IdentityIntegrity
+
   def register(pseudonym: String): Unit
   def pseudonym(): String
   def verifyKey(): Array[Byte]

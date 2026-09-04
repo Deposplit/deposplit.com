@@ -28,6 +28,8 @@ import driven_ports.ForgettableIdentityStore
 import driving_adapters.ShareEncryption
 import driving_ports.ForgettableIdentity
 import jakarta.inject.Inject
+import value_objects.svo.IdentityIntegrity
+import value_objects.svo.IdentityStorageUnavailableException
 import value_objects.svo.KeyPairMaterial
 import value_objects.svo.TransportSuite
 import value_objects.svo.UnsupportedTransportSuiteException
@@ -54,6 +56,23 @@ import scala.util.Try
 class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extends ForgettableIdentity, ShareEncryption:
 
   override def isRegistered(): Boolean = identityStore.isRegistered()
+
+  /** Derives each public key from its stored private half and compares it to the public key this device hands out. That
+    * single question covers every way the two can come apart: key storage emptied while the app's files survived a
+    * restore, a keystore blob that no longer decrypts, and public keys restored without the private ones.
+    */
+  override def integrity(): IdentityIntegrity =
+    if !identityStore.isRegistered() then IdentityIntegrity.Intact
+    else
+      try
+        val derivedVerifyKey = Ed25519PrivateKeyParameters(identityStore.signKey()).generatePublicKey().getEncoded
+        val derivedEncKey = X25519PrivateKeyParameters(identityStore.decKey()).generatePublicKey().getEncoded
+        val matches =
+          derivedVerifyKey.sameElements(identityStore.verifyKey()) && derivedEncKey.sameElements(identityStore.encKey())
+        if matches then IdentityIntegrity.Intact else IdentityIntegrity.KeysLost
+      catch
+        case _: IdentityStorageUnavailableException => IdentityIntegrity.Unreadable
+        case _: Exception                           => IdentityIntegrity.KeysLost
 
   override def register(pseudonym: String): Unit =
     val material = generateKeyPairMaterial()

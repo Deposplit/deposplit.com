@@ -154,6 +154,40 @@ but never learn about each other.
 There is no recovery key, deliberately. If you could safely self-custody a recovery key you
 could safely self-custody the original secret and would not need any of this.
 
+### After a phone switch
+
+Restoring a backup onto a new phone is the lighter case, and the common one. App storage
+migrates; the private keys do not, because the platform keystore holds them in a form that
+cannot leave the device — deliberately. So the restored phone keeps its contacts, verification
+levels, secrets, share metadata and the shares it holds for other people, and loses only its
+ability to act as itself. The app checks at launch whether the private keys still match the
+public keys it advertises, and says so plainly, rather than letting the loss surface later as a
+failed request or — worse — as a QR code for an identity nobody can use.
+
+Two things follow, and both make this cheaper than losing everything:
+
+- **No `inventory` push is needed.** The records it exists to rebuild are still there.
+- **It is not `k`-of-`n`.** That arithmetic comes from needing *k* shares to restore the
+  *ability* to reconstruct. Here nothing needs reconstructing. What is needed is that **every**
+  contact relinks the new key to the existing contact record, so each of them can address this
+  device again — reaching only *k* of them leaves the rest unable to.
+
+Relinking runs in **both directions**, because a phone is usually an owner and a holder at once:
+
+- People holding shares for you must relink, or your retrieval requests arrive from a key they
+  do not recognise.
+- People whose shares you hold must relink too. Until they do you are a holder who has gone
+  silent — you cannot sign a heartbeat they will accept, so you drop out of their `n_live` and
+  they may start a repair nothing actually requires.
+
+The mechanism is the one above: meet, re-exchange QR codes, relink in place preserving
+`contactId`. Only the amount left to rebuild afterwards differs, and it is nothing.
+
+The restored device mints a fresh identity to be relinked *to*. It cannot rotate into one: a
+rotation notice is signed with the old `signKey`, which is precisely what did not survive. That
+is the rule from *Key rotation* holding exactly as written — a change not backed by `K_old` is
+recovery rather than rotation, and needs a human to re-verify it.
+
 ## Custody monitoring
 
 A holder losing their device is genuine redundancy loss, and their new device cannot tell

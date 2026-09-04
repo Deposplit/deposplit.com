@@ -58,6 +58,12 @@ trait IdentityStore:
 
   def pseudonym(): String
   def verifyKey(): Array[Byte]
+
+  /* signKey() and decKey() must distinguish key material that is *absent or unusable* from key material that merely
+   * cannot be read at this moment — a locked device, a keystore not yet available. The former is any exception; the
+   * latter is specifically IdentityStorageUnavailableException. Only an adapter sees the platform's own error, so only
+   * an adapter can tell them apart, and IdentityIntegrity depends on the answer: it is what decides whether the app
+   * offers to mint a replacement identity over the top. */
   def signKey(): Array[Byte]
   def encKey(): Array[Byte]
   def decKey(): Array[Byte]
