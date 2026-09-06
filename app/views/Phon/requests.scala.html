@@ -1,0 +1,109 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.KeyConflictRow
+@import controllers.phon.RequestRow
+@import value_objects.svo.ShareTransactionType
+
+@*
+* What other people are asking of this device, with the impersonation alerts above them.
+*
+* Conflicts come first and are never resolved automatically: one is recorded the moment a rotation
+* notice arrives claiming continuity from a key the user flagged compromised, and the only way
+* forward is a fresh human-verified relink. Dismissing clears the alert, not the cause.
+*@
+@(conflicts: List[KeyConflictRow], rows: List[RequestRow], syncPending: Boolean)(implicit request: RequestHeader, messages: Messages)
+
+@for(row <- conflicts) {
+    <div class="list-group-item border-bottom bg-danger-subtle" id="ESC@row.conflict.id">
+        <div class="fw-semibold text-danger-emphasis">
+            <i class="bi bi-shield-exclamation"></i> @messages("phon.conflict.title")
+        </div>
+        <p class="small mb-2">@messages("phon.conflict.body", row.contactName)</p>
+        <div class="small text-body-secondary mb-2">
+            @messages("phon.conflict.detected", row.conflict.detectedAt.toString.take(10))
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger"
+            hx-delete="@controllers.phon.routes.RequestsController.dismissConflict(row.conflict.id)"
+            hx-target="#screen" hx-swap="outerHTML">
+            @messages("phon.action.dismiss")
+        </button>
+    </div>
+}
+
+@if(rows.isEmpty && !syncPending) {
+    @emptyState("bi-check2-circle", "phon.empty.requests")
+} else {
+    <div class="list-group list-group-flush">
+        @for(row <- rows) {
+            <div class="list-group-item" id="ESC@row.request.id">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    @row.request.transactionType match {
+                        case ShareTransactionType.Retrieval => {
+                            <span class="badge text-bg-primary">@messages("phon.transaction.retrieval")</span>
+                        }
+                        case ShareTransactionType.Removal => {
+                            <span class="badge text-bg-danger">@messages("phon.transaction.removal")</span>
+                        }
+                        case ShareTransactionType.Deposit => {
+                            <span class="badge text-bg-secondary">@messages("phon.transaction.deposit")</span>
+                        }
+                        case ShareTransactionType.Inventory => {
+                            <span class="badge text-bg-secondary">@messages("phon.transaction.inventory")</span>
+                        }
+                    }
+                    <span class="fw-semibold">@row.request.label</span>
+                </div>
+                <div class="small text-body-secondary">
+                    @messages("phon.requests.from", row.senderName)
+                    @row.senderSubtitle.map { pseudonym => (@pseudonym) }
+                    · @row.request.requestedAt.toString.take(10)
+                </div>
+                @* Only on a retrieval: a key change followed quickly by a request to hand the share
+                   back is the shape of the attack this warning exists for. *@
+                @row.keyChangedDaysAgo.map { days =>
+                    <div class="small text-danger mt-1">
+                        <i class="bi bi-exclamation-triangle"></i> @messages("phon.requests.keyChanged", days)
+                    </div>
+                }
+                <div class="d-flex gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                        hx-post="@controllers.phon.routes.RequestsController.respond(row.request.id)"
+                        hx-vals='{"approved": "false"}' hx-target="#screen" hx-swap="outerHTML">
+                        @messages("phon.action.deny")
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary"
+                        hx-post="@controllers.phon.routes.RequestsController.respond(row.request.id)"
+                        hx-vals='{"approved": "true"}' hx-target="#screen" hx-swap="outerHTML">
+                        @messages("phon.action.approve")
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if(syncPending) {
+    @syncPlaceholder(controllers.phon.routes.HomeController.syncRequests())
+}

@@ -38,19 +38,37 @@ This is a one-time step per fresh install; the setting persists across restarts.
 ## Three devices
 
 The full social flow needs **three instances** — Alice plus two holders. Three emulators,
-three simulators, or a mix.
+three simulators, phony phones, or a mix.
 
 - *Android*: create two extra AVDs (API 35+, matching `minSdk`) in the Device Manager and
   launch them alongside the first.
 - *iOS*: Xcode runs one simulator from the Run button, but you can open more via
   **Xcode → Open Developer Tool → Simulator**, then **File → Open Simulator**.
+- *phon*: one phone per running instance, each with its own stores, named after the port it
+  was started on. The relay is the instance on 9000, so start the extra phones beside it:
+
+  ```bash
+  sbt run -Dconfig.file=conf/localhost.conf                      # relay + Alice, port 9000
+  sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9001     # Bob
+  sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9002     # Carol
+  ```
+
+  Each answers at `http://localhost:<port>/phonyPhone`. Bob's and Carol's own port is not a
+  relay, so point their **Settings → Default relay** at `http://localhost:9000`.
+  **Settings → Danger zone** wipes a phone back to a clean slate between runs.
 
 Mixing platforms is not just possible but the most valuable configuration — see Flow 6.
 
+**Exchanging contact details without a camera.** A phony phone cannot scan. Open **My
+contact details** from the top bar, copy the payload, and paste it into the other phone's
+**Contacts → ＋ → Paste details** — that goes through the same `addFromQr` path a scan does,
+including the verification level it earns. Typing the two keys by hand is the other way in,
+and stops one level short on purpose. A real handset can still scan the QR code phon shows.
+
 ## Flow 1 — Happy path, 2-of-2 across two holders
 
-Tab names differ slightly by platform: Android says **My Shared Secrets** / **Their Secret
-Shares**, iOS says **Distributed** / **Held**. They are the same two things.
+Tab names differ slightly by platform: Android says **Split & shared** / **Kept safe**, iOS
+says **Distributed** / **Held**, phon follows Android. They are the same two things.
 
 | Step | Device | Action |
 |---|---|---|
@@ -121,10 +139,11 @@ sbt run -Dconfig.file=conf/localhost.conf                      # port 9000
 sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9001     # port 9001
 ```
 
-Both relay editors sit behind the Premium unlock, so unlock first: on iOS buy it in the
-Simulator (the scheme carries `Deposplit.storekit`, so no App Store Connect record is
+Both mobile relay editors sit behind the Premium unlock, so unlock first: on iOS buy it in
+the Simulator (the scheme carries `Deposplit.storekit`, so no App Store Connect record is
 needed); on Android set `FAKE_PREMIUM=true` in `local.properties` and rebuild, since Play
-Billing cannot run without a Play Console listing.
+Billing cannot run without a Play Console listing. phon has no purchases at all, so its
+**Settings → Default relay** and its per-contact override are simply editable.
 
 Give one contact a `relayBaseUrl` override pointing at 9001 and leave another with no
 override. Then verify that deposit, pickup, retrieval and removal all route through the

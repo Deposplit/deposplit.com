@@ -73,6 +73,7 @@ class ContactService @Inject() (
       pseudonym: String,
       verifyKey: Array[Byte],
       encKey: Array[Byte],
+      verificationLevel: VerificationLevel,
       relayBaseUrl: Option[String] = None,
       nickname: Option[String] = None
   ): Unit =
@@ -93,7 +94,7 @@ class ContactService @Inject() (
         pseudonym = pseudonym.strip(),
         verifyKey = verifyKey,
         encKey = encKey,
-        verificationLevel = VerificationLevel.VeryLow,
+        verificationLevel = verificationLevel,
         verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl,
@@ -107,6 +108,7 @@ class ContactService @Inject() (
       verifyKey: Array[Byte],
       encKey: Array[Byte],
       cipherSuite: CipherSuite,
+      verificationLevel: VerificationLevel,
       relayBaseUrl: Option[String] = None,
       nickname: Option[String] = None
   ): Unit =
@@ -126,7 +128,7 @@ class ContactService @Inject() (
         pseudonym = pseudonym.strip(),
         verifyKey = verifyKey,
         encKey = encKey,
-        verificationLevel = VerificationLevel.VeryHigh,
+        verificationLevel = verificationLevel,
         verifiedAt = Some(now),
         addedAt = now,
         relayBaseUrl = relayBaseUrl,
@@ -163,8 +165,8 @@ class ContactService @Inject() (
     val changingIdentity = verifyKey.isDefined || encKey.isDefined || cipherSuite.isDefined
     // A key or cipher-suite change forces re-choosing the level fresh, never silently carrying
     // the old one forward. An explicit `verificationLevel` (the rotation downgrade) always wins;
-    // absent one, a change defaults to the same VeryHigh addFromQr uses for its analogous
-    // re-scan-in-person flow — phon has no verification-level picker UI.
+    // absent one, a change defaults to VeryHigh, the level the analogous re-scan-in-person flow
+    // earns.
     val newLevel = verificationLevel.orElse(if changingIdentity then Some(VerificationLevel.VeryHigh) else None)
     contactRepository.save(
       existing.copy(

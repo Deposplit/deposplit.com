@@ -34,34 +34,204 @@ revert = Revert
 
 
 # phon
+# Keys are prefixed, like the landing page's abode.* and legalese.*, because phon now has five
+# times as many of them as everything else in this file put together.
 
-addContact = Add contact
-contactInformation = Contact information
-contactsManagement = Contacts management
-createdContact = Contact created!
-createPseudonym = Create pseudonym
-createdPseudonym = Pseudonym created!
-dangerZone = Danger zone
-deletePseudonym = Delete pseudonym
-displayMyContactInformation = Display my contact information
-generateQrCode = Generate QR code
-keySignature = Signature key
-keyTransmission = Transmission key
-label = Label
-mySecrets = My secrets
-nickname = Nickname
-pendingRequests = Pending requests
-pseudonym = Pseudonym
-pseudonymHelp = Pseudonyms must not be empty (but need not be unique).
-secretsManagement = Secrets management
-secretText = Secret text
-sharedSecret = Secret shared!
-splitAndShareSecret = Split & share secret
-synchedInbox = Inbox synched!
-theirShares = Their shares
-verified = Verified
-verificationVeryLow = Very Low
-verificationLow = Low
-verificationHigh = High
-verificationVeryHigh = Very High
-youHaveBeenWarned = You''ve been warned!
+phon.tabbar = Sections
+phon.syncing = Contacting the relay …
+
+phon.tab.distributed = Split & shared
+phon.tab.held = Kept safe
+phon.tab.requests = Requests
+
+phon.title.signIn = Deposplit
+phon.title.distributed = Split & shared
+phon.title.held = Kept safe
+phon.title.requests = Requests
+phon.title.contacts = Contacts
+phon.title.addContact = Add contact
+phon.title.relink = Relink contact
+phon.title.deposit = Split & share secret
+phon.title.shareDetail = Share
+phon.title.repair = Repair
+phon.title.qr = My contact details
+phon.title.settings = Settings
+
+phon.signIn.subtitle = Choose a pseudonym
+phon.signIn.placeholder = e.g. Alice
+phon.signIn.help = Pseudonyms need not be unique, and you can share this one freely - it is not a login.
+phon.signIn.port = This phony phone is {0}. Start another on a different port to play a second person.
+
+phon.advisory.awaitingRelink = {0,choice,1#One contact still has|1<{0} contacts still have} your old key - meet them and let them scan your code again
+phon.advisory.relayUnreachable = Relay not reachable
+
+phon.empty.distributed = You have not split anything yet
+phon.empty.held = You are not keeping anything safe yet
+phon.empty.requests = Nobody is waiting on you
+phon.empty.contacts = No contacts yet
+phon.empty.depositNoContacts = Add a contact first - a secret needs somebody to hold it
+phon.qr.noKeys = This phone has no keys to show
+
+phon.action.back = Back
+phon.action.getStarted = Get started
+phon.action.save = Save
+phon.action.delete = Delete
+phon.action.retry = Try again
+phon.action.expand = Show holders
+phon.action.approve = Approve
+phon.action.deny = Deny
+phon.action.dismiss = Dismiss
+phon.action.rename = Rename
+phon.action.relink = Relink
+phon.action.confirmRelink = Confirm relink
+phon.action.markRelinked = Mark as re-verified
+phon.action.markCompromised = Flag key as compromised
+phon.action.toggleHeartbeat = Pause or resume heartbeats
+phon.action.deleteAllFrom = Delete every share from {0}
+phon.action.deposit = Split & share
+phon.action.redeposit = Split & share again
+phon.action.requestRetrieval = Ask for it back
+phon.action.requestRemoval = Ask them to delete it
+phon.action.requestMissingRetrievals = Ask the rest
+phon.action.reconstruct = Reconstruct
+phon.action.repair = Repair
+phon.action.discard = Discard
+phon.action.forceForget = Forget anyway
+phon.action.copyPayload = Copy contact details
+phon.action.copied = Copied
+phon.action.showQrCode = Show QR code
+phon.action.resetRelay = Reset to the default
+phon.action.regenerate = Regenerate my identity
+phon.action.forgetIdentity = Forget this identity
+
+phon.field.pseudonym = Pseudonym
+phon.field.nickname = Nickname
+phon.field.nicknameHelp = Yours alone. Never sent anywhere, so two people called Paul stay apart on this phone only.
+phon.field.verifyKey = Signature key
+phon.field.encKey = Transmission key
+phon.field.keyHelp = Base64url, 32 bytes.
+phon.field.payload = Contact details
+phon.field.relay = Relay
+phon.field.relayOverride = Their relay
+phon.field.relayOverrideHelp = Leave empty to use this phone''s default relay.
+phon.field.verificationLevel = How sure are you it is them?
+phon.field.label = Label
+phon.field.secret = Secret
+phon.field.secretFile = … or a picture
+
+phon.verification.veryLow = Very low
+phon.verification.low = Low
+phon.verification.high = High
+phon.verification.veryHigh = Very high
+phon.verification.guidance.veryLow = Keys arrived, and nothing vouches for who sent them.
+phon.verification.guidance.low = One independent assurance - a known channel, or a voice you recognised.
+phon.verification.guidance.high = Two independent assurances, checked separately.
+phon.verification.guidance.veryHigh = You were in the same room.
+
+phon.addContact.paste = Paste details
+phon.addContact.manual = Type keys
+phon.addContact.pasteHelp = Open the other phone''s contact details, copy them, and paste them here. This stands in for scanning their code.
+phon.addContact.payloadLevelFooter = Pasting stands in for a scan, so it may claim the level a scan earns - but only if you really did get these details face to face.
+phon.addContact.manualLevelFooter = Very high is not offered here: it means you were in the same room, which typing keys out of a chat window is not.
+
+phon.contacts.keyCompromised = A previous key for this contact is flagged compromised
+phon.contacts.awaitingRelink = {0} has not seen your current key yet
+phon.contacts.heartbeatPaused = Heartbeats to this contact are paused
+
+phon.relink.intro = Same person, new keys. {0} keeps their place, so every share you hold from them stays anchored to it.
+phon.relink.payloadHelp = Paste their new contact details, or type the two keys below.
+phon.relink.levelFooter = Choose the level again from scratch. New keys prove they still control a key, not that they are still them.
+
+phon.distributed.threshold = {0} of {1} needed
+phon.distributed.discarding = Waiting for holders to confirm
+
+phon.health.discarding = Discarding
+phon.health.caution = Margin of one - split again soon
+phon.health.critical = Reconstruct and split again now
+phon.health.lost = Unrecoverable
+
+phon.freshness.unmonitored = Unmonitored by choice
+phon.freshness.gettingStale = Getting stale
+phon.freshness.silentOverdue = Silent - possible loss
+
+phon.held.from = From {0}
+phon.held.sort.date = Date
+phon.held.sort.label = Label
+phon.held.sort.sender = Sender
+
+phon.requests.from = From {0}
+phon.requests.keyChanged = This key changed {0,choice,0#today|1#yesterday|1<{0} days ago}
+
+phon.requestState.pending = Waiting
+phon.requestState.approved = Approved
+phon.requestState.denied = Denied
+phon.requestState.withdrawn = Withdrawn
+
+phon.transaction.deposit = Deposit
+phon.transaction.retrieval = Retrieval
+phon.transaction.removal = Removal
+phon.transaction.inventory = Inventory
+
+phon.conflict.title = Possible impersonation attempt
+phon.conflict.body = Somebody claiming to be {0} presented new keys, signed by a key you flagged as compromised. This was refused. Only meeting them and relinking in person moves them forward.
+phon.conflict.detected = Noticed {0}
+
+phon.deposit.labelPlaceholder = e.g. BitLocker key
+phon.deposit.recipients = Who should hold a piece?
+phon.deposit.threshold = How many pieces to put it back together
+phon.deposit.thresholdHelp = Fewer than this reveals nothing at all.
+phon.deposit.fileHelp = PNG or JPEG. Fill one of the two, not both.
+phon.deposit.sizeLimit = Up to {0} KiB. Text only here - the apps can split a photo too.
+
+phon.shareDetail.holder = Held by {0}
+phon.shareDetail.deposited = Deposited {0}
+phon.shareDetail.requestedAt = Asked {0}
+phon.shareDetail.noRequest = Nothing asked yet
+phon.shareDetail.reconstruct = Put the secret back together
+phon.shareDetail.approvedCount = {0} of the {1} needed have handed their piece back
+
+phon.reconstruct.noMargin = Exactly enough pieces, so nothing cross-checked them.
+phon.reconstruct.confirmed = More pieces than needed, and all of them agreed.
+phon.reconstruct.excluded = {0,choice,1#One piece disagreed and was|1<{0} pieces disagreed and were} left out.
+phon.reconstruct.opaque = {0}, {1} bytes - phon cannot show this kind of secret.
+phon.reconstruct.failed = Could not put it back together: {0}
+
+phon.repair.gathering = {0} pieces needed, {1} handed back so far.
+phon.repair.notRequested = Not asked
+phon.repair.needMore = Ask the remaining holders, and come back once enough have said yes.
+phon.repair.redeposit = Split it again
+phon.repair.redepositHelp = Pick a fresh set of holders. Discarding the old distribution stays a separate step, on the previous screen.
+
+phon.qr.payload = Contact details
+phon.qr.help = Another phony phone pastes this. A real handset can scan the code below instead.
+
+phon.settings.relay = Default relay
+phon.settings.relayHelp = Where this phone deposits and collects, unless a contact carries a relay of their own.
+phon.settings.relaySaved = Saved.
+phon.settings.identity = Identity
+phon.settings.identitySince = In use since
+phon.settings.unknown = unknown
+phon.settings.regenerateHelp = Mints new keys and tells every contact, signed by the keys being replaced. Anybody not reached will not learn of it on their own.
+phon.settings.regenerated = Told {0} of {1} contacts.
+phon.settings.regeneratedDrainFailed = Some relay traffic could not be collected first; it will arrive on a later poll.
+phon.settings.appearance = Appearance
+phon.settings.darkMode = Dark
+phon.settings.dangerZone = Danger zone
+phon.settings.forgetHelp = Wipes this phony phone back to a clean slate: keys, contacts, secrets and every share it holds.
+
+phon.confirm.deleteContact = Delete {0}? Anything they hold for you stays with them.
+phon.confirm.markCompromised = Flag {0}''s current key as compromised? From then on, no signed key change from it is accepted on its own.
+phon.confirm.deleteHeld = Stop holding this share? The owner loses a piece and cannot ask you for it later.
+phon.confirm.deleteAllHeld = Stop holding all {1} shares from {0}?
+phon.confirm.discard = Ask all {0} holders to delete their piece?
+phon.confirm.forceForget = Forget this secret without waiting for the remaining holders?
+phon.confirm.regenerate = Regenerate your identity and tell your {0} contacts?
+phon.confirm.forgetIdentity = Wipe this phony phone completely?
+
+phon.error.verificationLevel = Choose how sure you are.
+phon.error.blankContact = One of the chosen contacts is blank.
+phon.error.thresholdAboveHolders = More pieces are needed than there are holders to hold them.
+phon.error.secretMissing = Type a secret, or pick a picture.
+phon.error.secretAmbiguous = You gave both text and a picture. Clear one of them - phon will not choose for you.
+phon.error.unsupportedType = Only PNG and JPEG can be split. This file is neither, judged by its contents rather than its name.
+phon.error.relinkEmpty = Paste their details, or type both keys.

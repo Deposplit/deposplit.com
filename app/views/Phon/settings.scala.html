@@ -1,0 +1,108 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.PhonForms.RelayRecord
+@import value_objects.svo.RegenerateIdentityResult
+
+@*
+* The relay this phone talks to, who it currently is, and the two ways to stop being that.
+*
+* No Premium section, unlike the mobile Settings screens: phon has no purchases port, so naming a
+* relay by hand is simply free here. Deleting the identity has no mobile counterpart either - it is
+* the reset a test phone needs and a real one has no business offering.
+*@
+@(relayForm: Form[RelayRecord], pseudonym: String, identityCreatedAt: Option[java.time.Instant], contactCount: Int, notice: Option[String], regenerated: Option[RegenerateIdentityResult])(implicit request: RequestHeader, messages: Messages)
+
+<div class="list-group list-group-flush">
+
+    <div class="list-group-item">
+        <div class="fw-semibold mb-1">@messages("phon.settings.relay")</div>
+        <p class="small text-body-secondary">@messages("phon.settings.relayHelp")</p>
+        @notice.map { key =>
+            <div class="alert alert-success py-2">@messages(key)</div>
+        }
+        <form class="input-group" hx-post="@controllers.phon.routes.PhonyPhoneController.saveRelay()"
+            hx-target="#screen" hx-swap="outerHTML">
+            <input type="url" class="form-control" name="relayBaseUrl" value="@relayForm("relayBaseUrl").value"
+                aria-label="@messages("phon.settings.relay")">
+            <button class="btn btn-outline-primary" type="submit">@messages("phon.action.save")</button>
+        </form>
+        <button type="button" class="btn btn-sm btn-link px-0"
+            hx-post="@controllers.phon.routes.PhonyPhoneController.saveRelay()"
+            hx-vals='{"relayBaseUrl": ""}' hx-target="#screen" hx-swap="outerHTML">
+            @messages("phon.action.resetRelay")
+        </button>
+    </div>
+
+    <div class="list-group-item">
+        <div class="fw-semibold mb-1">@messages("phon.settings.identity")</div>
+        <dl class="row small mb-2">
+            <dt class="col-5">@messages("phon.field.pseudonym")</dt>
+            <dd class="col-7">@pseudonym</dd>
+            <dt class="col-5">@messages("phon.settings.identitySince")</dt>
+            <dd class="col-7">@identityCreatedAt.map(_.toString.take(10)).getOrElse(messages("phon.settings.unknown"))</dd>
+        </dl>
+        @regenerated.map { result =>
+            <div class="alert alert-info py-2 small">
+                @messages("phon.settings.regenerated", result.notifiedContacts, result.totalContacts)
+                @if(!result.drainSucceeded) {
+                    <br>@messages("phon.settings.regeneratedDrainFailed")
+                }
+            </div>
+        }
+        <p class="small text-body-secondary">@messages("phon.settings.regenerateHelp")</p>
+        <button type="button" class="btn btn-outline-danger w-100"
+            hx-post="@controllers.phon.routes.PhonyPhoneController.regenerateIdentity()"
+            hx-target="#screen" hx-swap="outerHTML"
+            hx-confirm="@messages("phon.confirm.regenerate", contactCount)">
+            @messages("phon.action.regenerate")
+        </button>
+    </div>
+
+    <div class="list-group-item">
+        <div class="fw-semibold mb-1">@messages("phon.settings.appearance")</div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="phonThemeSwitch">
+            <label class="form-check-label" for="phonThemeSwitch">@messages("phon.settings.darkMode")</label>
+        </div>
+        <div class="mt-2">
+            <a class="btn btn-sm btn-outline-secondary @if(messages("locale") == "en"){disabled}"
+                href="@controllers.phon.routes.PhonyPhoneController.settings()?locale=en">English</a>
+            <a class="btn btn-sm btn-outline-secondary @if(messages("locale") == "de"){disabled}"
+                href="@controllers.phon.routes.PhonyPhoneController.settings()?locale=de">Deutsch</a>
+        </div>
+    </div>
+
+    @* No mobile counterpart. Resetting a phony phone to a clean slate is what makes it worth having. *@
+    <div class="list-group-item">
+        <div class="fw-semibold text-danger mb-1">@messages("phon.settings.dangerZone")</div>
+        <p class="small text-body-secondary">@messages("phon.settings.forgetHelp")</p>
+        <button type="button" class="btn btn-danger w-100"
+            hx-delete="@controllers.phon.routes.PhonyPhoneController.unregister()"
+            hx-confirm="@messages("phon.confirm.forgetIdentity")">
+            @messages("phon.action.forgetIdentity")
+        </button>
+    </div>
+
+</div>

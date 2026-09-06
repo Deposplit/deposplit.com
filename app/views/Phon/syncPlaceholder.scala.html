@@ -22,11 +22,14 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon.Shell
+@*
+* Phase two. The screen has already rendered from local storage; this fetches the synced version
+* over the top of it, so an unreachable relay costs a spinner rather than the whole page.
+*@
+@(call: Call)(implicit messages: Messages)
 
-@* A screen as a whole document, for a plain browser request. htmx gets screen.scala.html instead. *@
-@(shell: Shell, body: Html)(implicit request: RequestHeader, messages: Messages)
-
-@phonDocument(s"""${messages(shell.titleKey)} — ${shell.pseudonym}""") {
-    @screen(shell, body)
-}
+<div class="text-center py-3" hx-get="@call" hx-trigger="load" hx-target="#screen" hx-swap="outerHTML">
+    <output class="spinner-border spinner-border-sm text-secondary">
+        <span class="visually-hidden">@messages("phon.syncing")</span>
+    </output>
+</div>

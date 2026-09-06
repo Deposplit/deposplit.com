@@ -1,0 +1,91 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.PhonForms.DepositRecord
+@import value_objects.svo.Contact
+@import value_objects.svo.SecretLimits
+
+@*
+* Split a secret and hand the pieces out - either typed text or a picked PNG or JPEG, the same two
+* payloads the mobile forms take.
+*
+* Two controls rather than one, because a plain HTML form cannot swap one for the other the way the
+* mobile forms do. Filling both is refused rather than resolved in the file's favour: quietly
+* dropping what somebody typed is the kind of loss nobody notices.
+*
+* No free-tier notice and no paywall, unlike the mobile forms - phon has no purchases port at all.
+*@
+@(depositForm: Form[DepositRecord], contacts: List[Contact], action: Call = controllers.phon.routes.SecretsController.deposit(), submitKey: String = "phon.action.deposit")(implicit request: RequestHeader, messages: Messages)
+
+@if(contacts.isEmpty) {
+    @emptyState("bi-people", "phon.empty.depositNoContacts")
+} else {
+    <div class="p-3">
+        @* htmx honours the form's own enctype, so this posts as multipart with or without JavaScript. *@
+        <form hx-post="@action" hx-target="#screen" hx-swap="outerHTML" enctype="multipart/form-data">
+            @for(error <- depositForm.globalErrors) {
+                <div class="alert alert-danger">@messages(error.message)</div>
+            }
+            <div class="mb-3">
+                <label class="form-label" for="deposit-label">@messages("phon.field.label")</label>
+                <input type="text" class="form-control @if(depositForm("label").hasErrors){is-invalid}"
+                    id="deposit-label" name="label" value="@depositForm("label").value"
+                    placeholder="@messages("phon.deposit.labelPlaceholder")" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="deposit-secret">@messages("phon.field.secret")</label>
+                <textarea class="form-control @if(depositForm("secret").hasErrors){is-invalid}"
+                    id="deposit-secret" name="secret" rows="4">@depositForm("secret").value</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="deposit-file">@messages("phon.field.secretFile")</label>
+                <input type="file" class="form-control" id="deposit-file" name="secretFile"
+                    accept="image/png,image/jpeg">
+                <div class="form-text">@messages("phon.deposit.fileHelp")</div>
+                <div class="form-text">@messages("phon.deposit.sizeLimit", SecretLimits.MaxSecretBytes / 1024)</div>
+            </div>
+            <fieldset class="mb-3">
+                <legend class="form-label">@messages("phon.deposit.recipients")</legend>
+                @for(contact <- contacts) {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="contacts[]"
+                            value="@contact.id" id="deposit-ESC@contact.id"
+                            @if(depositForm("contacts").indexes.exists(i => depositForm(s"contacts[$i]").value.contains(contact.id.toString))){checked}>
+                        <label class="form-check-label" for="deposit-ESC@contact.id">
+                            @contact.nickname.getOrElse(contact.pseudonym)
+                            @verificationBadge(contact.verificationLevel)
+                        </label>
+                    </div>
+                }
+            </fieldset>
+            <div class="mb-3">
+                <label class="form-label" for="deposit-k">@messages("phon.deposit.threshold")</label>
+                <input type="number" class="form-control @if(depositForm("k").hasErrors){is-invalid}"
+                    id="deposit-k" name="k" min="2" value="@depositForm("k").value.getOrElse("2")" required>
+                <div class="form-text">@messages("phon.deposit.thresholdHelp")</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">@messages(submitKey)</button>
+        </form>
+    </div>
+}

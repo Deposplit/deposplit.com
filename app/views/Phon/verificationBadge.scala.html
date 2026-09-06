@@ -22,14 +22,23 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon._
+@import value_objects.svo.VerificationLevel
 
-@(deletedPhoneId: Int)(implicit messages: Messages)
+@*
+* How well this contact was checked. VeryLow is the default for typed keys and says nothing worth
+* a badge, so it is left unlabelled - the same choice both mobile contact lists make.
+*@
+@(level: VerificationLevel)(implicit messages: Messages)
 
-<!-- disable tab -->
-<li class="nav-item" id="phonyPhone@deletedPhoneId" hx-swap-oob="true">
-    <a class="nav-link disabled" href="#">@deletedPhoneId <i class="bi bi-phone-flip"></i></a>
-</li>
-
-<!-- replace div -->
-<div id="phonyPhoneDiv" hx-swap-oob="true">DELETED</div>
+@level match {
+    case VerificationLevel.VeryHigh => {
+        <span class="badge text-bg-success">@messages("phon.verification.veryHigh")</span>
+    }
+    case VerificationLevel.High => {
+        <span class="badge text-bg-primary">@messages("phon.verification.high")</span>
+    }
+    case VerificationLevel.Low => {
+        <span class="badge text-bg-warning">@messages("phon.verification.low")</span>
+    }
+    case _ => {}
+}

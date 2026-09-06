@@ -22,11 +22,30 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon.Shell
+@import controllers.phon.FreshnessBucket
+@import controllers.phon.HolderStatus
 
-@* A screen as a whole document, for a plain browser request. htmx gets screen.scala.html instead. *@
-@(shell: Shell, body: Html)(implicit request: RequestHeader, messages: Messages)
+@*
+* What this holder's silence means. Confirmed-and-fresh says nothing; the three cases that do are
+* the opt-out (never an alarm), the early nudge, and the overdue one that has dropped out of n_live.
+*@
+@(holder: HolderStatus, now: java.time.Instant)(implicit messages: Messages)
 
-@phonDocument(s"""${messages(shell.titleKey)} — ${shell.pseudonym}""") {
-    @screen(shell, body)
+@holder.freshnessBucket(now) match {
+    case FreshnessBucket.Unmonitored => {
+        <span class="text-body-secondary small">
+            <i class="bi bi-eye-slash"></i> @messages("phon.freshness.unmonitored")
+        </span>
+    }
+    case FreshnessBucket.SilentOverdue => {
+        <span class="text-danger small">
+            <i class="bi bi-exclamation-triangle"></i> @messages("phon.freshness.silentOverdue")
+        </span>
+    }
+    case FreshnessBucket.Confirmed if holder.isGettingStale(now) => {
+        <span class="text-warning-emphasis small">
+            <i class="bi bi-clock-history"></i> @messages("phon.freshness.gettingStale")
+        </span>
+    }
+    case _ => {}
 }

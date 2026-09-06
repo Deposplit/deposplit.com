@@ -1,0 +1,67 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.QrPayload
+
+@*
+* What another phone needs in order to add this one. A real device shows a code to a camera; two
+* browser windows have no camera between them, so the same payload is offered as text to copy - and
+* as the code as well, because a real handset can still scan the screen.
+*@
+@(payload: Option[QrPayload])(implicit request: RequestHeader, messages: Messages)
+
+@payload match {
+    case None => {
+        @emptyState("bi-key", "phon.qr.noKeys")
+    }
+    case Some(qrPayload) => {
+        <div class="p-3">
+            <dl class="row mb-3">
+                <dt class="col-4">@messages("phon.field.pseudonym")</dt>
+                <dd class="col-8">@qrPayload.pseudonym</dd>
+                <dt class="col-4">@messages("phon.field.verifyKey")</dt>
+                <dd class="col-8 phon-key">@qrPayload.verifyKey</dd>
+                <dt class="col-4">@messages("phon.field.encKey")</dt>
+                <dd class="col-8 phon-key">@qrPayload.encKey</dd>
+                <dt class="col-4">@messages("phon.field.relay")</dt>
+                <dd class="col-8 phon-key">@qrPayload.relay</dd>
+            </dl>
+
+            <label class="form-label" for="qrPayloadText">@messages("phon.qr.payload")</label>
+            <textarea class="form-control font-monospace mb-2" id="qrPayloadText" rows="4"
+                readonly>@QrPayload.encode(qrPayload)</textarea>
+            <button type="button" class="btn btn-outline-secondary w-100 mb-3"
+                data-phon-copy="qrPayloadText"
+                data-phon-copied="@messages("phon.action.copied")">
+                <i class="bi bi-clipboard"></i> @messages("phon.action.copyPayload")
+            </button>
+            <p class="small text-body-secondary">@messages("phon.qr.help")</p>
+
+            <button type="button" class="btn btn-outline-secondary w-100"
+                hx-get="@controllers.phon.routes.PhonyPhoneController.qrImage()" hx-swap="outerHTML">
+                <i class="bi bi-qr-code"></i> @messages("phon.action.showQrCode")
+            </button>
+        </div>
+    }
+}

@@ -22,11 +22,22 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon.Shell
+@import value_objects.svo.ShareRequestState
 
-@* A screen as a whole document, for a plain browser request. htmx gets screen.scala.html instead. *@
-@(shell: Shell, body: Html)(implicit request: RequestHeader, messages: Messages)
+@* The four states a request can be in, in the same words on every screen that shows one. *@
+@(state: ShareRequestState)(implicit messages: Messages)
 
-@phonDocument(s"""${messages(shell.titleKey)} — ${shell.pseudonym}""") {
-    @screen(shell, body)
+@state match {
+    case ShareRequestState.Pending => {
+        <span class="badge text-bg-light">@messages("phon.requestState.pending")</span>
+    }
+    case ShareRequestState.Approved => {
+        <span class="badge text-bg-success">@messages("phon.requestState.approved")</span>
+    }
+    case ShareRequestState.Denied => {
+        <span class="badge text-bg-danger">@messages("phon.requestState.denied")</span>
+    }
+    case ShareRequestState.Withdrawn => {
+        <span class="badge text-bg-secondary">@messages("phon.requestState.withdrawn")</span>
+    }
 }

@@ -1,0 +1,78 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.PhonForms
+@import controllers.phon.PhonForms.RelinkRecord
+@import value_objects.svo.Contact
+
+@*
+* The same person, new keys. Updated in place so the contact id survives, because every share this
+* device holds from them is anchored to it.
+*
+* The level is chosen fresh every time and never carried forward: a key change proves continuity of
+* key control, which is not the same as proving who is holding the phone.
+*@
+@(contact: Contact, relinkForm: Form[RelinkRecord])(implicit request: RequestHeader, messages: Messages)
+
+<div class="p-3">
+    <p class="text-body-secondary">@messages("phon.relink.intro", contact.nickname.getOrElse(contact.pseudonym))</p>
+
+    <form hx-post="@controllers.phon.routes.ContactsController.relink(contact.id)"
+        hx-target="#screen" hx-swap="outerHTML">
+        @for(error <- relinkForm.globalErrors) {
+            <div class="alert alert-danger">@messages(error.message)</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="relink-payload">@messages("phon.field.payload")</label>
+            <textarea class="form-control font-monospace" id="relink-payload" name="payload"
+                rows="4">@relinkForm("payload").value</textarea>
+            <div class="form-text">@messages("phon.relink.payloadHelp")</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="relink-verifyKey">@messages("phon.field.verifyKey")</label>
+            <input type="text" class="form-control font-monospace" id="relink-verifyKey" name="verifyKey"
+                value="@relinkForm("verifyKey").value">
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="relink-encKey">@messages("phon.field.encKey")</label>
+            <input type="text" class="form-control font-monospace" id="relink-encKey" name="encKey"
+                value="@relinkForm("encKey").value">
+        </div>
+        <fieldset class="mb-3">
+            <legend class="form-label">@messages("phon.field.verificationLevel")</legend>
+            @for(level <- PhonForms.allLevels) {
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="verificationLevel"
+                        id="relink-level-@level" value="@level"
+                        @if(relinkForm("verificationLevel").value.getOrElse("VeryHigh") == level.toString){checked}>
+                    <label class="form-check-label" for="relink-level-@level">
+                        @messages(s"phon.verification.${level.toString.head.toLower}${level.toString.tail}")
+                    </label>
+                </div>
+            }
+            <div class="form-text">@messages("phon.relink.levelFooter")</div>
+        </fieldset>
+        <button type="submit" class="btn btn-primary w-100">@messages("phon.action.confirmRelink")</button>
+    </form>
+</div>

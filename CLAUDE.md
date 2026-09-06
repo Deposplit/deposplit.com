@@ -66,17 +66,28 @@ names, same value objects. A change to shared concepts should land everywhere.
 
 **phon is the exception, and is deliberately second-class.** It is a browser-based phone
 emulator for teaching and manual testing — not a product surface. Changes are ported to it
-for *consistency*, not full *parity*: it routinely skips UI affordances the mobile apps have
-(no rename action, no health badges, no conflict list) because its minimal HTMX views have
-no plumbing for them. Skipping UI in phon is normal and needs no justification; skipping
-domain logic does.
+for *consistency*, not full *parity*. What it skips it skips for a reason it can state:
+
+- **no camera**, so a contact is added by pasting the payload a phone would have scanned, or
+  by typing the two keys — the same two entries the apps offer, minus the lens
+- **no export**, so a reconstructed secret is shown on screen and cannot be saved to a file
+- **no purchases port**, so there is no paywall, no free-tier cap and no Premium gate on the
+  relay fields
+- **no keys-lost screen**, because `IdentityIntegrity` cannot reach `KeysLost` here: phon
+  keeps its keys and its state in the same files, so the two cannot come apart
+- **a Danger Zone with no mobile counterpart**, because resetting a test phone to a clean
+  slate is the point of having one
+
+Everything else the apps show, phon now shows: the three tabs, the health badges and
+freshness labels, the conflict list, rename and relink, and the repair wizard. Skipping UI in
+phon is still normal and needs no justification; skipping domain logic does.
 
 ## Build and test
 
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (329: relay 104, phon 148, root 77)
+sbt test                                    # all tests (356: relay 104, phon 149, root 103)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
@@ -114,9 +125,10 @@ swift build
 | `hexagons/phon/` | The phone emulator's own hexagon, mirroring the mobile apps'. No Play. |
 | `app/controllers/api/` | REST controllers and `AuthHelper` |
 | `app/controllers/gui/` | Landing page and Markdown rendering |
+| `app/controllers/phon/` | The emulator's controllers, its forms, and the view models its templates are handed |
 | `app/driven_adapters/persistence/` | Anorm repositories — the only code that knows SQL |
-| `app/views/` | Twirl templates |
-| `conf/` | `routes` (production) and `dev.routes` (adds phon), `openapi.yaml`, `evolutions/`, `messages` + `messages.de` |
+| `app/views/` | Twirl templates; `Phon/` is the emulator's own, with its own document layout |
+| `conf/` | `routes` (production), `dev.routes` (mounts phon) and `phon.routes` (one route per phon screen), `openapi.yaml`, `evolutions/`, `messages` + `messages.de` |
 | `public/markdowns/` | Landing page copy, English and German |
 
 Landing page copy is Markdown loaded over HTMX, not inline in the Twirl templates. Both

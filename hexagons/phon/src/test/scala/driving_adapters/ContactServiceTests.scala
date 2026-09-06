@@ -257,7 +257,13 @@ class ContactServiceTests extends munit.FunSuite:
       InMemoryContactRelinkRepositoryForContactServiceTest()
     )
 
-    svc.addFromQr("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
+    svc.addFromQr(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      CipherSuite.current,
+      VerificationLevel.VeryHigh
+    )
 
     assertEquals(repo.getAll().head.cipherSuite, CipherSuite.current)
   }
@@ -270,9 +276,43 @@ class ContactServiceTests extends munit.FunSuite:
       InMemoryContactRelinkRepositoryForContactServiceTest()
     )
 
-    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
+    svc.addManually(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      VerificationLevel.VeryLow
+    )
 
     assertEquals(repo.getAll().head.cipherSuite, CipherSuite.current)
+  }
+
+  // Both add methods take the level rather than inferring it from the entry path: which path was used is
+  // evidence about the keys, not about how well the person was checked, and the caller is the only one who knows.
+  test("addManually and addFromQr store the verification level they are given") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
+
+    svc.addManually(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      VerificationLevel.High
+    )
+    svc.addFromQr(
+      "carol",
+      Array.fill(32)(0x03.toByte),
+      Array.fill(32)(0x04.toByte),
+      CipherSuite.current,
+      VerificationLevel.Low
+    )
+
+    val contacts = repo.getAll()
+    assertEquals(contacts.find(_.pseudonym == "bob").map(_.verificationLevel), Some(VerificationLevel.High))
+    assertEquals(contacts.find(_.pseudonym == "carol").map(_.verificationLevel), Some(VerificationLevel.Low))
   }
 
   test("addFromQr rejects a verify key whose length does not match the asserted cipherSuite") {
@@ -284,7 +324,13 @@ class ContactServiceTests extends munit.FunSuite:
     )
 
     intercept[IllegalArgumentException] {
-      svc.addFromQr("bob", Array.fill(16)(0x01.toByte), Array.fill(32)(0x02.toByte), CipherSuite.current)
+      svc.addFromQr(
+        "bob",
+        Array.fill(16)(0x01.toByte),
+        Array.fill(32)(0x02.toByte),
+        CipherSuite.current,
+        VerificationLevel.VeryHigh
+      )
     }
   }
 
@@ -400,12 +446,19 @@ class ContactServiceTests extends munit.FunSuite:
       InMemoryContactRelinkRepositoryForContactServiceTest()
     )
 
-    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte), nickname = Some("  Bobby  "))
+    svc.addManually(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      VerificationLevel.VeryLow,
+      nickname = Some("  Bobby  ")
+    )
     svc.addFromQr(
       "carol",
       Array.fill(32)(0x03.toByte),
       Array.fill(32)(0x04.toByte),
       CipherSuite.current,
+      VerificationLevel.VeryHigh,
       nickname = Some("   ")
     )
 
@@ -422,7 +475,12 @@ class ContactServiceTests extends munit.FunSuite:
       InMemoryContactRelinkRepositoryForContactServiceTest()
     )
 
-    svc.addManually("bob", Array.fill(32)(0x01.toByte), Array.fill(32)(0x02.toByte))
+    svc.addManually(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      VerificationLevel.VeryLow
+    )
 
     assertEquals(repo.getAll().head.nickname, None)
   }

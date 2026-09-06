@@ -22,38 +22,10 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon._
-@import driving_ports.ShareManagement
+@* Every list says the same thing when it is empty: nothing here yet, and no button to press. *@
+@(icon: String, messageKey: String)(implicit messages: Messages)
 
-@import helper._
-
-
-@(shareManagement: ShareManagement)(implicit request: RequestHeader, messages: Messages)
-
-<div id="shareRequests">
-  <table class="table">
-    <thead>
-      <tr>
-        <th scope="col">shareLabel</th>
-        <th scope="col">transactionType</th>
-        <th scope="col">state</th>
-        <th scope="col">requestedAt</th>
-        <th scope="col">respondedAt</th>
-        <th scope="col"></th>
-      </tr>
-    </thead>
-    <tbody>
-      @for(shareRequest <- shareManagement.listPendingRequests()){
-        <!-- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/ident#invalid_identifiers -->
-        <tr id="ESC@shareRequest.id.toString">
-          <th scope="row" title="@shareRequest.id.toString">@shareRequest.label</th>
-          <td>@shareRequest.transactionType</td>
-          <td>@shareRequest.state</td>
-          <td>@shareRequest.requestedAt</td>
-          <td>@shareRequest.respondedAt</td>
-          <td>HANDLE REQUEST</td>
-        </tr>
-      }
-    </tbody>
-  </table>
+<div class="phon-empty">
+    <i class="bi @icon"></i>
+    @messages(messageKey)
 </div>

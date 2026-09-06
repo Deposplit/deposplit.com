@@ -27,230 +27,137 @@ package controllers.phon
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.client.j2se.MatrixToImageWriter
 import com.google.zxing.qrcode.QRCodeWriter
-import driven_ports.ForgettableIdentityStore
+import driven_ports.RelaySettings
 import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
 import driving_ports.ShareManagement
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import play.api.Logging
-import play.api.i18n.I18nSupport
 import play.api.mvc.AnyContent
-import play.api.mvc.BaseController
 import play.api.mvc.ControllerComponents
-import play.api.mvc.Cookie
-import play.api.mvc.DiscardingCookie
 import play.api.mvc.Request
-import value_objects.svo.MimeType
-import java.nio.charset.StandardCharsets
-import java.time.Instant
-import java.util.UUID
+import value_objects.svo.RegenerateIdentityResult
+
 import scala.util.Try
 
+/** The identity itself: registering one, showing it to other phones, and the settings that hang off it.
+  *
+  * There is no keys-lost screen, unlike the mobile apps. `IdentityIntegrity` says why: phon keeps its keys and its
+  * state in the same files, so the two cannot come apart, and `KeysLost` is unreachable by construction. A screen for a
+  * state that cannot happen would be dead code.
+  */
+@Singleton
 class PhonyPhoneController @Inject() (
     val controllerComponents: ControllerComponents,
-    identity: ForgettableIdentity,
-    contactManagement: ContactManagement,
-    shareManagement: ShareManagement
-) extends BaseController,
-      I18nSupport,
+    override protected val identity: ForgettableIdentity,
+    override protected val contactManagement: ContactManagement,
+    override protected val shareManagement: ShareManagement,
+    override protected val relaySettings: RelaySettings
+) extends PhonSupport,
       Logging:
 
-  def createPseudonym() = Action { implicit request: Request[AnyContent] =>
-    logger.debug("creating pseudonym …")
-    pseudonymForm
+  def register() = Action { implicit request: Request[AnyContent] =>
+    PhonForms.pseudonymForm
       .bindFromRequest()
       .fold(
-        formWithErrors => {
-          logger.debug("… failed to create pseudonym")
-          BadRequest(views.html.Phon.pseudonymForm(formWithErrors))
-        },
-        pseudonymRecord => {
-          identity.register(pseudonymRecord.pseudonym)
-          logger.debug("… created pseudonym")
-          Redirect(routes.PhonyPhoneController.readPseudonym())
-            .flashing("success" -> "createdPseudonym")
+        withErrors => BadRequest(views.html.Phon.signIn(withErrors)),
+        record => {
+          identity.register(record.pseudonym.strip())
+          Redirect(routes.HomeController.distributed())
         }
       )
   }
 
-  def readPseudonym() = Action { implicit request: Request[AnyContent] =>
-    val keys = identity.verifyKey().zip(identity.encKey())
-    if identity.isRegistered() && keys.isDefined then
-      val (verifyKey, encKey) = keys.get
-      Ok(
-        views.html.Phon
-          .phonyPhone(
-            QrPayload(identity.pseudonym(), verifyKey, encKey, Some("http://localhost:9000")),
-            contactManagement,
-            contactForm
-          )
-      )
-    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
-    end if
-  }
-
-  def deletePseudonym() = Action { implicit request: Request[AnyContent] =>
+  /** The reset button a test phone needs and a real one has no equivalent of. Redirects rather than swapping, because
+    * what comes back is the sign-in gate, not a screen.
+    */
+  def unregister() = Action { implicit request: Request[AnyContent] =>
     identity.unregister()
-    NoContent.withHeaders("HX-Redirect" -> routes.PhonyPhoneController.readPseudonym().absoluteURL())
+    NoContent.withHeaders("HX-Redirect" -> routes.HomeController.distributed().url)
   }
 
-  def readQrCode() = Action { implicit request: Request[AnyContent] =>
-    val keys = identity.verifyKey().zip(identity.encKey())
-    if !identity.isRegistered() || keys.isEmpty then Conflict
-    else
-      val (verifyKey, encKey) = keys.get
-      val payload =
-        QrPayload.encode(identity.pseudonym(), verifyKey, encKey, Some("http://localhost:9000"))
-      val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 256, 256)
-      val image = MatrixToImageWriter.toBufferedImage(bitMatrix)
-      val baos = java.io.ByteArrayOutputStream()
-      javax.imageio.ImageIO.write(image, "PNG", baos)
-      val base64 = java.util.Base64.getEncoder.encodeToString(baos.toByteArray)
-      Ok(s"""<img src="data:image/png;base64,$base64">""").as("text/html")
-    end if
+  def qrCode() = Action { implicit request: Request[AnyContent] =>
+    registered {
+      render(
+        shellFor("phon.title.qr", back = Some(routes.HomeController.distributed())),
+        views.html.Phon.qrCode(payload)
+      )
+    }
   }
 
-  def createContact() = Action { implicit request: Request[AnyContent] =>
-    logger.debug("creating contact …")
-    contactForm
-      .bindFromRequest()
-      .fold(
-        formWithErrors => {
-          logger.debug("… failed to create contact")
-          BadRequest(
-            views.html.Phon.contactsTable(
-              contactManagement,
-              formWithErrors
+  /** Rendered on demand rather than with the screen: generating it costs nothing here, but the same button on a real
+    * phone is what makes the code appear, and phon is a teaching tool before it is a convenience.
+    */
+  def qrImage() = Action { implicit request: Request[AnyContent] =>
+    payload match
+      case None            => Conflict
+      case Some(qrPayload) =>
+        val bitMatrix = QRCodeWriter().encode(QrPayload.encode(qrPayload), BarcodeFormat.QR_CODE, 256, 256)
+        val image = MatrixToImageWriter.toBufferedImage(bitMatrix)
+        val bytes = java.io.ByteArrayOutputStream()
+        javax.imageio.ImageIO.write(image, "PNG", bytes)
+        val base64 = java.util.Base64.getEncoder.encodeToString(bytes.toByteArray)
+        Ok(s"""<img class="img-fluid" alt="" src="data:image/png;base64,$base64">""").as("text/html")
+  }
+
+  def settings() = Action { implicit request: Request[AnyContent] =>
+    registered(
+      renderSettings(PhonForms.relayForm.fill(PhonForms.RelayRecord(Some(relaySettings.defaultRelayBaseUrl()))))
+    )
+  }
+
+  def saveRelay() = Action { implicit request: Request[AnyContent] =>
+    registered {
+      PhonForms.relayForm
+        .bindFromRequest()
+        .fold(
+          withErrors => renderSettings(withErrors),
+          record => {
+            relaySettings.setDefaultRelayBaseUrl(record.relayBaseUrl)
+            renderSettings(
+              PhonForms.relayForm.fill(PhonForms.RelayRecord(Some(relaySettings.defaultRelayBaseUrl()))),
+              notice = Some("phon.settings.relaySaved")
             )
-          )
-        },
-        contactRecord => {
-          contactManagement
-            .addManually(
-              contactRecord.pseudonym,
-              QrPayload.decodeKey(contactRecord.signKey),
-              QrPayload.decodeKey(contactRecord.transKey)
-            )
-          logger.debug("… created contact")
-          Redirect(routes.PhonyPhoneController.readContacts())
-            .flashing("success" -> "createdContact")
-        }
+          }
+        )
+    }
+  }
+
+  /** Rotating on purpose, while the old keys are still in hand — not the same thing as recovering from having lost
+    * them. Every contact is told, signed by the identity being replaced, before the new one is activated.
+    */
+  def regenerateIdentity() = Action { implicit request: Request[AnyContent] =>
+    registered {
+      val outcome = Try(shareManagement.regenerateIdentity()).toOption
+      renderSettings(
+        PhonForms.relayForm.fill(PhonForms.RelayRecord(Some(relaySettings.defaultRelayBaseUrl()))),
+        regenerated = outcome
       )
+    }
   }
 
-  def readContacts() = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
-      Ok(
-        views.html.Phon
-          .contactsTable(
-            contactManagement,
-            contactForm
-          )
+  private def renderSettings(
+      relayForm: play.api.data.Form[PhonForms.RelayRecord],
+      notice: Option[String] = None,
+      regenerated: Option[RegenerateIdentityResult] = None
+  )(using request: Request[AnyContent]) =
+    render(
+      shellFor("phon.title.settings", back = Some(routes.HomeController.distributed())),
+      views.html.Phon.settings(
+        relayForm,
+        identity.pseudonym(),
+        identity.identityCreatedAt(),
+        contactManagement.listContacts().size,
+        notice,
+        regenerated
       )
-    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
-    end if
-  }
+    )
 
-  def deleteContact(contactId: UUID) = Action { implicit request: Request[AnyContent] =>
-    contactManagement.deleteContact(contactId)
-    /* NoContent <- https://four.htmx.org/reference/attributes/hx-delete#notes -> */
-    Ok
-  }
-
-  def getSecretSharingForm = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
-      Ok(
-        views.html.Phon
-          .secretSharingForm(
-            secretSharingForm,
-            contactManagement.listContacts()
-          )
+  private def payload: Option[QrPayload] =
+    identity
+      .verifyKey()
+      .zip(identity.encKey())
+      .map((verifyKey, encKey) =>
+        QrPayload(identity.pseudonym(), verifyKey, encKey, Some(relaySettings.defaultRelayBaseUrl()))
       )
-    else Redirect(routes.PhonyPhoneController.readPseudonym())
-    end if
-  }
-
-  def createMySecret() = Action { implicit request: Request[AnyContent] =>
-    logger.debug("sharing secret …")
-    secretSharingForm
-      .bindFromRequest()
-      .fold(
-        formWithErrors => {
-          logger.debug("… failed to share secret")
-          BadRequest(
-            views.html.Phon.secretSharingForm(
-              formWithErrors,
-              contactManagement.listContacts()
-            )
-          )
-        },
-        secretSharingRecord => {
-          val contactIds = secretSharingRecord.contacts.toSet.map(UUID.fromString(_))
-          shareManagement.deposit(
-            secretSharingRecord.secret.trim.getBytes(StandardCharsets.UTF_8),
-            secretSharingRecord.label.trim,
-            contactManagement.listContacts().filter(contact => contactIds.contains(contact.id)),
-            secretSharingRecord.k,
-            // The form takes typed text and nothing else, so the type is not a guess. Stated rather
-            // than defaulted, so adding an upload here is visibly a change to this line.
-            MimeType("text/plain")
-          )
-          logger.debug("… shared secret")
-          Redirect(routes.PhonyPhoneController.readPseudonym())
-            .flashing("success" -> "sharedSecret")
-        }
-      )
-  }
-
-  def readMySecrets = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
-      shareManagement.syncDistributed()
-      Ok(
-        views.html.Phon
-          .mySecrets(
-            shareManagement,
-            contactManagement.listContacts().map(contact => (contact.id, contact.pseudonym)).toMap
-          )
-      )
-    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
-    end if
-  }
-
-  def deleteMySecret(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
-    shareManagement.discardSecret(secretId)
-    NoContent
-  }
-
-  def createTheirShares() = Action { implicit request: Request[AnyContent] =>
-    Try {
-      shareManagement.syncInbox()
-      Redirect(routes.PhonyPhoneController.readTheirShares())
-        .withCookies(Cookie("latestInboxSync", Instant.now().toString))
-        .flashing("success" -> "synchedInbox")
-    }.getOrElse(InternalServerError)
-  }
-
-  def readTheirShares = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
-      Ok(
-        views.html.Phon
-          .theirShares(
-            shareManagement
-          )
-      )
-    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
-    end if
-  }
-
-  def readPendingRequests = Action { implicit request: Request[AnyContent] =>
-    if identity.isRegistered() then
-      Ok(
-        views.html.Phon
-          .pendingRequests(
-            shareManagement
-          )
-      )
-    else Ok(views.html.Phon.pseudonymForm(pseudonymForm))
-    end if
-  }

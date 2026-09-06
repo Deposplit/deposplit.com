@@ -22,11 +22,26 @@
 * THE SOFTWARE.
 *@
 
-@import controllers.phon.Shell
+@import controllers.phon.SecretGroup
+@import controllers.phon.SecretHealth
 
-@* A screen as a whole document, for a plain browser request. htmx gets screen.scala.html instead. *@
-@(shell: Shell, body: Html)(implicit request: RequestHeader, messages: Messages)
+@*
+* The graduated n_live alarm. Healthy says nothing: a badge that is always there is not a warning.
+*@
+@(group: SecretGroup, now: java.time.Instant)(implicit messages: Messages)
 
-@phonDocument(s"""${messages(shell.titleKey)} — ${shell.pseudonym}""") {
-    @screen(shell, body)
+@group.health(now) match {
+    case SecretHealth.Discarding => {
+        <span class="badge text-bg-secondary">@messages("phon.health.discarding")</span>
+    }
+    case SecretHealth.Caution => {
+        <span class="badge text-bg-warning">@messages("phon.health.caution")</span>
+    }
+    case SecretHealth.Critical => {
+        <span class="badge text-bg-danger">@messages("phon.health.critical")</span>
+    }
+    case SecretHealth.Lost => {
+        <span class="badge text-bg-danger">@messages("phon.health.lost")</span>
+    }
+    case _ => {}
 }

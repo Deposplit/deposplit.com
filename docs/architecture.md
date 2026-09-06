@@ -113,10 +113,16 @@ self-hosted instance has no reason to care either.
 
 **phon is for teaching and testing only, and can be ignored.** It is a browser-based
 emulator that mimics a native app against a live relay, useful for demonstrating the
-protocol without three physical devices. It is not a product surface, holds no real keys,
-and nothing in the shipping system depends on it. It lives in its own sbt subproject
-precisely so it cannot accidentally become a dependency of anything else. If you are
-reading this to understand Deposplit, skip it.
+protocol without three physical devices. Its screens mirror the mobile apps' — the same
+three tabs, the same contacts, deposit, share-detail, repair and settings screens, each on
+its own route — so what a class watches happen in a browser is what happens on a phone. It
+is not a product surface, holds no real keys, and nothing in the shipping system depends on
+it. It lives in its own sbt subproject precisely so it cannot accidentally become a
+dependency of anything else. If you are reading this to understand Deposplit, skip it.
+
+One phony phone is one running instance: every store it keeps is named after the HTTP port
+it was started on, so a second person means a second `sbt run` on a second port, not a
+second browser tab.
 
 phon is unreachable outside development **by construction**, not by a guard. It is mounted
 only by the development router (`conf/dev.routes`, selected in `conf/localhost.conf`), and

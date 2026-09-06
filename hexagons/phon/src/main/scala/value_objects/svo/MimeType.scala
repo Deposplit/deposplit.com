@@ -32,8 +32,8 @@ package value_objects.svo
   * itself the claim is nevertheless true by construction, because [[MimeType.sniffed]] reads it off the payload rather
   * than believing whatever handed the bytes over.
   *
-  * The mobile apps' MimeType additionally classifies (`isText`/`isImage`) for their rendering fork. phon has no
-  * reconstruct screen, so it carries the value without interpreting it.
+  * The mobile apps' MimeType additionally classifies (`isText`/`isImage`) for their rendering fork; phon's reconstruct
+  * screen forks on the companion's constants directly, since it has only the three cases to tell apart.
   */
 case class MimeType(value: String) extends Serializable
 

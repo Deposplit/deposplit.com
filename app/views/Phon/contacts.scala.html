@@ -1,0 +1,115 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.ContactRow
+
+@*
+* Everything about one contact on one row, because a phone has no columns. The action icons are all
+* visible rather than hidden behind a menu, the same choice Android's contact list makes.
+*@
+@(rows: List[ContactRow])(implicit request: RequestHeader, messages: Messages)
+
+@if(rows.isEmpty) {
+    @emptyState("bi-people", "phon.empty.contacts")
+} else {
+    <div class="list-group list-group-flush">
+        @for(row <- rows) {
+            <div class="list-group-item" id="ESC@row.contact.id">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="fw-semibold">@row.displayName</span>
+                    @verificationBadge(row.verificationLevel)
+                    @if(row.keyFlaggedCompromised) {
+                        <i class="bi bi-shield-exclamation text-danger"
+                            title="@messages("phon.contacts.keyCompromised")"></i>
+                    }
+                    @if(row.awaitingRelink) {
+                        <i class="bi bi-person-exclamation text-body-secondary"
+                            title="@messages("phon.contacts.awaitingRelink", row.displayName)"></i>
+                    }
+                    @if(row.contact.heartbeatEmissionOptedOut) {
+                        <i class="bi bi-bell-slash text-body-secondary"
+                            title="@messages("phon.contacts.heartbeatPaused")"></i>
+                    }
+                </div>
+                @row.subtitle.map { pseudonym =>
+                    <div class="small text-body-secondary">@pseudonym</div>
+                }
+                <div class="phon-key text-body-secondary">@controllers.phon.QrPayload.encodeKey(row.contact.verifyKey)</div>
+
+                <form class="input-group input-group-sm mt-2"
+                    hx-post="@controllers.phon.routes.ContactsController.rename(row.contact.id)"
+                    hx-target="#screen" hx-swap="outerHTML">
+                    <input type="text" class="form-control" name="nickname" value="@row.contact.nickname"
+                        placeholder="@messages("phon.field.nickname")"
+                        aria-label="@messages("phon.field.nickname")">
+                    <button class="btn btn-outline-secondary" type="submit">@messages("phon.action.rename")</button>
+                </form>
+
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                    @if(row.awaitingRelink) {
+                        <button type="button" class="btn btn-sm btn-outline-success"
+                            hx-post="@controllers.phon.routes.ContactsController.markRelinked(row.contact.id)"
+                            hx-target="#screen" hx-swap="outerHTML"
+                            title="@messages("phon.action.markRelinked")">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                        hx-get="@controllers.phon.routes.ContactsController.relinkForm(row.contact.id)"
+                        hx-target="#screen" hx-swap="outerHTML" hx-push-url="true"
+                        title="@messages("phon.action.relink")">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                        hx-post="@controllers.phon.routes.ContactsController.toggleHeartbeat(row.contact.id)"
+                        hx-target="#screen" hx-swap="outerHTML"
+                        title="@messages("phon.action.toggleHeartbeat")">
+                        <i class="bi @if(row.contact.heartbeatEmissionOptedOut){bi-bell}else{bi-bell-slash}"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                        hx-post="@controllers.phon.routes.ContactsController.markKeyCompromised(row.contact.id)"
+                        hx-target="#screen" hx-swap="outerHTML"
+                        hx-confirm="@messages("phon.confirm.markCompromised", row.displayName)"
+                        title="@messages("phon.action.markCompromised")">
+                        <i class="bi bi-shield-exclamation"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                        hx-delete="@controllers.phon.routes.ContactsController.delete(row.contact.id)"
+                        hx-target="#screen" hx-swap="outerHTML"
+                        hx-confirm="@messages("phon.confirm.deleteContact", row.displayName)"
+                        title="@messages("phon.action.delete")">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<button type="button" class="phon-fab btn btn-primary"
+    hx-get="@controllers.phon.routes.ContactsController.addForm()"
+    hx-target="#screen" hx-swap="outerHTML" hx-push-url="true"
+    aria-label="@messages("phon.title.addContact")" title="@messages("phon.title.addContact")">
+    <i class="bi bi-person-add"></i>
+</button>

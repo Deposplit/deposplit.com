@@ -1,0 +1,130 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.SecretGroup
+@import controllers.phon.SecretHealth
+
+@*
+* Secrets this device split and handed out, one card per secret with its holders folded inside -
+* the shape both mobile Distributed tabs use. The card, not the share, is the unit: a secret is
+* one thing to its owner even though it left as n pieces.
+*@
+@(groups: List[SecretGroup], syncPending: Boolean)(implicit request: RequestHeader, messages: Messages)
+
+@now = @{ java.time.Instant.now() }
+
+@if(groups.isEmpty && !syncPending) {
+    @emptyState("bi-safe", "phon.empty.distributed")
+} else {
+    <div class="list-group list-group-flush">
+        @for(group <- groups) {
+            <div class="list-group-item" id="ESC@group.secret.id">
+                <div class="d-flex align-items-start gap-2">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">@group.secret.label</div>
+                        <div class="small text-body-secondary">
+                            @messages("phon.distributed.threshold", group.secret.k, group.secret.n)
+                            · @group.secret.secretCreatedAt.toString.take(10)
+                        </div>
+                        <div class="mt-1">@healthBadge(group, now)</div>
+                    </div>
+                    <button class="btn btn-sm btn-link" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#holders-ESC@group.secret.id"
+                        aria-expanded="false" aria-controls="holders-ESC@group.secret.id"
+                        aria-label="@messages("phon.action.expand")">
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                </div>
+
+                <div class="collapse" id="holders-ESC@group.secret.id">
+                    <hr class="my-2">
+                    @for(holder <- group.holders) {
+                        <button type="button"
+                            class="btn btn-link text-start text-decoration-none w-100 px-0 py-1"
+                            hx-get="@controllers.phon.routes.SecretsController.shareDetail(holder.shareId)"
+                            hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                                <span class="text-body">
+                                    @holder.recipientName
+                                    @holder.recipientSubtitle.map { pseudonym =>
+                                        <span class="text-body-secondary small">(@pseudonym)</span>
+                                    }
+                                    <br>@freshnessLabel(holder, now)
+                                </span>
+                                @holder.retrievalRequest.map { retrieval =>
+                                    @requestStateBadge(retrieval.state)
+                                }
+                            </div>
+                        </button>
+                    }
+
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                            hx-post="@controllers.phon.routes.SecretsController.requestAll(group.secret.id)"
+                            hx-target="#screen" hx-swap="outerHTML"
+                            @if(!group.canRequestRetrieval){disabled}>
+                            @messages("phon.action.requestRetrieval")
+                        </button>
+                        @if(group.health(now) == SecretHealth.Caution || group.health(now) == SecretHealth.Critical) {
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                hx-get="@controllers.phon.routes.SecretsController.repair(group.secret.id)"
+                                hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+                                @messages("phon.action.repair")
+                            </button>
+                        }
+                        @if(group.secret.state == value_objects.svo.SecretState.Discarding) {
+                            <span class="align-self-center text-body-secondary small">
+                                @messages("phon.distributed.discarding")
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                hx-post="@controllers.phon.routes.SecretsController.forceForget(group.secret.id)"
+                                hx-target="#screen" hx-swap="outerHTML"
+                                hx-confirm="@messages("phon.confirm.forceForget")">
+                                @messages("phon.action.forceForget")
+                            </button>
+                        } else {
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                hx-delete="@controllers.phon.routes.SecretsController.discard(group.secret.id)"
+                                hx-target="#screen" hx-swap="outerHTML"
+                                hx-confirm="@messages("phon.confirm.discard", group.holders.size)">
+                                @messages("phon.action.discard")
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if(syncPending) {
+    @syncPlaceholder(controllers.phon.routes.HomeController.syncDistributed())
+}
+
+<button type="button" class="phon-fab btn btn-primary"
+    hx-get="@controllers.phon.routes.SecretsController.depositForm()"
+    hx-target="#screen" hx-swap="outerHTML" hx-push-url="true"
+    aria-label="@messages("phon.title.deposit")" title="@messages("phon.title.deposit")">
+    <i class="bi bi-plus-lg"></i>
+</button>

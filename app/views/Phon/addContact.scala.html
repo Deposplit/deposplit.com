@@ -1,0 +1,143 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.PhonForms
+@import controllers.phon.PhonForms.ManualContactRecord
+@import controllers.phon.PhonForms.PayloadContactRecord
+
+@*
+* Two ways in, because a browser has no camera. Pasting the payload the other phone is showing is
+* the stand-in for scanning its code, so it goes through addFromQr and may claim VeryHigh; typing
+* keys out by hand is a different act with different assurance, so it goes through addManually and
+* the picker there stops one level short.
+*@
+@(mode: String, payloadForm: Form[PayloadContactRecord], manualForm: Form[ManualContactRecord])(implicit request: RequestHeader, messages: Messages)
+
+<ul class="nav nav-tabs px-2 pt-2">
+    <li class="nav-item">
+        <button type="button" class="nav-link @if(mode != "manual"){active}"
+            hx-get="@controllers.phon.routes.ContactsController.addForm("payload")"
+            hx-target="#screen" hx-swap="outerHTML">
+            <i class="bi bi-qr-code-scan"></i> @messages("phon.addContact.paste")
+        </button>
+    </li>
+    <li class="nav-item">
+        <button type="button" class="nav-link @if(mode == "manual"){active}"
+            hx-get="@controllers.phon.routes.ContactsController.addForm("manual")"
+            hx-target="#screen" hx-swap="outerHTML">
+            <i class="bi bi-keyboard"></i> @messages("phon.addContact.manual")
+        </button>
+    </li>
+</ul>
+
+<div class="p-3">
+@if(mode == "manual") {
+    <form hx-post="@controllers.phon.routes.ContactsController.add()" hx-target="#screen" hx-swap="outerHTML">
+        @for(error <- manualForm.globalErrors) {
+            <div class="alert alert-danger">@error.message</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="manual-pseudonym">@messages("phon.field.pseudonym")</label>
+            <input type="text" class="form-control @if(manualForm("pseudonym").hasErrors){is-invalid}"
+                id="manual-pseudonym" name="pseudonym" value="@manualForm("pseudonym").value" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="manual-verifyKey">@messages("phon.field.verifyKey")</label>
+            <input type="text" class="form-control font-monospace @if(manualForm("verifyKey").hasErrors){is-invalid}"
+                id="manual-verifyKey" name="verifyKey" value="@manualForm("verifyKey").value" required>
+            <div class="form-text">@messages("phon.field.keyHelp")</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="manual-encKey">@messages("phon.field.encKey")</label>
+            <input type="text" class="form-control font-monospace @if(manualForm("encKey").hasErrors){is-invalid}"
+                id="manual-encKey" name="encKey" value="@manualForm("encKey").value" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="manual-nickname">@messages("phon.field.nickname")</label>
+            <input type="text" class="form-control" id="manual-nickname" name="nickname"
+                value="@manualForm("nickname").value">
+            <div class="form-text">@messages("phon.field.nicknameHelp")</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="manual-relay">@messages("phon.field.relayOverride")</label>
+            <input type="url" class="form-control" id="manual-relay" name="relayBaseUrl"
+                value="@manualForm("relayBaseUrl").value" placeholder="http://localhost:9001">
+            <div class="form-text">@messages("phon.field.relayOverrideHelp")</div>
+        </div>
+        <fieldset class="mb-3">
+            <legend class="form-label">@messages("phon.field.verificationLevel")</legend>
+            @for(level <- PhonForms.manualLevels) {
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="verificationLevel"
+                        id="manual-level-@level" value="@level"
+                        @if(manualForm("verificationLevel").value.getOrElse(PhonForms.manualLevels.head.toString) == level.toString){checked}>
+                    <label class="form-check-label" for="manual-level-@level">
+                        @messages(s"phon.verification.${level.toString.head.toLower}${level.toString.tail}")
+                        <span class="d-block small text-body-secondary">
+                            @messages(s"phon.verification.guidance.${level.toString.head.toLower}${level.toString.tail}")
+                        </span>
+                    </label>
+                </div>
+            }
+            <div class="form-text">@messages("phon.addContact.manualLevelFooter")</div>
+        </fieldset>
+        <button type="submit" class="btn btn-primary w-100">@messages("phon.action.save")</button>
+    </form>
+} else {
+    <form hx-post="@controllers.phon.routes.ContactsController.add()" hx-target="#screen" hx-swap="outerHTML">
+        @for(error <- payloadForm.globalErrors) {
+            <div class="alert alert-danger">@error.message</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="payload">@messages("phon.field.payload")</label>
+            <textarea class="form-control font-monospace @if(payloadForm("payload").hasErrors){is-invalid}"
+                id="payload" name="payload" rows="5" required>@payloadForm("payload").value</textarea>
+            <div class="form-text">@messages("phon.addContact.pasteHelp")</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="payload-nickname">@messages("phon.field.nickname")</label>
+            <input type="text" class="form-control" id="payload-nickname" name="nickname"
+                value="@payloadForm("nickname").value">
+        </div>
+        <fieldset class="mb-3">
+            <legend class="form-label">@messages("phon.field.verificationLevel")</legend>
+            @for(level <- PhonForms.allLevels) {
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="verificationLevel"
+                        id="payload-level-@level" value="@level"
+                        @if(payloadForm("verificationLevel").value.getOrElse("VeryHigh") == level.toString){checked}>
+                    <label class="form-check-label" for="payload-level-@level">
+                        @messages(s"phon.verification.${level.toString.head.toLower}${level.toString.tail}")
+                        <span class="d-block small text-body-secondary">
+                            @messages(s"phon.verification.guidance.${level.toString.head.toLower}${level.toString.tail}")
+                        </span>
+                    </label>
+                </div>
+            }
+            <div class="form-text">@messages("phon.addContact.payloadLevelFooter")</div>
+        </fieldset>
+        <button type="submit" class="btn btn-primary w-100">@messages("phon.action.save")</button>
+    </form>
+}
+</div>

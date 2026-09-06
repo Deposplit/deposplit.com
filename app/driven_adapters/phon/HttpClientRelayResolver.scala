@@ -24,6 +24,7 @@
 
 package driven_adapters.phon
 
+import driven_ports.RelaySettings
 import driven_ports.ShareRelay
 import driven_ports.ShareRelayResolver
 import driving_ports.Identity
@@ -31,16 +32,16 @@ import jakarta.inject.Inject
 
 import java.util.concurrent.ConcurrentHashMap
 
-/** phon is a manual-testing dev tool, not a real device — it has no persisted "default relay" setting (unlike
-  * Android/iOS's runtime-configurable default). It hardcodes the same `localhost:9000` default `HttpClientShareRelay`
-  * always used, but still honors a per-contact `relayBaseUrl` override so BYOR can be exercised in interop testing
-  * (e.g. two local `sbt run` instances on different ports).
+/** Resolves a contact's per-contact `relayBaseUrl` override, falling back to this device's configured default — so BYOR
+  * can be exercised in interop testing against two local `sbt run` instances on different ports.
+  *
+  * The cache is keyed by URL rather than held as a single field, so changing the default relay in Settings takes effect
+  * on the next call without anything having to be invalidated.
   */
-class HttpClientRelayResolver @Inject() (identity: Identity) extends ShareRelayResolver:
+class HttpClientRelayResolver @Inject() (identity: Identity, relaySettings: RelaySettings) extends ShareRelayResolver:
 
-  private val DefaultBaseUrl = "http://localhost:9000"
   private val cache = ConcurrentHashMap[String, ShareRelay]()
 
   override def resolve(relayBaseUrl: Option[String]): ShareRelay =
-    val url = relayBaseUrl.getOrElse(DefaultBaseUrl)
+    val url = relayBaseUrl.getOrElse(relaySettings.defaultRelayBaseUrl())
     cache.computeIfAbsent(url, u => HttpClientShareRelay(identity, u))

@@ -45,10 +45,10 @@ place rather than growing this list into a second manual.
 
 ### Pictures (not written up)
 
-- [ ] `A` `I` **A JPEG survives the round trip byte for byte.** Deposit a JPEG on one platform, reconstruct on the other, export it, and `cmp` against the source file. JPEG rather than PNG on purpose: export used to re-encode to PNG while naming the file from the declared type, so a re-encode would hand back PNG bytes under a `.jpg` name and look right in a viewer.
+- [ ] `A` `I` `phon` **A JPEG survives the round trip byte for byte.** Deposit a JPEG on one platform, reconstruct on the other, export it, and `cmp` against the source file. JPEG rather than PNG on purpose: export used to re-encode to PNG while naming the file from the declared type, so a re-encode would hand back PNG bytes under a `.jpg` name and look right in a viewer. phon can be the depositing end now that it uploads images, and it shows a reconstructed one on screen - but it has no export, so the `cmp` still needs a real device receiving.
 - [ ] `A` `I` **The size cap holds at both ends.** A secret of exactly 256 KiB deposits and reconstructs — that is ~262 KB of ciphertext and ~341 KiB of base64 body, so it also proves the relay's 512 KiB and 1 MiB bounds have real headroom. One byte over is refused at pick time, naming the file's actual size, without the file being read into memory first.
 - [ ] `I` **A straight-from-camera photo is refused by type.** An unmodified iPhone photo is HEIC. It must be turned away as an unsupported type, never silently transcoded to JPEG behind the user's back — verbatim or refused is the whole rule.
-- [ ] `A` `I` **A repair carries an image through untouched.** Reconstruct an image secret, re-split it through the repair flow, reconstruct again, and `cmp` against the original. This is the path where bytes used to round-trip through a `String` and come back corrupted.
+- [ ] `A` `I` `phon` **A repair carries an image through untouched.** Reconstruct an image secret, re-split it through the repair flow, reconstruct again, and `cmp` against the original. This is the path where bytes used to round-trip through a `String` and come back corrupted.
 - [ ] `A` `I` **EXIF rides along, including GPS.** Deposit a photo carrying location EXIF and confirm it is still there after reconstruction on the other platform. [docs/security.md](docs/security.md) says this is deliberate; confirm the document and the code still agree.
 
 ### Freemium (not written up)
@@ -73,7 +73,6 @@ place rather than growing this list into a second manual.
 
 ## Chores
 
-- [ ] `phon` **phon cannot upload an image.** Its hexagon already enforces the 256 KiB cap and recognises PNG/JPEG, but the deposit form is still text-only, so phon can demonstrate a `text/plain` deposit and nothing else. Adding a file input means switching `createMySecret` from a URL-encoded `Form` to a multipart body, and dropping the `.trim` that assumes the secret is text. Worth having for teaching: phon cannot reconstruct, so sending an image to a real device is the only way to show the flow without two phones.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Open questions

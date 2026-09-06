@@ -22,16 +22,25 @@
  * THE SOFTWARE.
  */
 
-// Optional-chained because not every page in this app carries the switch: phon has a frame of
-// its own, with no marketing navbar to hang it on.
-document.getElementById('bsThemeSwitch')?.addEventListener('change', switchBootstrapTheme);
+package driven_adapters.phon
 
-// cf. https://htmx.org/docs/#scripting or https://hypermedia.systems/client-side-scripting/#rsjs for more htmx-idiomatic approaches
-function switchBootstrapTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute("data-bs-theme");
-  html.setAttribute(
-    "data-bs-theme",
-    currentTheme === "light" ? "dark" : "light"
-  );
-}
+import driven_ports.ShareRelayResolver
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
+import value_objects.svo.Role
+
+import scala.util.Try
+
+/** Answers "is the relay answering?" so a screen can say so.
+  *
+  * The hexagon cannot answer it: `syncInbox` and `syncDistributed` deliberately swallow a per-relay failure, because
+  * one unreachable relay must not blank out the contacts routed through the others. That is the right behaviour for the
+  * domain and the wrong one for a banner, so the question is asked here instead - against the device's default relay,
+  * through the same signed call a sync makes, so it cannot report reachable for a relay that would reject the real
+  * traffic.
+  */
+@Singleton
+class RelayProbe @Inject() (relayResolver: ShareRelayResolver):
+
+  def defaultRelayAnswers(): Boolean =
+    Try(relayResolver.resolve(None).listShareRequests(Role.Recipient)).isSuccess

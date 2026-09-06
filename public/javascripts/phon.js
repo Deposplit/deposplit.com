@@ -22,16 +22,34 @@
  * THE SOFTWARE.
  */
 
-// Optional-chained because not every page in this app carries the switch: phon has a frame of
-// its own, with no marketing navbar to hang it on.
-document.getElementById('bsThemeSwitch')?.addEventListener('change', switchBootstrapTheme);
+/*
+ * Delegated rather than bound, because every screen arrives through an htmx swap: a handler
+ * attached at load would be attached to markup that is about to be replaced.
+ */
 
-// cf. https://htmx.org/docs/#scripting or https://hypermedia.systems/client-side-scripting/#rsjs for more htmx-idiomatic approaches
-function switchBootstrapTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute("data-bs-theme");
-  html.setAttribute(
-    "data-bs-theme",
-    currentTheme === "light" ? "dark" : "light"
-  );
-}
+document.addEventListener("change", (event) => {
+  if (event.target.id === "phonThemeSwitch") {
+    const html = document.documentElement;
+    html.setAttribute(
+      "data-bs-theme",
+      html.getAttribute("data-bs-theme") === "light" ? "dark" : "light"
+    );
+  }
+});
+
+/* Copying the payload is how a phony phone stands in for holding two handsets up to each other. */
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-phon-copy]");
+  if (!button) return;
+  const source = document.getElementById(button.getAttribute("data-phon-copy"));
+  if (!source) return;
+  navigator.clipboard.writeText(source.value ?? source.textContent).then(() => {
+    const done = button.getAttribute("data-phon-copied");
+    if (!done) return;
+    const original = button.innerHTML;
+    button.innerHTML = done;
+    setTimeout(() => {
+      button.innerHTML = original;
+    }, 1500);
+  });
+});

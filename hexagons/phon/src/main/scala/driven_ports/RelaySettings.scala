@@ -22,16 +22,14 @@
  * THE SOFTWARE.
  */
 
-// Optional-chained because not every page in this app carries the switch: phon has a frame of
-// its own, with no marketing navbar to hang it on.
-document.getElementById('bsThemeSwitch')?.addEventListener('change', switchBootstrapTheme);
+package driven_ports
 
-// cf. https://htmx.org/docs/#scripting or https://hypermedia.systems/client-side-scripting/#rsjs for more htmx-idiomatic approaches
-function switchBootstrapTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute("data-bs-theme");
-  html.setAttribute(
-    "data-bs-theme",
-    currentTheme === "light" ? "dark" : "light"
-  );
-}
+/** The device's runtime-configurable default relay — used by [[ShareRelayResolver]] for any `Contact` without an
+  * explicit `relayBaseUrl` override, and embedded in this device's own outgoing QR payload so contacts know where to
+  * deposit shares for it.
+  */
+trait RelaySettings:
+  def defaultRelayBaseUrl(): String
+
+  /** Passing `None` resets to the built-in fallback. */
+  def setDefaultRelayBaseUrl(url: Option[String]): Unit

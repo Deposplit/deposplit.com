@@ -1,26 +1,57 @@
 # https://www.playframework.com/documentation/latest/ScalaRouting#The-routes-file-syntax
+#
+# One route per screen, mirroring the Android nav graph and the iOS tab shell: the three tabs
+# and every pushed screen are addressable, so a reload or a bookmark lands where it should.
+#
+# GET / must keep answering 200 rather than redirecting to a tab - PhonRoutingSpec asserts
+# exactly that, and it is the cheapest possible check that phon is mounted at all.
 
-POST   /                    controllers.phon.PhonyPhoneController.createPseudonym()
-GET    /                    controllers.phon.PhonyPhoneController.readPseudonym()
-DELETE /                    controllers.phon.PhonyPhoneController.deletePseudonym()
-GET    /qr-code             controllers.phon.PhonyPhoneController.readQrCode()
+# ── The shell: registration gate and the three tabs ──────────────────────────────────────────
+GET    /                                controllers.phon.HomeController.distributed()
+GET    /held                            controllers.phon.HomeController.held(sort: String ?= "date")
+GET    /requests                        controllers.phon.HomeController.requests()
 
-POST   /contacts            controllers.phon.PhonyPhoneController.createContact()
-GET    /contacts            controllers.phon.PhonyPhoneController.readContacts()
-# PATCH /contacts/:contactId  controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- verify
-# PUT /contacts/:contactId    controllers.phon.PhonyPhoneController.updateContact(contactId: Int) <- replace
-DELETE /contacts/:contactId controllers.phon.PhonyPhoneController.deleteContact(contactId: java.util.UUID)
+# Relay traffic is a second phase, requested by the rendered page rather than performed while
+# building it: a phony phone pointed at a relay that is down must still show what it knows.
+GET    /sync/distributed                controllers.phon.HomeController.syncDistributed()
+GET    /sync/held                       controllers.phon.HomeController.syncHeld(sort: String ?= "date")
+GET    /sync/requests                   controllers.phon.HomeController.syncRequests()
 
-GET    /forms/secretSharing controllers.phon.PhonyPhoneController.getSecretSharingForm()
-POST   /mySecrets           controllers.phon.PhonyPhoneController.createMySecret()
-GET    /mySecrets           controllers.phon.PhonyPhoneController.readMySecrets()
-DELETE /mySecrets/:secretId controllers.phon.PhonyPhoneController.deleteMySecret(secretId: java.util.UUID)
+POST   /register                        controllers.phon.PhonyPhoneController.register()
+DELETE /identity                        controllers.phon.PhonyPhoneController.unregister()
+GET    /qr                              controllers.phon.PhonyPhoneController.qrCode()
+GET    /qr/image                        controllers.phon.PhonyPhoneController.qrImage()
+GET    /settings                        controllers.phon.PhonyPhoneController.settings()
+POST   /settings/relay                  controllers.phon.PhonyPhoneController.saveRelay()
+POST   /settings/identity               controllers.phon.PhonyPhoneController.regenerateIdentity()
 
-GET    /theirShares         controllers.phon.PhonyPhoneController.readTheirShares()
-POST   /theirShares         controllers.phon.PhonyPhoneController.createTheirShares()
+# ── Contacts ────────────────────────────────────────────────────────────────────────────────
+GET    /contacts                        controllers.phon.ContactsController.list()
+GET    /contacts/new                    controllers.phon.ContactsController.addForm(mode: String ?= "payload")
+POST   /contacts                        controllers.phon.ContactsController.add()
+GET    /contacts/:contactId/relink      controllers.phon.ContactsController.relinkForm(contactId: java.util.UUID)
+POST   /contacts/:contactId/relink      controllers.phon.ContactsController.relink(contactId: java.util.UUID)
+POST   /contacts/:contactId/rename      controllers.phon.ContactsController.rename(contactId: java.util.UUID)
+POST   /contacts/:contactId/relinked    controllers.phon.ContactsController.markRelinked(contactId: java.util.UUID)
+POST   /contacts/:contactId/compromised controllers.phon.ContactsController.markKeyCompromised(contactId: java.util.UUID)
+POST   /contacts/:contactId/heartbeat   controllers.phon.ContactsController.toggleHeartbeat(contactId: java.util.UUID)
+DELETE /contacts/:contactId             controllers.phon.ContactsController.delete(contactId: java.util.UUID)
 
-GET    /pendingRequests     controllers.phon.PhonyPhoneController.readPendingRequests()
+# ── Secrets this device split and shared out ────────────────────────────────────────────────
+GET    /deposit                         controllers.phon.SecretsController.depositForm()
+POST   /deposit                         controllers.phon.SecretsController.deposit()
+GET    /shares/:shareId                 controllers.phon.SecretsController.shareDetail(shareId: java.util.UUID)
+GET    /secrets/:secretId/repair        controllers.phon.SecretsController.repair(secretId: java.util.UUID)
+POST   /secrets/:secretId/retrievals    controllers.phon.SecretsController.requestAll(secretId: java.util.UUID)
+POST   /secrets/:secretId/reconstruction controllers.phon.SecretsController.reconstruct(secretId: java.util.UUID)
+POST   /secrets/:secretId/forget        controllers.phon.SecretsController.forceForget(secretId: java.util.UUID)
+DELETE /secrets/:secretId               controllers.phon.SecretsController.discard(secretId: java.util.UUID)
+POST   /shares/:shareId/requests        controllers.phon.SecretsController.openRequest(shareId: java.util.UUID)
 
-# GET /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.readSharedSecret(secretId: Int)
-# PATCH /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.updateSharedSecret(secretId: Int) <- change label and or pick-up time(s)
-# POST /sharedSecrets/:secretId controllers.phon.PhonyPhoneController.recoverSharedSecret(secretId: Int)
+# ── Shares this device holds for other people ───────────────────────────────────────────────
+DELETE /held/:shareId                   controllers.phon.HeldController.delete(shareId: java.util.UUID)
+DELETE /held/from/:contactId            controllers.phon.HeldController.deleteAllFromSender(contactId: java.util.UUID)
+
+# ── Inbound requests, and the impersonation alerts that sit above them ───────────────────────
+POST   /requests/:requestId/response    controllers.phon.RequestsController.respond(requestId: java.util.UUID)
+DELETE /conflicts/:conflictId           controllers.phon.RequestsController.dismissConflict(conflictId: java.util.UUID)

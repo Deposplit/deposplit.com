@@ -1,0 +1,107 @@
+@*
+* The MIT License
+*
+* Copyright (c) 2026 Squeng AG
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*@
+
+@import controllers.phon.PhonTab
+@import controllers.phon.Shell
+
+@*
+* The chrome around a screen, and the unit an htmx navigation swaps. It carries the top bar, the
+* standing advisories and the tab bar as well as the body, so a tab switch cannot leave a stale
+* title above fresh content - which is what a fragment targeting the content alone would do.
+*@
+@(shell: Shell, body: Html)(implicit request: RequestHeader, messages: Messages)
+
+@nav(call: Call) = @{
+    Html(s"""hx-get="${call.url}" hx-target="#screen" hx-swap="outerHTML" hx-push-url="true"""")
+}
+
+<div id="screen" class="phon-screen">
+
+    <header class="phon-topbar navbar bg-primary" data-bs-theme="dark">
+        <div class="container-fluid flex-nowrap">
+            @shell.back.map { back =>
+                <button type="button" class="btn btn-link link-light px-1" @nav(back)
+                    aria-label="@messages("phon.action.back")">
+                    <i class="bi bi-arrow-left fs-5"></i>
+                </button>
+            }
+            <span class="navbar-brand text-truncate me-auto">@messages(shell.titleKey)</span>
+            @if(shell.back.isEmpty) {
+                <button type="button" class="btn btn-link link-light px-1"
+                    @nav(controllers.phon.routes.ContactsController.list())
+                    aria-label="@messages("phon.title.contacts")" title="@messages("phon.title.contacts")">
+                    <i class="bi bi-people fs-5"></i>
+                </button>
+                <button type="button" class="btn btn-link link-light px-1"
+                    @nav(controllers.phon.routes.PhonyPhoneController.qrCode())
+                    aria-label="@messages("phon.title.qr")" title="@messages("phon.title.qr")">
+                    <i class="bi bi-qr-code fs-5"></i>
+                </button>
+                <button type="button" class="btn btn-link link-light px-1"
+                    @nav(controllers.phon.routes.PhonyPhoneController.settings())
+                    aria-label="@messages("phon.title.settings")" title="@messages("phon.title.settings")">
+                    <i class="bi bi-gear fs-5"></i>
+                </button>
+            }
+        </div>
+    </header>
+
+    @* Two standing advisories, both soft: neither replaces the content below it. *@
+    @if(shell.awaitingRelinkCount > 0) {
+        <button type="button"
+            class="phon-advisory btn btn-link text-start text-body-secondary text-decoration-none border-bottom rounded-0 w-100 py-2"
+            @nav(controllers.phon.routes.ContactsController.list())>
+            <i class="bi bi-person-exclamation"></i>
+            @messages("phon.advisory.awaitingRelink", shell.awaitingRelinkCount)
+        </button>
+    }
+    @if(shell.syncWarning) {
+        <div class="phon-advisory border-bottom px-3 py-2 text-danger-emphasis bg-danger-subtle">
+            <i class="bi bi-exclamation-triangle"></i> @messages("phon.advisory.relayUnreachable")
+        </div>
+    }
+
+    <main class="phon-content" id="phonContent">
+        @body
+    </main>
+
+    @* No bottom bar on a pushed screen, the same way a pushed screen covers it on a phone. *@
+    @shell.tab.map { active =>
+        <nav class="phon-tabbar navbar border-top bg-body-tertiary" aria-label="@messages("phon.tabbar")">
+            <ul class="nav nav-fill w-100">
+                @for(tab <- PhonTab.values) {
+                    <li class="nav-item">
+                        <button type="button"
+                            class="nav-link w-100 @if(tab == active){active}"
+                            @if(tab == active){aria-current="page"} @nav(tab.call)>
+                            <i class="bi @tab.icon"></i>
+                            <span>@messages(tab.titleKey)</span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+
+</div>

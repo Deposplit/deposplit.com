@@ -47,12 +47,15 @@ trait ContactManagement:
     * sends nothing produces no evidence, so without this the list could never empty. Idempotent.
     */
   def markRelinked(contactId: UUID): Unit
-  // nickname lets a nickname be set at add-time rather than only via a later
-  // renameContact call; it is purely local and never transmitted anywhere.
+  // verificationLevel is required and undefaulted on both add methods: how well the person on
+  // the other end was checked is the caller's observation, not something this hexagon can infer
+  // from which entry path was used. nickname lets a nickname be set at add-time rather than only
+  // via a later renameContact call; it is purely local and never transmitted anywhere.
   def addManually(
       pseudonym: String,
       verifyKey: Array[Byte],
       encKey: Array[Byte],
+      verificationLevel: VerificationLevel,
       relayBaseUrl: Option[String] = None,
       nickname: Option[String] = None
   ): Unit
@@ -65,6 +68,7 @@ trait ContactManagement:
       verifyKey: Array[Byte],
       encKey: Array[Byte],
       cipherSuite: CipherSuite,
+      verificationLevel: VerificationLevel,
       relayBaseUrl: Option[String] = None,
       nickname: Option[String] = None
   ): Unit
@@ -73,10 +77,9 @@ trait ContactManagement:
     * and orphan any HeldShare/ShareMetadata rows anchored to it.
     *
     * `verificationLevel` is `None` by default: when the keys or cipher suite change (a suite-only change counts too)
-    * and no explicit level is given, this hexagon (which has no verification-level picker UI) defaults to `VeryHigh`,
-    * mirroring `addFromQr`'s in-person-flow default. Rotation-processing supplies an explicit level (`min(old, Low)` —
-    * a signed rotation proves key continuity, not fresh personhood, so it must never default to the same `VeryHigh` a
-    * human re-scan would earn).
+    * and no explicit level is given, it defaults to `VeryHigh`, mirroring the level an in-person relink would earn.
+    * Rotation-processing supplies an explicit level (`min(old, Low)` — a signed rotation proves key continuity, not
+    * fresh personhood, so it must never default to the same `VeryHigh` a human re-scan would earn).
     */
   def updateContact(
       contactId: UUID,
