@@ -17,6 +17,7 @@ holds the relay service, the landing page, and the documentation for all three r
 | Keys, signatures, encryption, cipher suites | [docs/security.md](docs/security.md) |
 | Verification, rotation, revocation, recovery, heartbeats | [docs/trust-model.md](docs/trust-model.md) |
 | Logging, metrics, tracing, crash reporting, a new dependency | [docs/privacy.md](docs/privacy.md) |
+| A screen, a label, an empty state, an affordance | [docs/interaction.md](docs/interaction.md) |
 | Anything you want to verify by hand on real devices | [docs/testing.md](docs/testing.md) |
 
 Prefer these docs over anything you remember. They are the source of truth for how
