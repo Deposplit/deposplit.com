@@ -31,5 +31,8 @@ trait ContactRepository:
   def getAll(): List[Contact]
   def getByVerifyKey(verifyKey: Array[Byte]): Option[Contact]
   def getById(id: UUID): Option[Contact]
+  // An upsert keyed on id, never an insert: every mutation in ContactService saves a copy of a
+  // contact it just read back, so an implementation that appends both duplicates the row and
+  // leaves the lookups above finding the stale one.
   def save(contact: Contact): Unit
   def delete(contactId: UUID): Unit

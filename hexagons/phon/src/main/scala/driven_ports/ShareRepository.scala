@@ -33,5 +33,6 @@ trait ShareRepository:
   // is unique per (secretId, sender) at a given holder — which is what lets a retrieval after
   // identity recovery re-key against a share this device can still find.
   def getPlaintextShare(secretId: UUID): Option[Array[Byte]]
+  // An upsert keyed on id, never an insert — the same contract ContactRepository.save carries.
   def save(share: HeldShare): Unit
   def delete(shareId: UUID): Unit

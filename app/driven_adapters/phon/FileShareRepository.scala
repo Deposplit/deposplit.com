@@ -73,5 +73,6 @@ class FileShareRepository @Inject() (config: Configuration) extends ShareReposit
     shares.find(_.secretId == secretId).map(_.plaintextShare)
 
   override def save(share: HeldShare): Unit =
-    shares += share
+    val idx = shares.indexWhere(_.id == share.id)
+    if idx >= 0 then shares.update(idx, share) else shares += share
     serializeShares()

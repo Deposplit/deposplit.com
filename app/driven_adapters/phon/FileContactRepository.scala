@@ -76,5 +76,6 @@ class FileContactRepository @Inject() (config: Configuration) extends ContactRep
     contacts.find(_.id == id)
 
   override def save(contact: Contact): Unit =
-    contacts += contact
+    val idx = contacts.indexWhere(_.id == contact.id)
+    if idx >= 0 then contacts.update(idx, contact) else contacts += contact
     serializeContacts()

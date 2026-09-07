@@ -3,8 +3,9 @@
 # One route per screen, mirroring the Android nav graph and the iOS tab shell: the three tabs
 # and every pushed screen are addressable, so a reload or a bookmark lands where it should.
 #
-# GET / must keep answering 200 rather than redirecting to a tab - PhonRoutingSpec asserts
-# exactly that, and it is the cheapest possible check that phon is mounted at all.
+# GET / answers the sign-in gate before registration and redirects to the distributed tab after
+# it, so a bookmark on the root lands on a tab rather than on a shell with no tab selected.
+# PhonScreensSpec pins both halves.
 
 # ── The shell: registration gate and the three tabs ──────────────────────────────────────────
 GET    /                                controllers.phon.HomeController.index()

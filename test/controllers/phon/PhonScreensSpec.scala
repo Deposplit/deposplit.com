@@ -53,7 +53,7 @@ class PhonScreensSpec extends PlaySpec {
     "contacts",
     "contactrelinks",
     "secrets",
-    "shares",
+    "heldshares",
     "sharemetadata",
     "keyconflicts",
     "retaineddeposits"
@@ -85,7 +85,7 @@ class PhonScreensSpec extends PlaySpec {
       relayFile.delete()
 
   private val screens = List(
-    "/phonyPhone",
+    "/phonyPhone/distributed",
     "/phonyPhone/held",
     "/phonyPhone/requests",
     "/phonyPhone/contacts",
@@ -140,7 +140,7 @@ class PhonScreensSpec extends PlaySpec {
     // htmx 2 wanted, leaves every button in the emulator failing CSRF while every screen still renders.
     "hand the CSRF token down to the controls that inherit it" in {
       withPhone(registered = true) { app =>
-        val document = contentAsString(route(app, FakeRequest(GET, "/phonyPhone")).get)
+        val document = contentAsString(route(app, FakeRequest(GET, "/phonyPhone/distributed")).get)
         document must include("""hx-headers:inherited='{"Csrf-Token": """")
       }
     }
@@ -160,8 +160,8 @@ class PhonScreensSpec extends PlaySpec {
       }
     }
 
-    // The cheapest possible check that phon is mounted, and the one PhonRoutingSpec relies on:
-    // GET /phonyPhone answers 200 whether or not anybody has registered.
+    // The cheapest possible check that phon is mounted at all: before registration the root answers
+    // the gate itself rather than redirecting, so a 200 here needs no session and no identity.
     "still answer 200 at the root" in {
       withPhone(registered = false) { app =>
         status(route(app, FakeRequest(GET, "/phonyPhone")).get) mustBe OK
@@ -173,7 +173,17 @@ class PhonScreensSpec extends PlaySpec {
 
     "name the phone and land on the distributed tab" in {
       withPhone(registered = true) { app =>
-        contentAsString(route(app, FakeRequest(GET, "/phonyPhone")).get) must include("Alice")
+        contentAsString(route(app, FakeRequest(GET, "/phonyPhone/distributed")).get) must include("Alice")
+      }
+    }
+
+    // The root is a redirect once there is an identity, so that a bookmark on it lands on a tab
+    // rather than on a shell with no tab selected. Before registration it still answers the gate.
+    "send a registered phone from the root to that tab" in {
+      withPhone(registered = true) { app =>
+        val result = route(app, FakeRequest(GET, "/phonyPhone")).get
+        status(result) mustBe TEMPORARY_REDIRECT
+        redirectLocation(result) mustBe Some("/phonyPhone/distributed")
       }
     }
   }
