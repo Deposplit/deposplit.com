@@ -36,16 +36,22 @@ import java.util.UUID
   * etc.) must poll every distinct one, merge results, and not let one unreachable relay blank out results from the
   * others. See `ShareService.allRelays`.
   */
-private class TwoRelayResolver(default: ShareRelay, byorUrl: String, byor: ShareRelay) extends ShareRelayResolver:
+private class TwoRelayResolver(default: ShareRelay, defaultUrl: String, byorUrl: String, byor: ShareRelay)
+    extends ShareRelayResolver:
+  // Memoized per resolved URL, as the port requires and as every real resolver does: naming this device's own default
+  // relay explicitly must hand back the very instance `None` hands back, or the caller's dedupe cannot see the two as
+  // one.
   override def resolve(relayBaseUrl: Option[String]): ShareRelay = relayBaseUrl match
-    case None                    => default
-    case Some(u) if u == byorUrl => byor
-    case Some(other)             => throw IllegalArgumentException(s"no fixture relay for $other")
+    case None                       => default
+    case Some(u) if u == defaultUrl => default
+    case Some(u) if u == byorUrl    => byor
+    case Some(other)                => throw IllegalArgumentException(s"no fixture relay for $other")
 
 class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
   private val aliceKeys = TestKeyPair.generate()
   private val charlieKeys = TestKeyPair.generate()
+  private val defaultUrl = "http://default.example:9000"
   private val byorUrl = "http://byor.example:9000"
 
   private val aliceContact = Contact(
@@ -100,6 +106,63 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       recipientSignature = None
     )
 
+  private def retrievalRow(senderKeys: TestKeyPair, recipientKey: Array[Byte]): ShareRequest =
+    val secretId = UUID.randomUUID()
+    val label = "fan-out test"
+    val createdAt = Instant.now()
+    val canon = PayloadCanonical.forOpen(secretId, ShareTransactionType.Retrieval, recipientKey, label, createdAt, None)
+    ShareRequest(
+      id = UUID.randomUUID(),
+      secretId = secretId,
+      senderKey = senderKeys.publicKey,
+      recipientKey = recipientKey,
+      label = label,
+      secretCreatedAt = createdAt,
+      transactionType = ShareTransactionType.Retrieval,
+      state = ShareRequestState.Pending,
+      requestedAt = Instant.now(),
+      respondedAt = None,
+      ciphertext = None,
+      k = None,
+      n = None,
+      mimeType = None,
+      senderSignature = senderKeys.sign(canon),
+      recipientSignature = None
+    )
+
+  /** A contact may pin the very relay this device already uses by default — the common case, since a QR code advertises
+    * the sender's relay verbatim and two people usually share one. The override and `None` then name one relay, and it
+    * must be polled once: polling it twice returns every row twice, which shows up as duplicated requests on screen
+    * and, in reconstruct, as the same share counted twice.
+    */
+  test("a contact pinned to this device's own default relay is polled once, not twice") {
+    val defaultRelay = FakeShareRelay()
+    val byorRelay = FakeShareRelay()
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
+    bobIdentity.register("bob")
+    val contactRepo = FakeContactRepository(List(aliceContact.copy(relayBaseUrl = Some(defaultUrl))))
+    val svc = ShareService(
+      relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
+      encryption = NoOpShareEncryption,
+      shareRepository = FakeShareRepository(),
+      shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
+      contactRepository = contactRepo,
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
+      keyConflictRepository = FakeKeyConflictRepository(),
+      retainedDepositRepository = FakeRetainedDepositRepository(),
+      identity = bobIdentity
+    )
+
+    val askedOfBob = retrievalRow(aliceKeys, bobIdentity.verifyKey().get)
+    defaultRelay.pending = List(askedOfBob)
+
+    assertEquals(svc.listPendingRequests().map(_.id), List(askedOfBob.id))
+    assertEquals(svc.listSentRequests().map(_.id), List(askedOfBob.id))
+  }
+
   test("syncInbox polls both the default relay and a contact's BYOR relay, merging results") {
     val defaultRelay = FakeShareRelay()
     val byorRelay = FakeShareRelay()
@@ -109,7 +172,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
-      relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
+      relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
@@ -145,7 +208,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val shareRepo = FakeShareRepository()
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
-      relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
+      relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),

@@ -1582,6 +1582,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
   }
 
   test("regenerateIdentity still activates the new keys when one contact's relay is unreachable") {
+    val defaultUrl = "http://default.example:9000"
     val byorUrl = "http://byor.example:9000"
     val charlieKeys = TestKeyPair.generate()
     val charlieContact = Contact(
@@ -1602,7 +1603,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     bobIdentity.register("bob")
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
     val svc = ShareService(
-      relayResolver = TwoRelayResolver(defaultRelay, byorUrl, byorRelay),
+      relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
       shareRepository = FakeShareRepository(),
       shareMetadataRepository = FakeShareMetadataRepository(),
