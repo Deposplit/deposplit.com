@@ -74,8 +74,6 @@ place rather than growing this list into a second manual.
 ## Chores
 
 - [ ] `A` `I` `phon` **Siezen, nicht duzen** Benutzerinnen und Benutzer, welche Deposplit auf Deutsch verwenden, werden geduzt. Deposplit sollte sie jedoch siezen.
-- [ ] `A` `I` **Support splitting & sharing texts or pictures but not any files** When splitting & sharing a secret, Android offers to upload a picture or a file. The latter was never specified and should be removed.
-- [ ]  `A` `I` `phon` **Improve secret splitting & sharing UI** Currently, the form starts with a secret's label, followed by a "Secret" (meant is a manually entered text), followed by a photo upload link. The label of the text field should not just say "Secret" but "Enter secret text or …" and then the photo upload link should say "… choose secret photo" (instead of "Choose Photo…").
 - [ ] `A` `I` **Inconsisten BYOR** When Alice is premium and has her own relay, her QR code says so and is accepted by Bob and Carol. However, when Bob or Carol enters Alice's contact information by hand, their app claims "Das Relay eines Kontakts von Hand einzutragen gehört zu Premium. Ein Relay aus einem gescannten QR-Code ist immer kostenlos."
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 

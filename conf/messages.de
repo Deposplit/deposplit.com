@@ -116,8 +116,8 @@ phon.field.relayOverride = Ihr Relais
 phon.field.relayOverrideHelp = Leer lassen, um das Standardrelais dieses Telefons zu verwenden.
 phon.field.verificationLevel = Wie sicher bist du, dass sie es sind?
 phon.field.label = Etikett
-phon.field.secret = Geheimnis
-phon.field.secretFile = … oder ein Bild
+phon.field.secret = Geheimen Text eingeben oder …
+phon.field.secretFile = … geheimes Foto auswählen
 
 phon.verification.veryLow = Sehr niedrig
 phon.verification.low = Niedrig

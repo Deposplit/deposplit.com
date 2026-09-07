@@ -115,8 +115,8 @@ phon.field.relayOverride = Their relay
 phon.field.relayOverrideHelp = Leave empty to use this phone''s default relay.
 phon.field.verificationLevel = How sure are you it is them?
 phon.field.label = Label
-phon.field.secret = Secret
-phon.field.secretFile = … or a picture
+phon.field.secret = Enter secret text or …
+phon.field.secretFile = … choose secret photo
 
 phon.verification.veryLow = Very low
 phon.verification.low = Low
