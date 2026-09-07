@@ -73,7 +73,6 @@ place rather than growing this list into a second manual.
 
 ## Chores
 
-- [ ] `A` `I` `phon` **Siezen, nicht duzen** Benutzerinnen und Benutzer, welche Deposplit auf Deutsch verwenden, werden geduzt. Deposplit sollte sie jedoch siezen.
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Open questions

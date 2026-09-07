@@ -60,14 +60,14 @@ phon.title.settings = Einstellungen
 
 phon.signIn.subtitle = Ein Pseudonym wählen
 phon.signIn.placeholder = z. B. Alice
-phon.signIn.port = Dieses Phony-Phone ist {0}. Starte ein weiteres auf einem anderen Port, um eine zweite Person zu spielen.
+phon.signIn.port = Dieses Phony-Phone ist {0}. Starten Sie ein weiteres auf einem anderen Port, um eine zweite Person zu spielen.
 
-phon.advisory.awaitingRelink = {0,choice,1#Ein Kontakt hat noch|1<{0} Kontakte haben noch} deinen alten Schlüssel - triff sie und lass sie deinen Code erneut scannen
+phon.advisory.awaitingRelink = {0,choice,1#Ein Kontakt hat noch|1<{0} Kontakte haben noch} Ihren alten Schlüssel - treffen Sie sie und lassen Sie sie Ihren Code erneut scannen
 phon.advisory.relayUnreachable = Relais nicht erreichbar
 
-phon.empty.distributed = Du hast noch nichts aufgeteilt
-phon.empty.held = Du verwahrst noch nichts
-phon.empty.requests = Niemand wartet auf dich
+phon.empty.distributed = Sie haben noch nichts aufgeteilt
+phon.empty.held = Sie verwahren noch nichts
+phon.empty.requests = Niemand wartet auf Sie
 phon.empty.contacts = Noch keine Kontakte
 phon.empty.depositNotEnoughContacts = Zuerst braucht es mindestens zwei Kontakte — ein Geheimnis wird unter mindestens zwei Personen aufgeteilt
 phon.qr.noKeys = Dieses Telefon hat keine Schlüssel zum Anzeigen
@@ -106,15 +106,15 @@ phon.action.forgetIdentity = Diese Identität vergessen
 
 phon.field.pseudonym = Pseudonym
 phon.field.nickname = Spitzname
-phon.field.nicknameHelp = Nur für dich. Wird nirgendwohin gesendet, sodass zwei Leute namens Paul allein auf diesem Telefon unterscheidbar bleiben.
+phon.field.nicknameHelp = Nur für Sie. Wird nirgendwohin gesendet, sodass zwei Leute namens Paul allein auf diesem Telefon unterscheidbar bleiben.
 phon.field.verifyKey = Unterschriftsschlüssel
 phon.field.encKey = Übertragungsschlüssel
 phon.field.keyHelp = Base64url, 32 Bytes.
 phon.field.payload = Kontaktdaten
 phon.field.relay = Relais
-phon.field.relayOverride = Ihr Relais
+phon.field.relayOverride = Relais dieses Kontakts
 phon.field.relayOverrideHelp = Leer lassen, um das Standardrelais dieses Telefons zu verwenden.
-phon.field.verificationLevel = Wie sicher bist du, dass sie es sind?
+phon.field.verificationLevel = Wie sicher sind Sie, dass sie es sind?
 phon.field.label = Etikett
 phon.field.secret = Geheimen Text eingeben oder …
 phon.field.secretFile = … geheimes Foto auswählen
@@ -124,23 +124,23 @@ phon.verification.low = Niedrig
 phon.verification.high = Hoch
 phon.verification.veryHigh = Sehr hoch
 phon.verification.guidance.veryLow = Schlüssel sind angekommen, und nichts bürgt dafür, wer sie geschickt hat.
-phon.verification.guidance.low = Eine unabhängige Bestätigung - ein bekannter Kanal oder eine Stimme, die du erkannt hast.
+phon.verification.guidance.low = Eine unabhängige Bestätigung - ein bekannter Kanal oder eine Stimme, die Sie erkannt haben.
 phon.verification.guidance.high = Zwei unabhängige Bestätigungen, getrennt geprüft.
-phon.verification.guidance.veryHigh = Ihr wart im selben Raum.
+phon.verification.guidance.veryHigh = Sie waren im selben Raum.
 
 phon.addContact.paste = Daten einfügen
 phon.addContact.manual = Daten eintippen
-phon.addContact.pasteHelp = Öffne die Kontaktdaten des anderen Telefons, kopiere sie und füge sie hier ein. Das ersetzt das Scannen des Codes.
-phon.addContact.payloadLevelFooter = Einfügen ersetzt das Scannen und darf daher dieselbe Stufe beanspruchen - aber nur, wenn du die Daten wirklich von Angesicht zu Angesicht bekommen hast.
-phon.addContact.manualLevelFooter = Sehr hoch gibt es hier nicht: das hiesse, ihr wart im selben Raum, und das ist Abtippen aus einem Chatfenster nicht.
+phon.addContact.pasteHelp = Öffnen Sie die Kontaktdaten des anderen Telefons, kopieren Sie sie und fügen Sie sie hier ein. Das ersetzt das Scannen des Codes.
+phon.addContact.payloadLevelFooter = Einfügen ersetzt das Scannen und darf daher dieselbe Stufe beanspruchen - aber nur, wenn Sie die Daten wirklich von Angesicht zu Angesicht bekommen haben.
+phon.addContact.manualLevelFooter = Sehr hoch gibt es hier nicht: das hiesse, Sie waren im selben Raum, und das ist Abtippen aus einem Chatfenster nicht.
 
 phon.contacts.keyCompromised = Ein früherer Schlüssel dieses Kontakts ist als kompromittiert gemeldet
-phon.contacts.awaitingRelink = {0} kennt deinen aktuellen Schlüssel noch nicht
+phon.contacts.awaitingRelink = {0} kennt Ihren aktuellen Schlüssel noch nicht
 phon.contacts.heartbeatPaused = Lebenszeichen an diesen Kontakt sind angehalten
 
-phon.relink.intro = Dieselbe Person, neue Schlüssel. {0} behält den Platz, sodass jeder Anteil, den du von ihnen verwahrst, daran verankert bleibt.
-phon.relink.payloadHelp = Füge ihre neuen Kontaktdaten ein oder tippe die beiden Schlüssel darunter.
-phon.relink.levelFooter = Wähle die Stufe komplett neu. Neue Schlüssel beweisen, dass sie weiterhin einen Schlüssel kontrollieren, nicht dass sie weiterhin sie selbst sind.
+phon.relink.intro = Dieselbe Person, neue Schlüssel. {0} behält den Platz, sodass jeder Anteil, den Sie von ihnen verwahren, daran verankert bleibt.
+phon.relink.payloadHelp = Fügen Sie ihre neuen Kontaktdaten ein oder tippen Sie die beiden Schlüssel darunter.
+phon.relink.levelFooter = Wählen Sie die Stufe komplett neu. Neue Schlüssel beweisen, dass sie weiterhin einen Schlüssel kontrollieren, nicht dass sie weiterhin sie selbst sind.
 
 phon.distributed.threshold = {0} von {1} nötig
 phon.distributed.discarding = Warten auf Bestätigung der Inhaber
@@ -173,14 +173,14 @@ phon.transaction.removal = Löschung
 phon.transaction.inventory = Bestand
 
 phon.conflict.title = Möglicher Identitätsdiebstahl
-phon.conflict.body = Jemand, der sich als {0} ausgibt, hat neue Schlüssel vorgelegt, unterschrieben mit einem Schlüssel, den du als kompromittiert gemeldet hast. Das wurde abgelehnt. Nur ein persönliches Treffen mit Neuverknüpfung bringt sie weiter.
+phon.conflict.body = Jemand, der sich als {0} ausgibt, hat neue Schlüssel vorgelegt, unterschrieben mit einem Schlüssel, den Sie als kompromittiert gemeldet haben. Das wurde abgelehnt. Nur ein persönliches Treffen mit Neuverknüpfung bringt sie weiter.
 phon.conflict.detected = Bemerkt am {0}
 
 phon.deposit.labelPlaceholder = z. B. BitLocker-Schlüssel
 phon.deposit.recipients = Wer soll einen Teil verwahren?
 phon.deposit.threshold = Wie viele Teile zum Wiederzusammensetzen
 phon.deposit.thresholdHelp = Weniger als das verrät überhaupt nichts.
-phon.deposit.fileHelp = PNG oder JPEG. Fülle eines von beiden aus, nicht beides.
+phon.deposit.fileHelp = PNG oder JPEG. Füllen Sie eines von beiden aus, nicht beides.
 phon.deposit.sizeLimit = Bis zu {0} KiB. Hier nur Text - die Apps können auch ein Foto aufteilen.
 
 phon.shareDetail.holder = Verwahrt von {0}
@@ -198,9 +198,9 @@ phon.reconstruct.failed = Konnte nicht zusammengesetzt werden: {0}
 
 phon.repair.gathering = {0} Teile nötig, {1} bisher zurückgegeben.
 phon.repair.notRequested = Nicht angefragt
-phon.repair.needMore = Frage die übrigen Inhaber und komm wieder, sobald genug zugestimmt haben.
+phon.repair.needMore = Fragen Sie die übrigen Inhaber und kommen Sie wieder, sobald genug zugestimmt haben.
 phon.repair.redeposit = Erneut aufteilen
-phon.repair.redepositHelp = Wähle einen frischen Satz Inhaber. Das Verwerfen der alten Verteilung bleibt ein eigener Schritt auf dem vorigen Bildschirm.
+phon.repair.redepositHelp = Wählen Sie einen frischen Satz Inhaber. Das Verwerfen der alten Verteilung bleibt ein eigener Schritt auf dem vorigen Bildschirm.
 
 phon.qr.payload = Kontaktdaten
 phon.qr.help = Ein anderes Phony-Phone fügt das ein. Ein echtes Handy kann stattdessen den Code darunter scannen.
@@ -219,19 +219,19 @@ phon.settings.darkMode = Dunkel
 phon.settings.dangerZone = Gefahrenzone
 phon.settings.forgetHelp = Setzt dieses Phony-Phone komplett zurück: Schlüssel, Kontakte, Geheimnisse und jeden verwahrten Anteil.
 
-phon.confirm.deleteContact = {0} löschen? Was sie für dich verwahren, bleibt bei ihnen.
+phon.confirm.deleteContact = {0} löschen? Was sie für Sie verwahren, bleibt bei ihnen.
 phon.confirm.markCompromised = Den aktuellen Schlüssel von {0} als kompromittiert melden? Danach wird kein damit unterschriebener Schlüsselwechsel mehr von allein akzeptiert.
-phon.confirm.deleteHeld = Diesen Anteil nicht mehr verwahren? Der Eigentümerin fehlt dann ein Teil, und sie kann ihn später nicht mehr bei dir abrufen.
+phon.confirm.deleteHeld = Diesen Anteil nicht mehr verwahren? Der Eigentümerin fehlt dann ein Teil, und sie kann ihn später nicht mehr bei Ihnen abrufen.
 phon.confirm.deleteAllHeld = Alle {1} Anteile von {0} nicht mehr verwahren?
 phon.confirm.discard = Alle {0} Inhaber bitten, ihren Teil zu löschen?
 phon.confirm.forceForget = Dieses Geheimnis vergessen, ohne auf die übrigen Inhaber zu warten?
-phon.confirm.regenerate = Identität neu erzeugen und deine {0} Kontakte benachrichtigen?
+phon.confirm.regenerate = Identität neu erzeugen und Ihre {0} Kontakte benachrichtigen?
 phon.confirm.forgetIdentity = Dieses Phony-Phone komplett zurücksetzen?
 
-phon.error.verificationLevel = Wähle, wie sicher du bist.
+phon.error.verificationLevel = Wählen Sie, wie sicher Sie sind.
 phon.error.blankContact = Einer der gewählten Kontakte ist leer.
 phon.error.thresholdAboveHolders = Es werden mehr Teile verlangt, als es Inhaber gibt.
-phon.error.secretMissing = Tippe ein Geheimnis oder wähle ein Bild.
-phon.error.secretAmbiguous = Du hast Text und ein Bild angegeben. Leere eines davon - phon wählt nicht für dich.
+phon.error.secretMissing = Tippen Sie ein Geheimnis oder wählen Sie ein Bild.
+phon.error.secretAmbiguous = Sie haben Text und ein Bild angegeben. Leeren Sie eines davon - phon wählt nicht für Sie.
 phon.error.unsupportedType = Nur PNG und JPEG lassen sich aufteilen. Diese Datei ist keines von beiden, gemessen an ihrem Inhalt und nicht an ihrem Namen.
-phon.error.relinkEmpty = füge ihre Daten ein oder tippe beide Schlüssel.
+phon.error.relinkEmpty = fügen Sie ihre Daten ein oder tippen Sie beide Schlüssel.

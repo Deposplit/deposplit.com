@@ -145,3 +145,8 @@ locales must be kept in sync.
   hand-convert files.
 - Do not reference work items by number in code comments or documentation. Say what the
   code does and why, so the comment survives the tracker.
+- German addresses the reader formally, with *Sie*, everywhere it addresses them at all —
+  `conf/messages.de`, Android's `values-de`, the `de` half of `Localizable.xcstrings`, and the
+  `_de` markdowns. Wording that avoids addressing the reader is better still, because it needs
+  no register at all. Watch the capital: `Ihr` is *your*, so a string meaning *their* has to
+  say so another way.
