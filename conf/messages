@@ -68,7 +68,7 @@ phon.empty.distributed = You have not split anything yet
 phon.empty.held = You are not keeping anything safe yet
 phon.empty.requests = Nobody is waiting on you
 phon.empty.contacts = No contacts yet
-phon.empty.depositNoContacts = Add a contact first - a secret needs somebody to hold it
+phon.empty.depositNotEnoughContacts = At least two contacts are needed first — a secret is split among at least two people
 phon.qr.noKeys = This phone has no keys to show
 
 phon.action.back = Back

@@ -31,6 +31,8 @@ import play.api.routing.Router
 import play.api.test.*
 import play.api.test.Helpers.*
 
+import java.io.File
+
 /** phon is a teaching and manual-testing tool. It is mounted only by the development router (`conf/dev.routes`), and
   * its Guice bindings live in `PhonModule`, which only `conf/localhost.conf` enables.
   *
@@ -41,6 +43,14 @@ import play.api.test.Helpers.*
 class PhonRoutingSpec extends PlaySpec {
 
   private val prodSecret = "play.http.secret.key" -> ("x" * 64)
+
+  // Nothing is ever registered here, so phon answers its sign-in gate rather than redirecting to a
+  // tab. Any stale file from an earlier run is removed first, since the gate is the whole assertion.
+  private def unregisteredPort: Int =
+    val port = 19200
+    File("./.devDBs").mkdirs()
+    File(s"./.devDBs/identity$port.ser").delete()
+    port
 
   "The production router" should {
 
@@ -115,8 +125,12 @@ class PhonRoutingSpec extends PlaySpec {
       // Deliberately asserting OK, not merely that a route exists: conf/routes ends in a
       // catch-all, so a misordered dev router still "routes" /phonyPhone - to
       // MarkdownController, which answers Not Found. Only a 200 proves phon itself replied.
+      //
+      // On a port of its own, because the File* adapters name their files after one and the root
+      // now answers differently once a phone is registered: on the default port this asserted 200
+      // or 307 depending on whether the developer happened to have a phone registered at 9000.
       val app = GuiceApplicationBuilder()
-        .configure("play.http.router" -> "dev.Routes")
+        .configure("play.http.router" -> "dev.Routes", "http.port" -> unregisteredPort)
         .build()
       try status(route(app, FakeRequest(GET, "/phonyPhone")).get) mustBe OK
       finally app.stop()

@@ -38,8 +38,8 @@
 *@
 @(depositForm: Form[DepositRecord], contacts: List[Contact], action: Call = controllers.phon.routes.SecretsController.deposit(), submitKey: String = "phon.action.deposit")(implicit request: RequestHeader, messages: Messages)
 
-@if(contacts.isEmpty) {
-    @emptyState("bi-people", "phon.empty.depositNoContacts")
+@if(contacts.size < 2) {
+    @emptyState("bi-people", "phon.empty.depositNotEnoughContacts")
 } else {
     <div class="p-3">
         @* htmx honours the form's own enctype, so this posts as multipart with or without JavaScript. *@

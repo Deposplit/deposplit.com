@@ -84,6 +84,22 @@ class PhonScreensSpec extends PlaySpec {
       stores.foreach(_.delete())
       relayFile.delete()
 
+  // A contact is the prerequisite for a deposit, so these suites need one without a camera or a QR
+  // scan: the manual entry path takes two keys and nothing else, which is all the deposit gate reads.
+  private def addContact(app: Application, pseudonym: String, seed: Int): Unit =
+    val result = route(
+      app,
+      FakeRequest(POST, "/phonyPhone/contacts")
+        .withFormUrlEncodedBody(
+          "pseudonym" -> pseudonym,
+          "verifyKey" -> QrPayload.encodeKey(Array.fill(32)(seed.toByte)),
+          "encKey" -> QrPayload.encodeKey(Array.fill(32)((seed + 1).toByte)),
+          "verificationLevel" -> "High"
+        )
+        .withCSRFToken
+    ).get
+    status(result) mustBe SEE_OTHER
+
   private val screens = List(
     "/phonyPhone/distributed",
     "/phonyPhone/held",
@@ -146,6 +162,28 @@ class PhonScreensSpec extends PlaySpec {
     }
   }
 
+  "Splitting a secret" should {
+
+    // Splitting needs k of n with k at least 2, so one contact is as moot as none: the form used to be
+    // offered anyway and then refuse the submission, which is a refusal the user could not have
+    // predicted from what was on screen.
+    "stay unoffered until there are two contacts to split among" in {
+      withPhone(registered = true) { app =>
+        contentAsString(route(app, FakeRequest(GET, "/phonyPhone/deposit")).get) must not include """name="label""""
+        addContact(app, "Bob", 0x11)
+        contentAsString(route(app, FakeRequest(GET, "/phonyPhone/deposit")).get) must not include """name="label""""
+      }
+    }
+
+    "offer the form once a second contact exists" in {
+      withPhone(registered = true) { app =>
+        addContact(app, "Bob", 0x11)
+        addContact(app, "Carol", 0x21)
+        contentAsString(route(app, FakeRequest(GET, "/phonyPhone/deposit")).get) must include("""name="label"""")
+      }
+    }
+  }
+
   "A phone with no identity yet" should {
 
     "show the sign-in gate instead of any screen it is asked for" in {
@@ -160,8 +198,9 @@ class PhonScreensSpec extends PlaySpec {
       }
     }
 
-    // The cheapest possible check that phon is mounted at all: before registration the root answers
-    // the gate itself rather than redirecting, so a 200 here needs no session and no identity.
+    // The cheapest possible check that phon is mounted at all, and the one PhonRoutingSpec leans on:
+    // before registration the root answers the gate itself rather than redirecting to a tab, so a 200
+    // here needs no session and no identity.
     "still answer 200 at the root" in {
       withPhone(registered = false) { app =>
         status(route(app, FakeRequest(GET, "/phonyPhone")).get) mustBe OK

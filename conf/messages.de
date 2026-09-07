@@ -69,7 +69,7 @@ phon.empty.distributed = Du hast noch nichts aufgeteilt
 phon.empty.held = Du verwahrst noch nichts
 phon.empty.requests = Niemand wartet auf dich
 phon.empty.contacts = Noch keine Kontakte
-phon.empty.depositNoContacts = Lege zuerst einen Kontakt an - ein Geheimnis braucht jemanden, der es verwahrt
+phon.empty.depositNotEnoughContacts = Zuerst braucht es mindestens zwei Kontakte — ein Geheimnis wird unter mindestens zwei Personen aufgeteilt
 phon.qr.noKeys = Dieses Telefon hat keine Schlüssel zum Anzeigen
 
 phon.action.back = Zurück
