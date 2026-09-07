@@ -55,8 +55,8 @@ place rather than growing this list into a second manual.
 
 - [ ] `A` `I` **The cap counts active secrets, not lifetime deposits.** Three active secrets; the fourth is refused. Discard one and the fourth succeeds immediately — before any holder has confirmed the removal, since a discarding secret gives its slot up at once.
 - [ ] `A` `I` **A repair at the cap is not blocked.** With three active secrets, run a repair through to the re-deposit. It must go through: the replacement supersedes an active secret rather than adding a fourth.
-- [ ] `I` **Buying unlocks both relay editors without a relaunch.** Buy in the Simulator against the scheme's StoreKit configuration, then check Settings and Add Contact — both fields become editable, because they observe the store. Delete the transaction under Debug → StoreKit → Manage Transactions and confirm both lock again.
-- [ ] `A` `I` **A free device can still share with a self-hoster.** Scan a QR whose payload names a non-default relay, on a device without Premium. The contact must be added with the override intact and deposits must route to that relay. This is the free half of BYOR, and the one gate whose mis-scoping would break interop rather than merely annoy.
+- [ ] `I` **Buying unlocks the default-relay editor without a relaunch.** Buy in the Simulator against the scheme's StoreKit configuration, then check Settings — the field becomes editable, because it observes the store. Delete the transaction under Debug → StoreKit → Manage Transactions and confirm it locks again. Add Contact's relay field is not part of this: it is free, and must stay editable throughout.
+- [ ] `A` `I` **A free device can still share with a self-hoster.** On a device without Premium, add a contact whose relay is not the default — once by scanning their QR, once by typing the same three fields by hand. Both must keep the override, and deposits must route to that relay either way. This is the free half of BYOR, and the one gate whose mis-scoping would break interop rather than merely annoy.
 
 ### Identity and trust (not written up)
 
@@ -74,7 +74,6 @@ place rather than growing this list into a second manual.
 ## Chores
 
 - [ ] `A` `I` `phon` **Siezen, nicht duzen** Benutzerinnen und Benutzer, welche Deposplit auf Deutsch verwenden, werden geduzt. Deposplit sollte sie jedoch siezen.
-- [ ] `A` `I` **Inconsisten BYOR** When Alice is premium and has her own relay, her QR code says so and is accepted by Bob and Carol. However, when Bob or Carol enters Alice's contact information by hand, their app claims "Das Relay eines Kontakts von Hand einzutragen gehört zu Premium. Ein Relay aus einem gescannten QR-Code ist immer kostenlos."
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 
 ## Open questions

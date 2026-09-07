@@ -105,11 +105,13 @@ given contact names. Operations spanning several contacts fan out across every d
 relay involved, each independently soft-failed so one unreachable host cannot blank out
 the rest.
 
-Naming a relay by hand — this device's default, or a specific contact's — is part of the
-one-time Premium unlock, enforced entirely in the clients. A relay carried in a scanned QR
-code is free, because that is the contact stating where their own mailbox is rather than a
-choice the scanner made. The relay knows none of this: it has no notion of payment, and a
-self-hosted instance has no reason to care either.
+Naming **this device's own default** relay is the one-time Premium unlock, enforced entirely
+in the clients — that is the self-hosting half, and it is what a device advertises in its own
+QR code. Naming **a contact's** relay is free, however it arrives: scanned from their code or
+typed in by hand, it says where *their* mailbox is, so it makes the person entering it
+reachable nowhere new. Gating it would have bought nothing and would have made reaching a
+self-hoster depend on owning a working camera. The relay knows none of this: it has no notion
+of payment, and a self-hosted instance has no reason to care either.
 
 **phon is for teaching and testing only, and can be ignored.** It is a browser-based
 emulator that mimics a native app against a live relay, useful for demonstrating the

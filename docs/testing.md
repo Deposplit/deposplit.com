@@ -139,11 +139,11 @@ sbt run -Dconfig.file=conf/localhost.conf                      # port 9000
 sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9001          # port 9001
 ```
 
-Both mobile relay editors sit behind the Premium unlock, so unlock first: on iOS buy it in
-the Simulator (the scheme carries `Deposplit.storekit`, so no App Store Connect record is
-needed); on Android set `FAKE_PREMIUM=true` in `local.properties` and rebuild, since Play
-Billing cannot run without a Play Console listing. phon has no purchases at all, so its
-**Settings → Default relay** and its per-contact override are simply editable.
+The per-contact override is free everywhere, so it needs no unlock. Only **Settings → Default
+relay** sits behind Premium: on iOS buy it in the Simulator (the scheme carries
+`Deposplit.storekit`, so no App Store Connect record is needed); on Android set
+`FAKE_PREMIUM=true` in `local.properties` and rebuild, since Play Billing cannot run without a
+Play Console listing. phon has no purchases at all, so both are simply editable there.
 
 Give one contact a `relayBaseUrl` override pointing at 9001 and leave another with no
 override. Then verify that deposit, pickup, retrieval and removal all route through the
