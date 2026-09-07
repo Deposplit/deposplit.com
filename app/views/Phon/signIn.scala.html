@@ -46,7 +46,6 @@
             @for(error <- pseudonymForm("pseudonym").errors) {
                 <div class="invalid-feedback">@error.format</div>
             }
-            <div id="pseudonymHelp" class="form-text mb-3">@messages("phon.signIn.help")</div>
             <button type="submit" class="btn btn-primary w-100">@messages("phon.action.getStarted")</button>
         }
 

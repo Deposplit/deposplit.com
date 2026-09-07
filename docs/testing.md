@@ -49,8 +49,8 @@ three simulators, phony phones, or a mix.
 
   ```bash
   sbt run -Dconfig.file=conf/localhost.conf                      # relay + Alice, port 9000
-  sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9001     # Bob
-  sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9002     # Carol
+  sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9001          # Bob
+  sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9002          # Carol
   ```
 
   Each answers at `http://localhost:<port>/phonyPhone`. Bob's and Carol's own port is not a
@@ -136,7 +136,7 @@ Run **two** relays on different ports:
 
 ```bash
 sbt run -Dconfig.file=conf/localhost.conf                      # port 9000
-sbt run -Dconfig.file=conf/localhost.conf -Dhttp.port=9001     # port 9001
+sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9001          # port 9001
 ```
 
 Both mobile relay editors sit behind the Premium unlock, so unlock first: on iOS buy it in

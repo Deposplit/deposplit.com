@@ -56,6 +56,10 @@ class HomeController @Inject() (
 ) extends PhonSupport,
       Logging:
 
+  def index() = Action { implicit request: Request[AnyContent] =>
+    registered(Redirect(routes.HomeController.distributed(), TEMPORARY_REDIRECT))
+  }
+
   // ── Distributed ───────────────────────────────────────────────────────────────────────────
 
   def distributed() = Action { implicit request: Request[AnyContent] =>

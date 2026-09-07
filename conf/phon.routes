@@ -7,7 +7,8 @@
 # exactly that, and it is the cheapest possible check that phon is mounted at all.
 
 # ── The shell: registration gate and the three tabs ──────────────────────────────────────────
-GET    /                                controllers.phon.HomeController.distributed()
+GET    /                                controllers.phon.HomeController.index()
+GET    /distributed                     controllers.phon.HomeController.distributed()
 GET    /held                            controllers.phon.HomeController.held(sort: String ?= "date")
 GET    /requests                        controllers.phon.HomeController.requests()
 

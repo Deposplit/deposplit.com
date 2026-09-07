@@ -132,6 +132,20 @@ class PhonScreensSpec extends PlaySpec {
     }
   }
 
+  "The document htmx runs inside" should {
+
+    // Every mutating control in phon is an hx-post or an hx-delete, and none of them carries a hidden
+    // token: they all rely on inheriting one header from the body. htmx 4 ships implicitInheritance
+    // false, so the inheritance has to be asked for by name - and a bare hx-headers, which is what
+    // htmx 2 wanted, leaves every button in the emulator failing CSRF while every screen still renders.
+    "hand the CSRF token down to the controls that inherit it" in {
+      withPhone(registered = true) { app =>
+        val document = contentAsString(route(app, FakeRequest(GET, "/phonyPhone")).get)
+        document must include("""hx-headers:inherited='{"Csrf-Token": """")
+      }
+    }
+  }
+
   "A phone with no identity yet" should {
 
     "show the sign-in gate instead of any screen it is asked for" in {

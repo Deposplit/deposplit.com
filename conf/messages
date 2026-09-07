@@ -59,7 +59,6 @@ phon.title.settings = Settings
 
 phon.signIn.subtitle = Choose a pseudonym
 phon.signIn.placeholder = e.g. Alice
-phon.signIn.help = Pseudonyms need not be unique, and you can share this one freely - it is not a login.
 phon.signIn.port = This phony phone is {0}. Start another on a different port to play a second person.
 
 phon.advisory.awaitingRelink = {0,choice,1#One contact still has|1<{0} contacts still have} your old key - meet them and let them scan your code again
@@ -129,7 +128,7 @@ phon.verification.guidance.high = Two independent assurances, checked separately
 phon.verification.guidance.veryHigh = You were in the same room.
 
 phon.addContact.paste = Paste details
-phon.addContact.manual = Type keys
+phon.addContact.manual = Type details
 phon.addContact.pasteHelp = Open the other phone''s contact details, copy them, and paste them here. This stands in for scanning their code.
 phon.addContact.payloadLevelFooter = Pasting stands in for a scan, so it may claim the level a scan earns - but only if you really did get these details face to face.
 phon.addContact.manualLevelFooter = Very high is not offered here: it means you were in the same room, which typing keys out of a chat window is not.

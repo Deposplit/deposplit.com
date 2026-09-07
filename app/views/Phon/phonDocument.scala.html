@@ -44,11 +44,14 @@
 </head>
 
 @*
-* The CSRF token rides on the body rather than on each control: htmx inherits hx-headers down the
-* tree, so every request a swapped-in fragment makes carries it without the fragment having to
-* remember a hidden input.
+* The CSRF token rides on the body rather than on each control, so every request a swapped-in
+* fragment makes carries it without the fragment having to remember a hidden input.
+*
+* The `:inherited` suffix is load-bearing, not decoration. htmx 4 ships implicitInheritance
+* false, so a bare hx-headers applies to the body alone and every hx-post and hx-delete below
+* it is rejected by the CSRF filter with NoTokenInBody.
 *@
-<body class="phon" hx-headers='{"Csrf-Token": "@helper.CSRF.getToken.value"}'>
+<body class="phon" hx-headers:inherited='{"Csrf-Token": "@helper.CSRF.getToken.value"}'>
     <a class="visually-hidden-focusable" href="#phonContent">@messages("skipToMainContent")</a>
     <div class="phon-device">
         @content
