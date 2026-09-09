@@ -156,6 +156,12 @@ but only then, so a second line always means "this is what they call themselves"
 repeating the first. Per contact: rename, relink, mark key compromised, pause or resume custody
 heartbeats, delete.
 
+**Those actions are on the row, never behind a long-press.** An action reachable only by a gesture
+the screen does not advertise is, to the person looking at it, an action that does not exist — and
+a contact that cannot visibly be edited reads as one that cannot be edited at all. Deleting is
+confirmed on all three platforms, because a contact is never re-added: adding the same person again
+mints a fresh `contactId` and orphans every share anchored to the old one.
+
 **Adding a contact has two ways in, and one of them is weaker on purpose.** Scanning a QR code in
 person — or, on phon, pasting the payload that stands in for a scan — earns `VeryHigh`. Typing the
 pseudonym and the two keys by hand offers Very Low, Low and High and never Very High. All three

@@ -150,4 +150,4 @@ locales must be kept in sync.
   `conf/messages.de`, Android's `values-de`, the `de` half of `Localizable.xcstrings`, and the
   `_de` markdowns. Wording that avoids addressing the reader is better still, because it needs
   no register at all. Watch the capital: `Ihr` is *your*, so a string meaning *their* has to
-  say so another way.
+  say so another way. The German is Swiss: `ss` always, never `ß`.
