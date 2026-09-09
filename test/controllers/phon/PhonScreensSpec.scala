@@ -184,6 +184,44 @@ class PhonScreensSpec extends PlaySpec {
     }
   }
 
+  "Keeping shares safe" should {
+
+    // Same rule as the deposit form above: an affordance that cannot work is never shown. Sorting a
+    // list of nothing is one, and the row used to sit above the empty state offering it anyway.
+    // Android puts its chips inside the non-empty branch of the tab for this reason.
+    "offer no sort order while there is nothing to sort" in {
+      withPhone(registered = true) { app =>
+        // Both phases of the two-phase load: the local render that lands first, under its spinner,
+        // and the synced one that replaces it and carries the empty state.
+        val local = contentAsString(route(app, FakeRequest(GET, "/phonyPhone/held")).get)
+        local must not include "?sort="
+
+        val synced = contentAsString(route(app, FakeRequest(GET, "/phonyPhone/sync/held")).get)
+        synced must include("No shares to keep safe yet")
+        synced must not include "?sort="
+      }
+    }
+  }
+
+  "A date on screen" should {
+
+    // Every date used to be `Instant.toString.take(10)`, an ISO prefix that reads the same to a German
+    // reader as to an English one and matches neither app. docs/interaction.md fixes German as
+    // dd.MM.yyyy; Settings is the one screen carrying a date on a phone with no contacts and no shares.
+    "follow the reader's locale rather than ISO" in {
+      withPhone(registered = true) { app =>
+        def settings(language: String): String =
+          contentAsString(
+            route(app, FakeRequest(GET, "/phonyPhone/settings").withHeaders("Accept-Language" -> language)).get
+          )
+
+        settings("de") must include regex ("""\d{2}\.\d{2}\.\d{4}""")
+        settings("de") must not include regex("""\d{4}-\d{2}-\d{2}""")
+        settings("en") must not include regex("""\d{4}-\d{2}-\d{2}""")
+      }
+    }
+  }
+
   "A phone with no identity yet" should {
 
     "show the sign-in gate instead of any screen it is asked for" in {

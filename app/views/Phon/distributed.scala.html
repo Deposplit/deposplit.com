@@ -22,6 +22,7 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon.PhonDates
 @import controllers.phon.SecretGroup
 @import controllers.phon.SecretHealth
 
@@ -35,7 +36,7 @@
 @now = @{ java.time.Instant.now() }
 
 @if(groups.isEmpty && !syncPending) {
-    @emptyState("bi-safe", "phon.empty.distributed")
+    @emptyState("bi-image", "phon.empty.distributed")
 } else {
     <div class="list-group list-group-flush">
         @for(group <- groups) {
@@ -45,7 +46,7 @@
                         <div class="fw-semibold">@group.secret.label</div>
                         <div class="small text-body-secondary">
                             @messages("phon.distributed.threshold", group.secret.k, group.secret.n)
-                            · @group.secret.secretCreatedAt.toString.take(10)
+                            · @PhonDates.format(group.secret.secretCreatedAt)
                         </div>
                         <div class="mt-1">@healthBadge(group, now)</div>
                     </div>

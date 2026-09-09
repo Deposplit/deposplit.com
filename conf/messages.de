@@ -33,7 +33,6 @@ revert = Zurücksetzen
 # https://www.playframework.com/documentation/latest/ScalaI18N#Externalizing-messages
 error.required = Dieses Feld darf nicht leer sein
 
-
 # phon
 # Schlüssel sind präfigiert, wie abode.* und legalese.* der Startseite, weil phon inzwischen
 # mehr davon hat als alles andere in dieser Datei zusammen.
@@ -65,9 +64,9 @@ phon.signIn.port = Dieses Phony-Phone ist {0}. Starten Sie ein weiteres auf eine
 phon.advisory.awaitingRelink = {0,choice,1#Ein Kontakt hat noch|1<{0} Kontakte haben noch} Ihren alten Schlüssel - treffen Sie sie und lassen Sie sie Ihren Code erneut scannen
 phon.advisory.relayUnreachable = Relais nicht erreichbar
 
-phon.empty.distributed = Sie haben noch nichts aufgeteilt
-phon.empty.held = Sie verwahren noch nichts
-phon.empty.requests = Niemand wartet auf Sie
+phon.empty.distributed = Noch keine Geheimnisse aufgeteilt & verteilt
+phon.empty.held = Noch keine Anteile zu verwahren
+phon.empty.requests = Keine ausstehenden Anfragen
 phon.empty.contacts = Noch keine Kontakte
 phon.empty.depositNotEnoughContacts = Zuerst braucht es mindestens zwei Kontakte — ein Geheimnis wird unter mindestens zwei Personen aufgeteilt
 phon.qr.noKeys = Dieses Telefon hat keine Schlüssel zum Anzeigen
@@ -155,6 +154,7 @@ phon.freshness.gettingStale = Wird alt
 phon.freshness.silentOverdue = Still - möglicher Verlust
 
 phon.held.from = Von {0}
+phon.held.sortBy = Sortieren nach
 phon.held.sort.date = Datum
 phon.held.sort.label = Etikett
 phon.held.sort.sender = Absender

@@ -22,6 +22,7 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon.PhonDates
 @import controllers.phon.KeyConflictRow
 @import controllers.phon.RequestRow
 @import value_objects.svo.ShareTransactionType
@@ -42,7 +43,7 @@
         </div>
         <p class="small mb-2">@messages("phon.conflict.body", row.contactName)</p>
         <div class="small text-body-secondary mb-2">
-            @messages("phon.conflict.detected", row.conflict.detectedAt.toString.take(10))
+            @messages("phon.conflict.detected", PhonDates.format(row.conflict.detectedAt))
         </div>
         <button type="button" class="btn btn-sm btn-outline-danger"
             hx-delete="@controllers.phon.routes.RequestsController.dismissConflict(row.conflict.id)"
@@ -53,7 +54,7 @@
 }
 
 @if(rows.isEmpty && !syncPending) {
-    @emptyState("bi-check2-circle", "phon.empty.requests")
+    @emptyState("bi-list-check", "phon.empty.requests")
 } else {
     <div class="list-group list-group-flush">
         @for(row <- rows) {
@@ -78,7 +79,7 @@
                 <div class="small text-body-secondary">
                     @messages("phon.requests.from", row.senderName)
                     @row.senderSubtitle.map { pseudonym => (@pseudonym) }
-                    · @row.request.requestedAt.toString.take(10)
+                    · @PhonDates.format(row.request.requestedAt)
                 </div>
                 @* Only on a retrieval: a key change followed quickly by a request to hand the share
                    back is the shape of the attack this warning exists for. *@

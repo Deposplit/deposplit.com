@@ -49,8 +49,8 @@ three simulators, phony phones, or a mix.
 
   ```bash
   sbt run -Dconfig.file=conf/localhost.conf                      # relay + Alice, port 9000
-  sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9001          # Bob
-  sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9002          # Carol
+  sbt "run -Dconfig.file=conf/phon.conf -Dhttp.port=9001"        # Bob
+  sbt "run -Dconfig.file=conf/phon.conf -Dhttp.port=9002"        # Carol
   ```
 
   Each answers at `http://localhost:<port>/phonyPhone`. Bob's and Carol's own port is not a
@@ -67,9 +67,6 @@ and stops one level short on purpose. A real handset can still scan the QR code 
 
 ## Flow 1 — Happy path, 2-of-2 across two holders
 
-Tab names differ slightly by platform: Android says **Split & shared** / **Kept safe**, iOS
-says **Distributed** / **Held**, phon follows Android. They are the same two things.
-
 | Step | Device | Action |
 |---|---|---|
 | 1 | A | Launch, register as "Alice" |
@@ -80,8 +77,8 @@ says **Distributed** / **Held**, phon follows Android. They are the same two thi
 | 6 | C | Same — add Alice, then show Carol's QR |
 | 7 | A | Add Bob and Carol as contacts |
 | 8 | A | ＋ → label ("test secret"), secret text, select Bob and Carol, threshold 2-of-2 → **Deposit** |
-| 9 | A | Distributed view shows one grouped card for the secret; expand to see both holders |
-| 10 | B | Held view shows Alice's deposit → the app auto-approves, decrypts, and stores the **plaintext** share; the relay clears the ciphertext |
+| 9 | A | Split & shared view shows one grouped card for the secret; expand to see both holders |
+| 10 | B | Keeping safe view shows Alice's deposit → the app auto-approves, decrypts, and stores the **plaintext** share; the relay clears the ciphertext |
 | 11 | C | Same |
 | 12 | A | Expand the card → **Request Retrieval** (opens retrievals for both holders at once) |
 | 13 | B | Requests → retrieval from Alice → **Approve**. The app re-encrypts the stored plaintext to Alice's *current* key |
@@ -100,11 +97,11 @@ she re-requests and Bob approves.
 
 Alice opens a **Removal** request on one share. Bob's Requests tab shows it; Bob approves;
 Bob's deposit row is deleted, cascading to any related retrieval and removal rows, and the
-share disappears from Bob's Held view.
+share disappears from Bob's Keeping safe view.
 
 ## Flow 4 — Holder-initiated deletion
 
-Bob deletes Alice's share from his Held view directly — swipe on iOS, delete icon on
+Bob deletes Alice's share from his Keeping safe view directly — swipe on iOS, delete icon on
 Android — with no request and no approval. If Bob holds several shares from Alice, the
 confirmation also offers to delete all of them. Then check what Alice sees on refresh: she
 should learn about it eventually, but never by a row simply going missing.
@@ -113,7 +110,7 @@ should learn about it eventually, but never by a row simply going missing.
 
 Kill the relay, then open or refresh both apps.
 
-- Distributed and Held views must still render **from local storage**, with a soft
+- Split & shared and Keeping safe views must still render **from local storage**, with a soft
   "relay not reachable" banner rather than a blocking error.
 - The Requests tab queries the relay for pending events that are not stored locally, so it
   will show an error. That is correct behaviour.
@@ -123,7 +120,7 @@ Restart the relay, navigate away and back — the banner clears and data refresh
 ## Flow 6 — Cross-platform
 
 Run Alice on iOS and Bob on Android at the same time, against one relay. Alice deposits for
-Bob; Bob sees it in Held; Bob opens a retrieval; Alice reconstructs.
+Bob; Bob sees it in Keeping safe; Bob opens a retrieval; Alice reconstructs.
 
 This is the highest-value flow in this document, because it is the only test that proves
 CryptoKit and BouncyCastle produce interoperable X25519 + HKDF-SHA-256 +

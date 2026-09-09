@@ -31,9 +31,9 @@ import play.api.mvc.Call
   * are reached from the top bar on both platforms, so they are not tabs here either.
   */
 enum PhonTab(val titleKey: String, val icon: String):
-  case Distributed extends PhonTab("phon.tab.distributed", "bi-arrow-up-circle")
-  case Held extends PhonTab("phon.tab.held", "bi-inbox")
-  case Requests extends PhonTab("phon.tab.requests", "bi-bell")
+  case Distributed extends PhonTab("phon.tab.distributed", "bi-images")
+  case Held extends PhonTab("phon.tab.held", "bi-puzzle-fill")
+  case Requests extends PhonTab("phon.tab.requests", "bi-list-task")
 
   def call: Call = this match
     case Distributed => routes.HomeController.distributed()

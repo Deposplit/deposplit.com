@@ -22,6 +22,7 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon.PhonDates
 @import controllers.phon.HolderStatus
 @import controllers.phon.SecretGroup
 @import value_objects.svo.ReconstructionResult
@@ -48,7 +49,7 @@
         @request match {
             case Some(open) => {
                 <div class="small text-body-secondary">
-                    @messages("phon.shareDetail.requestedAt", open.requestedAt.toString.take(10))
+                    @messages("phon.shareDetail.requestedAt", PhonDates.format(open.requestedAt))
                 </div>
                 @if(open.state == ShareRequestState.Denied) {
                     <button type="button" class="btn btn-sm btn-outline-primary mt-2"
@@ -80,7 +81,7 @@
             @holder.recipientSubtitle.map { pseudonym => (@pseudonym) }
         </div>
         <div class="small text-body-secondary">
-            @messages("phon.shareDetail.deposited", group.secret.secretCreatedAt.toString.take(10))
+            @messages("phon.shareDetail.deposited", PhonDates.format(group.secret.secretCreatedAt))
         </div>
         <div class="mt-1">@freshnessLabel(holder, now)</div>
     </div>

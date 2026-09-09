@@ -54,8 +54,8 @@ or endpoints. The empty state is *Nobody is waiting on you*, not *no pending req
 |---|---|---|---|
 | First screen | `sign_in` | `SignInView` | `GET /` |
 | Keys lost | `keys_lost` | `KeysLostView` | — |
-| Tabs | Split & shared · Kept safe · Requests | Distributed · Held · Requests | Split & shared · Kept safe · Requests |
-| Always reachable | My QR code · New secret · Contacts · Settings | same | same |
+| Tabs | Split & shared · Keeping safe · Requests | same | same |
+| Always reachable | My QR code · New secret · Contacts · Settings | same | My QR code · Contacts · Settings |
 
 Registration asks for one thing, a pseudonym, and never for an account. That is the first and
 loudest claim the product makes about itself, so it stays a single field.
@@ -64,11 +64,6 @@ The **keys-lost** screen exists because a restored device can carry every record
 keys. It says four things in that order: what happened, that nothing *else* was lost, what to do,
 and that until it is done this person is unreachable. phon cannot reach the state — it keeps keys
 and records in the same files, so the two cannot come apart — and so has no such screen.
-
-**The tab names differ between platforms and should not.** Android and phon say *Split & shared*
-and *Kept safe*; iOS says *Distributed* and *Held*. The Android and phon wording is the better of
-the two, naming what the user did rather than what the system stores, but the divergence is
-unresolved rather than deliberate.
 
 ## Split & shared
 
@@ -127,7 +122,7 @@ a secret is bytes and has to come back as the bytes that went in.
 sender who has read the secret currently has no way to clear them — the open chore in
 [TODO.md](../TODO.md).
 
-## Kept safe
+## Keeping safe
 
 The shares this device holds for other people, sortable by date, label or sender. A holder may
 delete a share unilaterally, with no request and no approval, because the whole product rests on

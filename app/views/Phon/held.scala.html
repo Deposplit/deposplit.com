@@ -22,6 +22,7 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon.PhonDates
 @import controllers.phon.HeldShareRow
 @import controllers.phon.HeldSortOrder
 
@@ -32,19 +33,24 @@
 *@
 @(rows: List[HeldShareRow], order: HeldSortOrder, syncPending: Boolean)(implicit request: RequestHeader, messages: Messages)
 
-<div class="d-flex gap-1 p-2 border-bottom">
-    @for(candidate <- HeldSortOrder.values) {
-        <button type="button"
-            class="btn btn-sm @if(candidate == order){btn-secondary}else{btn-outline-secondary}"
-            hx-get="@controllers.phon.routes.HomeController.held(candidate.wireValue)"
-            hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
-            @messages(s"phon.held.sort.${candidate.wireValue}")
-        </button>
-    }
-</div>
+@* Sorting needs something to sort, so the row arrives with the first share rather than sitting
+* over an empty list. The buttons are a selection, not three separate commands, which is what
+* aria-pressed says and what Android's FilterChip row says natively. *@
+@if(rows.nonEmpty) {
+    <div class="d-flex gap-1 p-2 border-bottom" role="group" aria-label="@messages("phon.held.sortBy")">
+        @for(candidate <- HeldSortOrder.values) {
+            <button type="button" aria-pressed="@(candidate == order)"
+                class="btn btn-sm @if(candidate == order){btn-secondary}else{btn-outline-secondary}"
+                hx-get="@controllers.phon.routes.HomeController.held(candidate.wireValue)"
+                hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+                @messages(s"phon.held.sort.${candidate.wireValue}")
+            </button>
+        }
+    </div>
+}
 
 @if(rows.isEmpty && !syncPending) {
-    @emptyState("bi-inbox", "phon.empty.held")
+    @emptyState("bi-puzzle", "phon.empty.held")
 } else {
     <div class="list-group list-group-flush">
         @for(row <- rows) {
@@ -55,7 +61,7 @@
                         @messages("phon.held.from", row.senderName)
                         @row.senderSubtitle.map { pseudonym => (@pseudonym) }
                     </div>
-                    <div class="small text-body-secondary">@row.share.createdAt.toString.take(10)</div>
+                    <div class="small text-body-secondary">@PhonDates.format(row.share.createdAt)</div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger"
                     hx-delete="@controllers.phon.routes.HeldController.delete(row.share.id)"

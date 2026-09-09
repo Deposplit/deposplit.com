@@ -22,6 +22,7 @@
 * THE SOFTWARE.
 *@
 
+@import controllers.phon.PhonDates
 @import controllers.phon.PhonForms.RelayRecord
 @import value_objects.svo.RegenerateIdentityResult
 
@@ -61,7 +62,7 @@
             <dt class="col-5">@messages("phon.field.pseudonym")</dt>
             <dd class="col-7">@pseudonym</dd>
             <dt class="col-5">@messages("phon.settings.identitySince")</dt>
-            <dd class="col-7">@identityCreatedAt.map(_.toString.take(10)).getOrElse(messages("phon.settings.unknown"))</dd>
+            <dd class="col-7">@identityCreatedAt.map(PhonDates.format).getOrElse(messages("phon.settings.unknown"))</dd>
         </dl>
         @regenerated.map { result =>
             <div class="alert alert-info py-2 small">
