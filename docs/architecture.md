@@ -105,6 +105,14 @@ given contact names. Operations spanning several contacts fan out across every d
 relay involved, each independently soft-failed so one unreachable host cannot blank out
 the rest.
 
+**"Every distinct relay" is decided on the rows, not on the URLs.** One relay answers to more
+than one name — a contact's QR code advertising `http://127.0.0.1:9000` while this device spells
+its own default `http://localhost:9000`, or the same address with and without a trailing slash —
+and nothing short of asking the relay could tell that they are one host. So a fan-out collects
+what it finds and then keeps each row once, on the id the relay minted for it. Seeing a row twice
+is not merely untidy: reconstruct would combine the same share twice and be refused for duplicate
+x-coordinates, which is the whole recovery failing.
+
 Naming **this device's own default** relay is the one-time Premium unlock, enforced entirely
 in the clients — that is the self-hosting half, and it is what a device advertises in its own
 QR code. Naming **a contact's** relay is free, however it arrives: scanned from their code or

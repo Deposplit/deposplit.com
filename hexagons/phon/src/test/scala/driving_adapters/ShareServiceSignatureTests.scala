@@ -30,6 +30,7 @@ import driven_ports.RetainedDepositRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
+import driven_ports.ShareRelayResolver
 import driven_ports.ShareRepository
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
 import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
@@ -461,7 +462,8 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
   private def newServiceForRecoveryTest(
       relay: FakeShareRelay,
-      contacts: List[Contact] = List(aliceContact)
+      contacts: List[Contact] = List(aliceContact),
+      resolver: Option[ShareRelayResolver] = None
   ): (ShareService, IdentityService, FakeShareRepository, FakeSecretRepository, FakeShareMetadataRepository) =
     val identityStore = InMemoryForgettableIdentityStore()
     val bobIdentity = IdentityService(identityStore)
@@ -471,7 +473,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val metaRepo = FakeShareMetadataRepository()
     val contactRepo = FakeContactRepository(contacts)
     val svc = ShareService(
-      relayResolver = FixedShareRelayResolver(relay),
+      relayResolver = resolver.getOrElse(FixedShareRelayResolver(relay)),
       encryption = NoOpShareEncryption,
       shareRepository = shareRepo,
       shareMetadataRepository = metaRepo,
@@ -1298,6 +1300,43 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       senderSignature = Array.emptyByteArray,
       recipientSignature = None
     )
+
+  /** allRelays can only tell two relays apart by name, and one relay answers to several: a contact's payload advertises
+    * `http://127.0.0.1:9000` while this device spells its own default `http://localhost:9000`. The resolver keys on the
+    * string and nothing else, so it hands back a separate instance per name and the fan-out asks the same relay twice,
+    * getting every row back twice. The rows have to settle it, on the id the relay minted for each.
+    *
+    * Reconstruct is where this stops being cosmetic: two copies of one share are two identical x-coordinates, which the
+    * combiner refuses outright, so the secret cannot be recovered at all.
+    */
+  test("one relay under two names still collects each share once") {
+    val holders = (0 until 2).map(i => makeHolderFixture(s"holder$i")).toList
+    val pinned = List(
+      holders(0).contact.copy(relayBaseUrl = Some("http://127.0.0.1:9000")),
+      holders(1).contact.copy(relayBaseUrl = Some("http://localhost:9000"))
+    )
+    val secretBytes = "one relay, two names".getBytes("UTF-8")
+    val shares = SecretSharing.split(secretBytes, shares = 2, threshold = 2)
+    val secretId = UUID.randomUUID()
+    val rows = holders.zip(shares).map((holder, share) => makeApprovedRetrievalRow(secretId, holder, share))
+    val aliased = new ShareRelayResolver:
+      private val instances = scala.collection.mutable.Map.empty[String, FakeShareRelay]
+      override def resolve(relayBaseUrl: Option[String]): ShareRelay =
+        instances.getOrElseUpdate(
+          relayBaseUrl.getOrElse("http://localhost:9000"), {
+            val relay = FakeShareRelay()
+            relay.pending = rows
+            relay
+          }
+        )
+    val (svc, _, _, secretRepo, _) = newServiceForRecoveryTest(FakeShareRelay(), pinned, Some(aliased))
+    secretRepo.save(Secret(secretId, "s", MimeType.Default, 2, 2, Instant.now(), SecretState.Active))
+
+    val result = svc.reconstruct(secretId)
+
+    assertEquals(result.secret.toList, secretBytes.toList)
+    assertEquals(svc.listSentRequests().map(_.id).sortBy(_.toString), rows.map(_.id).sortBy(_.toString))
+  }
 
   test("reconstruct with exactly k approved shares has no integrity margin") {
     val relay = FakeShareRelay()
