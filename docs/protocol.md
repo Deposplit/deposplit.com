@@ -68,7 +68,13 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
 | `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut` |
 
-Two rules govern changes here:
+**A signed timestamp has to survive the wire.** The receiver never verifies against the bytes the
+sender built — it rebuilds them from the JSON it parsed — so `secretCreatedAt` must be transmitted
+with its milliseconds intact: `2026-01-01T00:00:00.123Z`, never `2026-01-01T00:00:00Z`. Java's
+`Instant.toString` keeps them; Foundation's default `ISO8601DateFormatter` drops them, and a
+dropped millisecond makes every signature fail to verify.
+
+Three rules govern changes here:
 
 - **Append only.** New fields go at the tail. Inserting one invalidates every existing
   cross-platform test vector and silently breaks interoperability between app versions.

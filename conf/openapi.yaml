@@ -56,7 +56,9 @@ info:
 
     `secretCreatedAt` is signed as epoch milliseconds (not the ISO-8601 wire string) and UUIDs are
     signed lowercase — both choices exist solely to keep the signed bytes identical across
-    independently-implemented clients. Both signatures are base64url-encoded (no padding) on the
+    independently-implemented clients. The wire string must therefore carry those milliseconds
+    (`2026-01-01T00:00:00.123Z`, not `2026-01-01T00:00:00Z`): verification rebuilds the signed
+    bytes from the timestamp as parsed, so a truncated one never verifies. Both signatures are base64url-encoded (no padding) on the
     wire, matching `X-Deposplit-Signature`. The Web app/service also verifies both server-side as
     defense-in-depth, rejecting with `400` if they don't verify — recipients should not rely on
     this for relays other than deposplit.com, since a passive third-party relay cannot perform it.
@@ -299,6 +301,10 @@ components:
         secretCreatedAt:
           type: string
           format: date-time
+          description: >
+            Must include milliseconds — `senderSignature` covers this instant as epoch
+            milliseconds, and verification re-derives them from this string.
+          example: '2026-01-01T00:00:00.123Z'
         ciphertext:
           type: string
           format: byte
