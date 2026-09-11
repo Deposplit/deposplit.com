@@ -42,10 +42,12 @@ DELETE /contacts/:contactId             controllers.phon.ContactsController.dele
 # ── Secrets this device split and shared out ────────────────────────────────────────────────
 GET    /deposit                         controllers.phon.SecretsController.depositForm()
 POST   /deposit                         controllers.phon.SecretsController.deposit()
+GET    /secrets/:secretId               controllers.phon.SecretsController.secretDetail(secretId: java.util.UUID)
 GET    /shares/:shareId                 controllers.phon.SecretsController.shareDetail(shareId: java.util.UUID)
 GET    /secrets/:secretId/repair        controllers.phon.SecretsController.repair(secretId: java.util.UUID)
 POST   /secrets/:secretId/retrievals    controllers.phon.SecretsController.requestAll(secretId: java.util.UUID)
 POST   /secrets/:secretId/reconstruction controllers.phon.SecretsController.reconstruct(secretId: java.util.UUID)
+DELETE /secrets/:secretId/collected     controllers.phon.SecretsController.clearCollected(secretId: java.util.UUID)
 POST   /secrets/:secretId/forget        controllers.phon.SecretsController.forceForget(secretId: java.util.UUID)
 DELETE /secrets/:secretId               controllers.phon.SecretsController.discard(secretId: java.util.UUID)
 POST   /shares/:shareId/requests        controllers.phon.SecretsController.openRequest(shareId: java.util.UUID)

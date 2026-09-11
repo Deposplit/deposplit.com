@@ -25,18 +25,17 @@
 @import controllers.phon.PhonDates
 @import controllers.phon.HolderStatus
 @import controllers.phon.SecretGroup
-@import value_objects.svo.ReconstructionResult
 @import value_objects.svo.ShareRequestState
 @import value_objects.svo.ShareTransactionType
 
 @*
-* One holder's copy of one secret: what was deposited with them, what has been asked of them, and -
-* once k holders have approved - the button that puts the secret back together.
+* One holder's copy of one secret: what was deposited with them, and what has been asked of them.
 *
-* Reconstruct is offered here rather than on the list because it belongs to the secret as a whole,
-* and this is the screen where the count of approvals is in front of you.
+* Reconstructing belongs to the secret as a whole rather than to any one holder, so it lives on the
+* secret's own screen - the one this was reached from - alongside asking for copies and letting
+* them go again.
 *@
-@(group: SecretGroup, holder: HolderStatus, outcome: Option[scala.util.Try[ReconstructionResult]])(implicit request: RequestHeader, messages: Messages)
+@(group: SecretGroup, holder: HolderStatus)(implicit request: RequestHeader, messages: Messages)
 
 @now = @{ java.time.Instant.now() }
 
@@ -89,29 +88,4 @@
     @requestSection(ShareTransactionType.Retrieval, holder.retrievalRequest, "phon.transaction.retrieval", "phon.action.requestRetrieval")
     @requestSection(ShareTransactionType.Removal, holder.removalRequest, "phon.transaction.removal", "phon.action.requestRemoval")
 
-    <div class="list-group-item">
-        <div class="fw-semibold">@messages("phon.shareDetail.reconstruct")</div>
-        <div class="small text-body-secondary">
-            @messages("phon.shareDetail.approvedCount", group.approvedRetrievals, group.secret.k)
-        </div>
-        @* The button stays out of sight below threshold: offering one that cannot work teaches the
-           wrong thing about what k means. *@
-        @if(group.canReconstruct) {
-            <button type="button" class="btn btn-sm btn-primary mt-2"
-                hx-post="@controllers.phon.routes.SecretsController.reconstruct(group.secret.id)"
-                hx-target="#screen" hx-swap="outerHTML">
-                @messages("phon.action.reconstruct")
-            </button>
-        }
-        @outcome.map { attempt =>
-            @attempt match {
-                case scala.util.Success(result) => { @reconstruction(result) }
-                case scala.util.Failure(failure) => {
-                    <div class="alert alert-danger mt-3 mb-0">
-                        @messages("phon.reconstruct.failed", Option(failure.getMessage).getOrElse(failure.getClass.getSimpleName))
-                    </div>
-                }
-            }
-        }
-    </div>
 </div>

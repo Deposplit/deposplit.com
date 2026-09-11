@@ -186,9 +186,10 @@ class PhonScreensSpec extends PlaySpec {
 
   "Keeping shares safe" should {
 
-    // Same rule as the deposit form above: an affordance that cannot work is never shown. Sorting a
-    // list of nothing is one, and the row used to sit above the empty state offering it anyway.
-    // Android puts its chips inside the non-empty branch of the tab for this reason.
+    // Same rule as the deposit form above: what cannot work is replaced by something that says why,
+    // never left standing with nothing behind it. The empty state is that something, and the sort
+    // row used to sit above it offering an order for a list of nothing. Android puts its chips
+    // inside the non-empty branch of the tab for this reason.
     "offer no sort order while there is nothing to sort" in {
       withPhone(registered = true) { app =>
         // Both phases of the two-phase load: the local render that lands first, under its spinner,

@@ -24,12 +24,14 @@
 
 @import controllers.phon.PhonDates
 @import controllers.phon.SecretGroup
-@import controllers.phon.SecretHealth
 
 @*
-* Secrets this device split and handed out, one card per secret with its holders folded inside -
-* the shape both mobile Distributed tabs use. The card, not the share, is the unit: a secret is
-* one thing to its owner even though it left as n pieces.
+* Secrets this device split and handed out, one row per secret - the shape both mobile Distributed
+* tabs use. The secret, not the share, is the unit: a secret is one thing to its owner even though
+* it left as n pieces.
+*
+* The row summarises and nothing more; holders and every action live on the secret's own screen, so
+* that a list of ten secrets does not become ten places where buttons appear and disappear.
 *@
 @(groups: List[SecretGroup], syncPending: Boolean)(implicit request: RequestHeader, messages: Messages)
 
@@ -40,81 +42,23 @@
 } else {
     <div class="list-group list-group-flush">
         @for(group <- groups) {
-            <div class="list-group-item" id="ESC@group.secret.id">
-                <div class="d-flex align-items-start gap-2">
+            <button type="button" class="list-group-item list-group-item-action text-start"
+                id="ESC@group.secret.id"
+                hx-get="@controllers.phon.routes.SecretsController.secretDetail(group.secret.id)"
+                hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+                <div class="d-flex align-items-center gap-2">
                     <div class="flex-grow-1">
                         <div class="fw-semibold">@group.secret.label</div>
                         <div class="small text-body-secondary">
                             @messages("phon.distributed.threshold", group.secret.k, group.secret.n)
                             · @PhonDates.format(group.secret.secretCreatedAt)
+                            · @messages("phon.distributed.holderCount", group.holders.size)
                         </div>
                         <div class="mt-1">@healthBadge(group, now)</div>
                     </div>
-                    <button class="btn btn-sm btn-link" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#holders-ESC@group.secret.id"
-                        aria-expanded="false" aria-controls="holders-ESC@group.secret.id"
-                        aria-label="@messages("phon.action.expand")">
-                        <i class="bi bi-chevron-down"></i>
-                    </button>
+                    <i class="bi bi-chevron-right text-body-secondary"></i>
                 </div>
-
-                <div class="collapse" id="holders-ESC@group.secret.id">
-                    <hr class="my-2">
-                    @for(holder <- group.holders) {
-                        <button type="button"
-                            class="btn btn-link text-start text-decoration-none w-100 px-0 py-1"
-                            hx-get="@controllers.phon.routes.SecretsController.shareDetail(holder.shareId)"
-                            hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
-                            <div class="d-flex justify-content-between align-items-center gap-2">
-                                <span class="text-body">
-                                    @holder.recipientName
-                                    @holder.recipientSubtitle.map { pseudonym =>
-                                        <span class="text-body-secondary small">(@pseudonym)</span>
-                                    }
-                                    <br>@freshnessLabel(holder, now)
-                                </span>
-                                @holder.retrievalRequest.map { retrieval =>
-                                    @requestStateBadge(retrieval.state)
-                                }
-                            </div>
-                        </button>
-                    }
-
-                    <div class="d-flex flex-wrap gap-2 mt-3">
-                        <button type="button" class="btn btn-sm btn-outline-primary"
-                            hx-post="@controllers.phon.routes.SecretsController.requestAll(group.secret.id)"
-                            hx-target="#screen" hx-swap="outerHTML"
-                            @if(!group.canRequestRetrieval){disabled}>
-                            @messages("phon.action.requestRetrieval")
-                        </button>
-                        @if(group.health(now) == SecretHealth.Caution || group.health(now) == SecretHealth.Critical) {
-                            <button type="button" class="btn btn-sm btn-outline-warning"
-                                hx-get="@controllers.phon.routes.SecretsController.repair(group.secret.id)"
-                                hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
-                                @messages("phon.action.repair")
-                            </button>
-                        }
-                        @if(group.secret.state == value_objects.svo.SecretState.Discarding) {
-                            <span class="align-self-center text-body-secondary small">
-                                @messages("phon.distributed.discarding")
-                            </span>
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                hx-post="@controllers.phon.routes.SecretsController.forceForget(group.secret.id)"
-                                hx-target="#screen" hx-swap="outerHTML"
-                                hx-confirm="@messages("phon.confirm.forceForget")">
-                                @messages("phon.action.forceForget")
-                            </button>
-                        } else {
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                hx-delete="@controllers.phon.routes.SecretsController.discard(group.secret.id)"
-                                hx-target="#screen" hx-swap="outerHTML"
-                                hx-confirm="@messages("phon.confirm.discard", group.holders.size)">
-                                @messages("phon.action.discard")
-                            </button>
-                        }
-                    </div>
-                </div>
-            </div>
+            </button>
         }
     </div>
 }

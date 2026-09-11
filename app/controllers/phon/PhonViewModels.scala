@@ -113,17 +113,38 @@ final case class SecretGroup(secret: Secret, holders: List[HolderStatus]):
       else if live == secret.k + 1 then SecretHealth.Caution
       else SecretHealth.Healthy
 
-  /** A retrieval already open on any holder means the bulk request would be a no-op, and a discarding secret is on its
-    * way out. Mirrors the same disabling rule on both mobile Distributed tabs.
+  /** Mirrors what `requestAll` actually does — it skips a holder whose retrieval row is Pending or Approved — so the
+    * press is worth offering while any holder still lacks one, and is a no-op only once nobody is left to ask.
+    *
+    * Deliberately still enabled once k copies are in: a surplus beyond the threshold is what lets reconstruct
+    * cross-check the shares it has, so asking the stragglers is how a "no integrity margin" outcome becomes a confirmed
+    * one. Same rule on both mobile Distributed tabs.
     */
   def canRequestRetrieval: Boolean =
-    secret.state == SecretState.Active &&
-      !holders.exists(_.retrievalRequest.exists(r => r.state == ShareRequestState.Pending))
+    secret.state == SecretState.Active && holders.exists(
+      _.retrievalRequest.forall(r => r.state != ShareRequestState.Pending && r.state != ShareRequestState.Approved)
+    )
+
+  /** Why **Retrieve shares** cannot be pressed, as a message key, or None when it can be. A control that cannot work
+    * says so in words rather than disappearing.
+    */
+  def retrievalUnavailableReason: Option[String] =
+    if secret.state != SecretState.Active then Some("phon.secretDetail.retrieveDisabled.discarding")
+    else if !canRequestRetrieval then Some("phon.secretDetail.retrieveDisabled.allAsked")
+    else None
 
   def approvedRetrievals: Int =
     holders.count(_.retrievalRequest.exists(_.state == ShareRequestState.Approved))
 
   def canReconstruct: Boolean = approvedRetrievals >= secret.k
+
+  /** How many more holders have to approve before the secret can be put back together. Zero once it can. */
+  def reconstructShortfall: Int = math.max(0, secret.k - approvedRetrievals)
+
+  /** Collected copies are what there is to clear. An ask still waiting for an answer is cleared along with them, but on
+    * its own means nothing has been collected yet.
+    */
+  def canClearCollected: Boolean = approvedRetrievals > 0
 
 final case class HeldShareRow(
     share: HeldShare,

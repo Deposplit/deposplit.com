@@ -116,8 +116,15 @@ class SecretsController @Inject() (
       BadRequest
     )
 
+  /** A secret's own screen: its holders, and the three actions that operate on the whole secret rather than on any one
+    * holder — asking for copies, putting it back together, and letting the collected copies go again.
+    */
+  def secretDetail(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
+    registered(renderSecretDetail(secretId, reconstruction = None))
+  }
+
   def shareDetail(shareId: UUID) = Action { implicit request: Request[AnyContent] =>
-    registered(renderShareDetail(shareId, reconstruction = None))
+    registered(renderShareDetail(shareId))
   }
 
   /** Opens one request of one kind against one holder. The kind rides in the body rather than the path because it is a
@@ -128,38 +135,44 @@ class SecretsController @Inject() (
       PhonForms.openRequestForm
         .bindFromRequest()
         .fold(
-          _ => renderShareDetail(shareId, reconstruction = None),
+          _ => renderShareDetail(shareId),
           record => {
             ShareTransactionType
               .fromWire(record.transactionType)
               .foreach(kind => Try(shareManagement.openRequest(shareId, kind)))
-            renderShareDetail(shareId, reconstruction = None)
+            renderShareDetail(shareId)
           }
         )
     }
   }
 
-  /** Opens a retrieval against every holder that lacks a live one, in one press — the affordance both mobile
-    * Distributed tabs put on an expanded card.
+  /** Opens a retrieval against every holder that lacks a live one, in one press. Still worth pressing once k copies are
+    * in: a surplus is what lets reconstruct cross-check the shares it already has.
     */
   def requestAll(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
     registered {
       Try(shareManagement.requestAll(secretId))
-      goTo(routes.HomeController.distributed())
+      renderSecretDetail(secretId, reconstruction = None)
     }
   }
 
-  /** A pure read: it collects the approved shares and puts them together, and tears nothing down. Discarding is a
-    * separate, deliberate act.
+  /** A pure read: it collects the approved shares and puts them together, and tears nothing down. Letting the copies go
+    * again is `clearCollected`, and discarding the secret altogether is `discard` — each its own deliberate act.
     */
   def reconstruct(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
     registered {
       val outcome = Try(shareManagement.reconstruct(secretId))
-      shareManagement
-        .listDistributed()
-        .find(_.secretId == secretId)
-        .map(metadata => renderShareDetail(metadata.id, reconstruction = Some(outcome)))
-        .getOrElse(goTo(routes.HomeController.distributed()))
+      renderSecretDetail(secretId, reconstruction = Some(outcome))
+    }
+  }
+
+  /** Hands back the copies collected from holders — and any ask still waiting for an answer — without touching the
+    * split itself. The holders keep their shares, so the secret can be asked for again.
+    */
+  def clearCollected(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
+    registered {
+      Try(shareManagement.clearCollectedShares(secretId))
+      renderSecretDetail(secretId, reconstruction = None)
     }
   }
 
@@ -189,7 +202,7 @@ class SecretsController @Inject() (
         case None        => NotFound
         case Some(group) =>
           render(
-            shellFor("phon.title.repair", back = Some(routes.HomeController.distributed())),
+            shellFor("phon.title.repair", back = Some(routes.SecretsController.secretDetail(secretId))),
             views.html.Phon.repair(group, contactManagement.listContacts(), PhonForms.depositForm)
           )
     }
@@ -205,9 +218,19 @@ class SecretsController @Inject() (
       )
       .find(_.secret.id == secretId)
 
-  private def renderShareDetail(shareId: UUID, reconstruction: Option[Try[ReconstructionResult]])(using
+  private def renderSecretDetail(secretId: UUID, reconstruction: Option[Try[ReconstructionResult]])(using
       request: Request[AnyContent]
   ) =
+    groupFor(secretId) match
+      case None        => goTo(routes.HomeController.distributed())
+      case Some(group) =>
+        render(
+          shellFor("phon.title.secretDetail", back = Some(routes.HomeController.distributed())),
+          views.html.Phon.secretDetail(group, reconstruction)
+        )
+
+  /** Back goes to the secret, not to the tab: a holder's screen is reached through the secret they hold a piece of. */
+  private def renderShareDetail(shareId: UUID)(using request: Request[AnyContent]) =
     shareManagement.listDistributed().find(_.id == shareId) match
       case None           => NotFound
       case Some(metadata) =>
@@ -218,6 +241,9 @@ class SecretsController @Inject() (
               case None         => NotFound
               case Some(holder) =>
                 render(
-                  shellFor("phon.title.shareDetail", back = Some(routes.HomeController.distributed())),
-                  views.html.Phon.shareDetail(group, holder, reconstruction)
+                  shellFor(
+                    "phon.title.shareDetail",
+                    back = Some(routes.SecretsController.secretDetail(metadata.secretId))
+                  ),
+                  views.html.Phon.shareDetail(group, holder)
                 )
