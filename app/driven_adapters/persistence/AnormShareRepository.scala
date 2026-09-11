@@ -304,6 +304,27 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             .executeUpdate()
     }
 
+  override def deleteShareRequestsExcept(
+      recipientKey: PublicKey,
+      senderKey: PublicKey,
+      secretId: SecretId,
+      keeping: UUID
+  ): Unit =
+    db.withConnection { implicit conn =>
+      SQL("""
+        DELETE FROM share_requests
+        WHERE recipient_key = {rk} AND sender_key = {sk} AND secret_id = {sid}::uuid
+          AND id <> {keeping}::uuid
+      """)
+        .on(
+          "rk" -> recipientKey.toBytes,
+          "sk" -> senderKey.toBytes,
+          "sid" -> secretId.value.toString,
+          "keeping" -> keeping.toString
+        )
+        .executeUpdate()
+    }
+
   override def withdrawDeposits(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],

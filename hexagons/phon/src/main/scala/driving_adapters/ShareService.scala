@@ -265,9 +265,14 @@ class ShareService @Inject() (
     Try(retainedDepositRepository.getAll()).getOrElse(Nil).exists(_.id == depositId)
 
   /** For every Destroying `Secret`, checks whether each remaining holder's fanned-out removal request has been
-    * approved; approved ones are cleaned up (relay row deleted, local `ShareMetadata` removed). Once a Destroying
+    * approved; approved ones are cleaned up (local `ShareMetadata` removed, then the relay row). Once a Destroying
     * secret has no `ShareMetadata` rows left, its `Secret` record itself is removed — the Active/Destroying two-state
     * lifecycle.
+    *
+    * The approved removal row is the only thing that ever says a holder destroyed their piece. Approving it makes the
+    * relay sweep the rest of that holder's rows for this secret, the deposit included, so there is nothing else left to
+    * read and an absence would say nothing. The signature is checked for the same reason it is checked on a retrieval
+    * approval: a relay that could forge one could make this device forget a share that is still out there.
     */
   private def reconcileDestroying(): Unit =
     val destroying = secretRepository.getAll().filter(_.state == SecretState.Destroying)
@@ -282,11 +287,14 @@ class ShareService @Inject() (
             removalRequests
               .find { case (_, r) =>
                 r.secretId == meta.secretId && r.recipientKey.sameElements(contact.verifyKey) &&
-                r.state == ShareRequestState.Approved
+                r.state == ShareRequestState.Approved && verifyRespond(r)
               }
-              .foreach { case (relay, _) =>
-                Try(relay.deleteShareRequest(meta.id))
+              .foreach { case (relay, request) =>
+                // Local record first, relay row second. The row is the evidence; dropping it before
+                // acting on it would leave a holder that can never be reconciled if this device dies
+                // in between, which is the one failure this whole flow exists to avoid.
                 Try(shareMetadataRepository.delete(meta.id))
+                Try(relay.deleteShareRequest(request.id))
               }
           }
         }

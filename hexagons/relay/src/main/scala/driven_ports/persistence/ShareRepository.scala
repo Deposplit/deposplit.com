@@ -85,6 +85,18 @@ trait ShareRepository:
       secretId: Option[SecretId]
   ): Unit
 
+  /** Same bulk delete, narrowed to one (secretId, senderKey, recipientKey) triple and sparing the row named by
+    * `keeping`. Used when a Removal is approved: everything that removal made pointless goes, but the answer itself
+    * stays, because it is the sender's only evidence that this holder destroyed their share — and absence proves
+    * nothing.
+    */
+  def deleteShareRequestsExcept(
+      recipientKey: PublicKey,
+      senderKey: PublicKey,
+      secretId: SecretId,
+      keeping: UUID
+  ): Unit
+
   /** Flips matching `Approved` Deposit rows (recipientKey match, optionally filtered by senderKey and/or secretId) to
     * `Withdrawn`, in place — see `ShareRequests.withdrawShareRequests`.
     */

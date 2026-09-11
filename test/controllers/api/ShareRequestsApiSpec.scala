@@ -452,6 +452,17 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       // Deposit row should be gone (cascade)
       val depositGet = route(app, alice.get(s"/share-requests/$deposit2Id")).get
       status(depositGet) mustBe NOT_FOUND
+
+      // The answer survives the sweep that its own approval triggered: it is the only thing Alice can
+      // read to learn that Bob destroyed his share, and she cannot read an absence.
+      val removalGet = route(app, alice.get(s"/share-requests/$removalReqId")).get
+      status(removalGet) mustBe OK
+      (contentAsJson(removalGet) \ "state").as[String] mustBe "approved"
+      (contentAsJson(removalGet) \ "recipientSignature").asOpt[String] mustBe defined
+
+      // And she can clear it away herself once she has.
+      status(route(app, alice.delete(s"/share-requests/$removalReqId")).get) mustBe NO_CONTENT
+      status(route(app, alice.get(s"/share-requests/$removalReqId")).get) mustBe NOT_FOUND
     }
   }
 

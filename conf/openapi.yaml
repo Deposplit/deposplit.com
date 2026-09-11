@@ -650,8 +650,12 @@ paths:
           and clears it from the relay (one-time delivery). No `ciphertext` needed in the request body.
         - Approving a `retrieval`: the recipient must supply `ciphertext` (the share bytes from their
           local storage) in the request body. Returns `400` if absent.
-        - Approving a `removal`: the relay cascades a delete of all rows for the same
-          (secretId, senderKey, recipientKey) triple. No `ciphertext` involved.
+        - Approving a `removal`: the relay cascades a delete of all *other* rows for the same
+          (secretId, senderKey, recipientKey) triple — the `deposit` above all, which may still hold
+          ciphertext for a share that no longer exists. The answered `removal` row itself is kept,
+          signed, because it is the only way the sender learns the destruction happened; a row that
+          is merely gone means "collected, or never sent". The sender deletes it once she has read
+          it. No `ciphertext` involved.
         - Any denial: records `state=denied` and `respondedAt`. No ciphertext exchanged.
       tags: [ShareRequests]
       parameters:

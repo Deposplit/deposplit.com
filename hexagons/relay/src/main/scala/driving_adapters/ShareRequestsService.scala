@@ -179,8 +179,13 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
           if approved && req.transactionType == ShareTransactionType.Deposit then req.ciphertext else None
         val storedCt = if approved && req.transactionType == ShareTransactionType.Retrieval then ciphertext else None
         repository.updateShareRequest(requestId, newState, now, storedCt, recipientSignature)
+        // An approved Removal makes every other row for this triple pointless — the Deposit above all, which may
+        // still be holding ciphertext for a share that is now destroyed. The answer itself is kept: it is signed by
+        // the holder, and it is the only way the sender ever learns the destruction happened. Deleting it too would
+        // leave her nothing but an absence to read, which by design means nothing at all. She deletes it herself once
+        // she has seen it.
         if approved && req.transactionType == ShareTransactionType.Removal then
-          repository.deleteShareRequests(req.recipientKey, Some(req.senderKey), Some(req.secretId))
+          repository.deleteShareRequestsExcept(req.recipientKey, req.senderKey, req.secretId, keeping = requestId)
         Right(
           req.copy(
             state = newState,

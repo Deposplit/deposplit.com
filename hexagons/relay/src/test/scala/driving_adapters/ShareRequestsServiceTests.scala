@@ -131,6 +131,19 @@ class InMemoryShareRepository extends ShareRepository:
         secretId.forall(sid => r.secretId == sid)
     )
 
+  override def deleteShareRequestsExcept(
+      recipientKey: PublicKey,
+      senderKey: PublicKey,
+      secretId: SecretId,
+      keeping: UUID
+  ): Unit =
+    requests = requests.filterNot(r =>
+      sameKey(r.recipientKey, recipientKey) &&
+        sameKey(r.senderKey, senderKey) &&
+        r.secretId == secretId &&
+        r.id != keeping
+    )
+
   override def withdrawDeposits(
       recipientKey: PublicKey,
       senderKey: Option[PublicKey],
@@ -685,7 +698,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
 
   // --- respondToShareRequest (Removal) ---
 
-  test("Approving Removal removes all rows for that (secretId, senderKey, recipientKey)") {
+  test("Approving Removal removes the other rows for that (secretId, senderKey, recipientKey)") {
     val (repo, service) = newService()
     val secretId = freshSecretId()
     val pickUpReq = open(
@@ -712,7 +725,45 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       .getOrElse(fail("delete request failed"))
     assert(respond(service, bob, deleteReq.id, approved = true).isRight)
     assertEquals(repo.getShareRequestById(pickUpReq.id), None)
-    assertEquals(repo.getShareRequestById(deleteReq.id), None)
+  }
+
+  // The sender never learns of a destruction any other way: her Deposit row has just been deleted, and a row that is
+  // simply gone means "collected, or never sent". So the answer has to outlive the rows it swept.
+  test("Approving Removal keeps the answered Removal row, signed, for the sender to read") {
+    val (repo, service) = newService()
+    val secretId = freshSecretId()
+    open(service, alice, bob, secretId, freshLabel(), Instant.now(), ShareTransactionType.Deposit, Some(ciphertext))
+      .getOrElse(fail("deposit failed"))
+    val deleteReq =
+      open(service, alice, bob, secretId, freshLabel(), Instant.now(), ShareTransactionType.Removal, None)
+        .getOrElse(fail("delete request failed"))
+    assert(respond(service, bob, deleteReq.id, approved = true).isRight)
+    val kept = repo.getShareRequestById(deleteReq.id).getOrElse(fail("the answered Removal row was deleted"))
+    assertEquals(kept.state, ShareRequestState.Approved)
+    assert(kept.recipientSignature.isDefined)
+    assertEquals(
+      service.listShareRequests(alice, asSender = true, Some(ShareTransactionType.Removal), None).map(_.map(_.id)),
+      Right(Seq(deleteReq.id))
+    )
+  }
+
+  test("A second holder's Removal approval leaves the first holder's answer untouched") {
+    val (repo, service) = newService()
+    val secretId = freshSecretId()
+    open(service, alice, bob, secretId, freshLabel(), Instant.now(), ShareTransactionType.Deposit, Some(ciphertext))
+      .getOrElse(fail("deposit to bob failed"))
+    open(service, alice, charlie, secretId, freshLabel(), Instant.now(), ShareTransactionType.Deposit, Some(ciphertext))
+      .getOrElse(fail("deposit to charlie failed"))
+    val bobRemoval =
+      open(service, alice, bob, secretId, freshLabel(), Instant.now(), ShareTransactionType.Removal, None)
+        .getOrElse(fail("removal to bob failed"))
+    val charlieRemoval =
+      open(service, alice, charlie, secretId, freshLabel(), Instant.now(), ShareTransactionType.Removal, None)
+        .getOrElse(fail("removal to charlie failed"))
+    assert(respond(service, bob, bobRemoval.id, approved = true).isRight)
+    assert(respond(service, charlie, charlieRemoval.id, approved = true).isRight)
+    assert(repo.getShareRequestById(bobRemoval.id).isDefined)
+    assert(repo.getShareRequestById(charlieRemoval.id).isDefined)
   }
 
   // --- getShareRequest ---
