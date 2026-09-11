@@ -17,12 +17,16 @@ does, [architecture.md](architecture.md) and [trust-model.md](trust-model.md).
 Six rules decide most interaction questions before a screen is drawn. When a proposed design
 collides with one of these, the rule wins.
 
-**An affordance that cannot work is never shown.** Reconstruct stays hidden until *k* approved
-retrievals exist, because a button that explains itself only after being pressed teaches the wrong
-thing about what *k* means. The deposit form is replaced by a sentence when fewer than two contacts
-exist, rather than being offered and refused on submit. A field behind Premium is a different case
-and is shown as locked: that is a capability the user does not have *yet*, not one that cannot
-exist.
+**A control says why it cannot be used, rather than disappearing.** The screen keeps its shape as
+state changes: a control that cannot work right now stays where it is, disabled, with the reason
+next to it in words — *One more holder has to hand a piece back first*, *Every holder has been asked
+already*. A control that simply vanishes leaves the reader hunting for something they remember
+seeing and doubting their own memory, and it teaches nothing, where a disabled one that explains
+itself teaches exactly what *k* means. Where a control genuinely has no place at all, something that
+says why stands in for it: the deposit form on a phone with fewer than two contacts is replaced by a
+sentence, rather than being offered and refused on submit. A field behind Premium is the same
+principle once more — shown, locked, and labelled with what unlocks it. This is the control-level
+half of *absence is never a signal*, three rules down.
 
 **Consent is always a separate, explicit act.** A holder approves or denies; nothing is implied by
 navigation, elapsed time, or the sender's wishes. On the owner's side the same rule appears as
@@ -32,7 +36,7 @@ deliberate action. Wiring one into the other would make reading a secret mean di
 **Absence is never a signal.** A row vanishing from the relay means "collected, or never sent" —
 never "done", never "lost". No screen may render a missing row as an outcome. This is why a holder
 who stops holding a share leaves a *withdrawn* tombstone the owner can observe, rather than
-disappearing quietly.
+disappearing quietly — and why the first rule above will not let a control go missing either.
 
 **A claim about a person is never made on their behalf.** The verification level is the user's own
 assertion about how well they know who they are talking to, so the app asks rather than infers.
@@ -44,9 +48,13 @@ relay that is down degrades to a soft banner over real content — never a spinn
 screen, never a blocking error. The Requests tab is the sole exception, and legitimately so: it has
 nothing local to fall back on, because a pending inbound request exists only on the relay.
 
-**The relay is never a character in the copy.** The user's mental model is people — who holds a
-piece, who is waiting on whom. Nothing in the interface asks anyone to think about rows, requests
-or endpoints. The empty state is *Nobody is waiting on you*, not *no pending requests*.
+**The relay is never a character in the copy.** The user's mental model is people and secrets — who holds a
+piece, who is waiting on what. Nothing in the interface asks anyone to think about rows
+or endpoints. The empty state is
+- *No secrets split & shared yet*,
+- *No shares to keep safe yet*,
+- *No pending requests*, and
+- *No contacts yet*.
 
 ## The shell
 
@@ -55,6 +63,8 @@ or endpoints. The empty state is *Nobody is waiting on you*, not *no pending req
 | First screen | `sign_in` | `SignInView` | `GET /` |
 | Keys lost | `keys_lost` | `KeysLostView` | — |
 | Tabs | Split & shared · Keeping safe · Requests | same | same |
+| One secret | `secret_detail/{secretId}` | `SecretDetailView` | `GET /secrets/:secretId` |
+| One holder | `share_detail/{shareId}` | `ShareDetailView` | `GET /shares/:shareId` |
 | Always reachable | My QR code · New secret · Contacts · Settings | same | My QR code · Contacts · Settings |
 
 Registration asks for one thing, a pseudonym, and never for an account. That is the first and
@@ -67,9 +77,13 @@ and records in the same files, so the two cannot come apart — and so has no su
 
 ## Split & shared
 
-One card per secret, never per share. The card names the secret, when it was split, and its health;
-expanding it lists the holders. A secret split among four people is one thing the user owns, not
-four rows to reconcile.
+One card per secret, never per share. The card names the secret, when it was split, how many people
+hold a piece, and its health; tapping it opens that secret's own screen. A secret split among four
+people is one thing the user owns, not four rows to reconcile.
+
+**The card summarises and does nothing else.** Every action belongs to the screen behind it. A list
+that unfolds actions in place turns ten secrets into ten places where buttons appear and disappear,
+which is the first rule's failure case repeated once per row.
 
 **Health is a graduated alarm about redundancy**, computed from *n_live* — holders with recent
 proof of custody — against the threshold *k*:
@@ -93,21 +107,34 @@ failure. *Silent — possible loss* means expected proof has not arrived; the ho
 for a holder still comfortably confirmed, so that the first the owner hears of a problem is not the
 alarm itself.
 
-The card's actions are **Request Retrieval** (one press, fanning out to every holder without a live
-request), **Repair** (offered only at Caution or Critical), **Discard**, and **Force Forget** for a
-discarding secret whose holders will never all answer. Discard states its own cost in the
-confirmation: every holder must approve before the secret leaves the list.
+### One secret: the secret screen
 
-### One holder: the share detail
+The holders, each opening that holder's own screen; the three actions that operate on the whole
+secret; the reconstructed content when there is some; then **Repair** (offered only at Caution or
+Critical), **Discard**, and **Force Forget** for a discarding secret whose holders will never all
+answer. Discard states its own cost in the confirmation: every holder must approve before the secret
+leaves the list.
 
-Recipient, deposit date, then the two request kinds — Retrieval and Removal — each showing its
-current state or *No request*, with the button to open one. Below them sits the reconstruct
-section, which belongs to the whole secret rather than to this holder, and says how many approved
-shares exist against how many are needed.
+**Three actions, always all three, never a different three.** They are not phases of one task —
+retrieving and clearing are legitimately available at the same time — so they are three controls
+whose enabled state changes, never one control whose label changes. A button whose position can be
+learned is worth more than one whose meaning has to be re-read.
 
-**Reconstruction is gated twice**: by the threshold, which hides it, and by biometrics, which guard
-it. Where biometrics are unavailable the screen explains which of the three reasons applies — no
-enrolment, no sensor, temporarily unavailable — rather than offering a button that cannot work.
+| | Enabled when | What the disabled state says |
+|---|---|---|
+| **Retrieve shares** | the secret is active, and some holder has no pending or approved retrieval | *Every holder has been asked already* · *This secret is being discarded* |
+| **Reconstruct** | approved retrievals ≥ *k* | *n more holders have to hand a piece back first* — or which of the three biometric reasons applies |
+| **Clear collected copies** | at least one holder has handed a piece back | *Nothing has been handed back yet* |
+
+**Retrieve shares stays enabled once *k* copies are in.** Stopping at the threshold would forfeit the
+surplus, and the surplus is what the integrity cross-check is made of: asking the stragglers is how
+*reconstructed without an integrity margin* becomes *confirmed by every collected share*. It goes
+quiet only when nobody is left to ask, which is exactly what the service underneath does — it skips
+a holder with a live request and asks everyone else.
+
+**Reconstruction is gated twice**: by the threshold, and by biometrics. Where biometrics are
+unavailable the screen names which of the three reasons applies — no enrolment, no sensor,
+temporarily unavailable — in place of the button.
 
 The result carries an honest advisory about its own integrity: reconstructed from exactly *k*
 shares with no cross-check possible; reconstructed with every collected share agreeing; or
@@ -118,9 +145,31 @@ Reconstructed content forks three ways — text shown as text, an image shown as
 else shown as a size and an offer to export. Nothing is transcoded to make it displayable, because
 a secret is bytes and has to come back as the bytes that went in.
 
-**Reconstructing is reading, not finishing.** The collected shares stay where they are, and a
-sender who has read the secret currently has no way to clear them — the open chore in
-[TODO.md](../TODO.md).
+**Reconstructing is reading, not finishing — and clearing is how it finishes.** `reconstruct` is a
+pure read: the copies collected from holders outlive it, each still carrying its ciphertext on the
+relay. **Clear collected copies** hands them back, along with any ask still waiting for an answer,
+so that afterwards there is no retrieval flow for the secret at all. It is not teardown: the holders
+keep their pieces, the secret stays split among the same people, and asking again is a button press.
+Clearing is also what makes a second round possible, since an approved request counts as live and
+would otherwise silence every future ask.
+
+**The confirmation states a consequence, never an accusation.** Nothing records that a secret has
+been read — reconstructing leaves no trace by design — so all the screen knows is whether the secret
+is in front of the reader right now. With it on screen, the confirmation says the holders keep their
+pieces and copies can be asked for again; without it, that the secret has not been shown here and
+clearing means asking the holders again first. Neither claims anything about what the reader
+remembers.
+
+The reminder to clear up afterwards is a standing line beside the button, not a dialog. The moment
+the secret is finally on screen is the worst possible moment to cover it with something that asks
+for nothing.
+
+### One holder: the share detail
+
+Recipient, deposit date, then the two request kinds — Retrieval and Removal — each showing its
+current state or *No request*, with the button to open one. Nothing else: reconstructing belongs to
+the secret as a whole, so it lives on the secret's screen, which is also the screen this one was
+reached from.
 
 ## Keeping safe
 

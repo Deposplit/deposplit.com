@@ -77,16 +77,23 @@ and stops one level short on purpose. A real handset can still scan the QR code 
 | 6 | C | Same — add Alice, then show Carol's QR |
 | 7 | A | Add Bob and Carol as contacts |
 | 8 | A | ＋ → label ("test secret"), secret text, select Bob and Carol, threshold 2-of-2 → **Deposit** |
-| 9 | A | Split & shared view shows one grouped card for the secret; expand to see both holders |
+| 9 | A | Split & shared view shows one card for the secret; tap it to open the secret's own screen with both holders |
 | 10 | B | Keeping safe view shows Alice's deposit → the app auto-approves, decrypts, and stores the **plaintext** share; the relay clears the ciphertext |
 | 11 | C | Same |
-| 12 | A | Expand the card → **Request Retrieval** (opens retrievals for both holders at once) |
+| 12 | A | On the secret's screen, **Request Retrieval** (opens retrievals for both holders at once) |
 | 13 | B | Requests → retrieval from Alice → **Approve**. The app re-encrypts the stored plaintext to Alice's *current* key |
 | 14 | C | Same |
 | 15 | A | Both holders show "Approved" → **Reconstruct** → biometric prompt → the secret appears |
+| 16 | A | **Clear collected copies** → confirm. The secret disappears from the screen, Reconstruct goes quiet again, and **Request Retrieval** comes back |
+| 17 | A | Run steps 12–15 a second time. Everything works with nothing touched in the relay database |
 
 Step 10 is the one worth watching closely: it is where holder-decrypts-at-pickup happens,
 and where the relay stops holding anything.
+
+Steps 16 and 17 are the pair that proves clearing is not teardown. After 16, check the relay's
+`share_requests`: the secret's retrieval rows are gone, its deposit rows are not, and Bob's and
+Carol's Keeping safe lists are untouched. Check too that every disabled control on the secret's
+screen says why it is disabled — that is the rule the screen exists to keep.
 
 ## Flow 2 — Deny and re-request
 
@@ -157,8 +164,11 @@ in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
 
 - **Fresh keypairs after reinstall.** Clearing app data or reinstalling generates new keys;
   existing contacts can no longer decrypt shares sent to the old ones.
-- **Reconstruct stays hidden below threshold.** The button must not appear until *k*
-  approved retrievals exist for the same `secretId`.
+- **Reconstruct stays disabled below threshold, and says how far short it is.** The button is
+  always on screen; what changes is whether it can be pressed and what the line beneath it reads.
+- **Request Retrieval stays enabled at *k*.** With three holders and a 2-of-3 threshold, two
+  approvals must not silence the third ask — the surplus is what the integrity cross-check needs.
+  It goes quiet only once every holder has a pending or approved retrieval.
 - **2-of-3 with only two approvals** still reconstructs.
 - **Integrity margin.** With three holders and a 2-of-2 threshold, all three approving gives
   a margin of one — enough to *detect* a bad share. Confirm the reconstruction advisory
