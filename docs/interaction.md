@@ -300,6 +300,13 @@ saying so.
 The permission is asked the first time the device is actually keeping something for somebody.
 Before that, there is nothing a notice could ever say.
 
+**iOS explains itself before asking, and Android does not.** That is not an oversight in either
+direction: iOS raises its system prompt exactly once in an app's lifetime, so spending it on a bare
+dialog leaves somebody who declines with no way back except the system settings — where an app that
+has never asked does not even appear yet. So iOS says what the one notice is for, and *Not now*
+costs nothing, because the Settings entry offers it again. Android's prompt is re-raisable and its
+Settings entry is reachable regardless, so the same explanation there would be a screen in the way.
+
 phon adds a **Danger zone** that resets a phone to a clean slate. It has no mobile counterpart and
 needs none: resetting a test phone is the entire point of having one.
 

@@ -22,7 +22,7 @@ together:
 
 There is no transaction across them, and no push channel either. Every transition below is
 therefore driven by **a poll**: a device reads what its relays have and reconciles. That
-happens while somebody has the app open, and on Android also on a daily background pass, so
+happens while somebody has the app open, and on both phones also on a daily background pass, so
 nothing here waits on a launch — see *Custody monitoring* in [trust-model.md](trust-model.md).
 Two rules govern that reconciliation everywhere, and most of what looks odd in these machines
 follows from them:

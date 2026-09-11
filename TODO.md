@@ -44,16 +44,19 @@ place rather than growing this list into a second manual.
 - [ ] `A` Biometric on a device with no enrolment explains itself instead of offering a button that cannot work.
 - [ ] `A` `I` The key-change indicator appears on retrieval requests, and only on those.
 
-### Background refresh (Android)
+### Background refresh
 
-Written up in [docs/testing.md](docs/testing.md), which carries the `adb` incantation for firing a pass by hand. None of this is reachable by a unit test.
+Written up in [docs/testing.md](docs/testing.md), which carries the `adb` and `lldb` incantations for firing a pass by hand. None of this is reachable by a unit test.
 
-- [ ] `A` A pass emits without a launch: force-stop the holder, fire a pass, and watch `lastConfirmedAt` move on the sender.
-- [ ] `A` Silence past the nine-day threshold no longer costs anything, with the holder's app never opened.
-- [ ] `A` A waiting retrieval notifies exactly once, names nobody, and is not truncated on the lock screen.
-- [ ] `A` Answering clears it — nothing is re-announced on the next pass.
-- [ ] `A` A removal is silent, and is still sitting in the Requests tab.
+- [ ] `A` `I` A pass emits without a launch: force-stop the holder, fire a pass, and watch `lastConfirmedAt` move on the sender.
+- [ ] `A` `I` Silence past the nine-day threshold no longer costs anything, with the holder's app never opened.
+- [ ] `A` `I` A waiting retrieval notifies exactly once, names nobody, and is not truncated on the lock screen.
+- [ ] `A` `I` Answering clears it — nothing is re-announced on the next pass.
+- [ ] `A` `I` A removal is silent, and is still sitting in the Requests tab.
 - [ ] `A` The permission is asked on the launch where the first share lands, never before, and never twice; denying it leaves a Settings line that says so.
+- [ ] `I` The explanation comes first, and *Not now* costs nothing: Settings then says it is not turned on yet and offers the prompt again. Denying that turns the line and the button into the route to the system page, and turning it on there is reflected on return.
+- [ ] `I` Both background keys reached the **built** app's `Info.plist`. Silent when wrong, and the only check that catches it.
+- [ ] `I` A pass on a locked phone emits nothing and writes nothing. Needs a real device — the Simulator's Keychain does not behave like a locked phone's.
 
 ### Pictures (not written up)
 
@@ -82,22 +85,6 @@ Written up in [docs/testing.md](docs/testing.md), which carries the `adb` incant
 
 - [ ] `R` `A` `I` **A restart mid-flight loses nothing.** `conf/localhost.conf` is file-backed H2, so a deposit made before a relay restart must still be collectable after it. Kill the relay between deposit and pickup and confirm the share arrives.
 - [ ] `R` `A` `I` **Two senders, one holder.** Bob holds shares from both Alice and Carol. Deleting all of Alice's from Bob's Held view must leave Carol's untouched, and Carol's sender view unaffected.
-
-## Planned
-
-Decided and specified. What is left is a machine that can build it.
-
-- [ ] `I` **Scheduled background refresh, so custody does not depend on app launches.** Android has this; iOS does not, and until it does an iPhone holder who never opens Deposplit still goes silent and still misses a retrieval. Mirror the Android implementation rather than re-deciding it — `Android/app/src/main/kotlin/com/deposplit/background/` is two small files plus a notifier, and the reasoning is in the commit messages.
-
-  **The pass.** `.backgroundTask(.appRefresh(…))` on the `WindowGroup`, with a fresh `BGAppRefreshTaskRequest` submitted at launch, on `scenePhase == .background`, and again at the end of every run — the modifier does not reschedule itself. One pass is `syncInbox()` and nothing else: that is the holder half, which is the beacon the trust model wants, and `syncDistributed()` would poll on the owner's behalf while she is not looking, for state nothing renders until she opens the app. Roughly daily, letting the system choose the moment. The services are `@MainActor`, so the pass is too, and the background closure awaits it.
-
-  **A locked iPhone must do nothing, deliberately.** Keychain items are `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` (`KeychainIdentityStore.swift`, and named in [docs/security.md](docs/security.md)), so a pass on a locked phone cannot sign. Guard on `IdentityIntegrity.unreadable`, which already means exactly this — *key storage cannot be read at this moment; say nothing, change nothing, ask again later* — and return before touching the network. Lowering to `…AfterFirstUnlock…` would buy refresh-while-locked at the price of a documented posture: that is a decision to bring back here, not one to take while implementing.
-
-  **The notification.** Filter `listPendingRequests()` to retrievals and post one sentence — *One of your contacts wants to reconstruct a secret with a share that you are keeping safe.* It names nobody, names no secret, and does not count them. Keep the set of already-announced request ids in `UserDefaults`, pruned to what is still pending, and record nothing that could not actually be shown, so a request still announces itself if authorisation arrives later. A pending removal posts nothing. Ask for authorisation the first time this device holds a share, never at launch, and give Settings the same paragraph Android's has — explanation, current state, and a route to the system page — rather than a switch the platform already owns.
-
-  **`BGTaskSchedulerPermittedIdentifiers` needs a real `Info.plist`, and where it goes matters.** The trap and the fix are in `iOS/CLAUDE.md`. The failure is silent: green build, green CI, task never runs.
-
-  Not in scope, and matching Android on purpose: tapping the notification opens the app and does not deep-link to Requests — see the chore below.
 
 ## Chores
 

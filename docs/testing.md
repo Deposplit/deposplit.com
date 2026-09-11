@@ -183,18 +183,33 @@ in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
 - **Key-change indicator.** After a contact rotates keys, their retrieval requests should
   carry the "key changed N days ago" warning — and only retrieval requests.
 
-## Background refresh, Android
+## Background refresh
 
-Custody no longer waits for somebody to open the app: a WorkManager job runs `syncInbox()` daily,
-so heartbeats and pickups happen on their own, and a waiting retrieval raises one local
+Custody no longer waits for somebody to open the app: a daily pass runs `syncInbox()` on both
+phones, so heartbeats and pickups happen on their own, and a waiting retrieval raises one local
 notification. None of that is reachable by a unit test — it is adapter code by definition — so it
 is checked here or nowhere.
 
-**Firing a pass by hand.** WorkManager runs on JobScheduler underneath, so:
+**Firing a pass by hand, Android.** WorkManager runs on JobScheduler underneath, so:
 
 ```bash
 adb shell dumpsys jobscheduler | grep -A 3 com.deposplit   # find the job id
 adb shell cmd jobscheduler run -f com.deposplit <id>       # -f ignores the constraints
+```
+
+**Firing a pass by hand, iOS.** A pass never fires on its own in the Simulator, and on a device it
+fires when iOS decides to. Run from Xcode, send the app to the background, then pause the debugger:
+
+```
+(lldb) e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.deposplit.custody-refresh"]
+```
+
+Before trusting any of it, confirm the two keys actually reached the built app — the failure is
+silent, and this is the only thing that catches it:
+
+```bash
+plutil -p <DerivedData>/Build/Products/Debug-iphonesimulator/Deposplit.app/Info.plist \
+  | grep -E -A 3 'BGTaskSchedulerPermittedIdentifiers|UIBackgroundModes'
 ```
 
 Force-stop the app first for the checks that claim the app was never opened, and confirm from the
@@ -213,3 +228,11 @@ Force-stop the app first for the checks that claim the app was never opened, and
 - **The permission is asked at the right moment.** A fresh install that holds nothing must never
   see the prompt; it appears on the launch where the first share lands, and never again. Deny it,
   then check Settings: the line says notifications are off and offers the way to the system page.
+  On iOS the explanation comes first — take *Not now*, then check Settings, where the line must say
+  it is not turned on yet and the button must raise the system prompt. Deny that, and the line and
+  the button must change to the system page. Turn it on there, come back, and the line must have
+  followed.
+- **A locked iPhone sits the pass out.** Fire a pass with the phone locked. Nothing may be emitted
+  and nothing may be written — key storage is `WhenUnlockedThisDeviceOnly`, so a pass that tried
+  would be signing with nothing. Only a device can answer this; the Simulator's Keychain does not
+  behave like a locked phone's.

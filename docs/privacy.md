@@ -86,7 +86,7 @@ There is nothing to undo, which is the whole reason to write the rules now:
 |---|---|
 | Relay | No metrics, no tracing, no access log, no rate limiter. The only `logger.` calls in the repository belong to `phon`, a development tool that is not routed in production. The root logger is at `WARN`, with `play` at `INFO` and `application` at `DEBUG`, and there is no custom `ErrorHandler` — so Play's default one logs an unhandled server error together with the request method and URI. No headers and no body: quiet, but not silent. |
 | Android | Four permissions — `INTERNET`, `CAMERA`, `USE_BIOMETRIC`, `POST_NOTIFICATIONS`, the last for one local notice and nothing else. Dependencies are AndroidX, Compose, kotlinx-serialization, CameraX, ZXing, WorkManager and BouncyCastle. No Firebase, no Crashlytics, no Play Services analytics. |
-| iOS | One package reference, the local `hexagon`. No remote packages at all. One usage-description string, for the camera. |
+| iOS | One package reference, the local `hexagon`. No remote packages at all. Two usage-description strings, for the camera and for Face ID, and one background mode, `fetch`, for the daily custody pass. Notifications are posted locally by the app itself; nothing is registered for remote push. |
 | Landing page | One cookie, `PLAY_LANG`, two letters, written only when a visitor picks a language. No third-party request. |
 
 ## What the rules already settle
@@ -137,15 +137,16 @@ There is nothing to undo, which is the whole reason to write the rules now:
   holding a token beside a key*, not *would push be convenient*. And it is worth being clear about
   what push would actually buy, which is **promptness** — a holder who does not launch the app not
   learning that somebody needs their share. That gap is answerable without a third party, and on
-  Android it now is: a daily background pass polls and, when a retrieval is waiting, posts a
+  both phones it now is: a daily background pass polls and, when a retrieval is waiting, posts a
   **local** notification. Local is the whole difference. It is built on the device from rows that
   device already fetched under its own identity, so no token exists, nothing reaches Google or
-  Apple, and the relay is asked for nothing it was not already asked for. iOS still waits.
+  Apple, and the relay is asked for nothing it was not already asked for.
 - **A scheduled poll is a disclosure, and this is the honest shape of it.** A device that refreshes
   on a schedule tells the relay that the phone holding a given verify key was awake and online,
   roughly once a day, even when nobody opened the app. Foreground-only polling never said that. The
   mitigation is that the moment is the system's to choose inside a wide window rather than a fixed
-  hour, so what the relay can read is *awake sometime today* rather than a punctual tick it could
+  hour — Android asks for it with a flex window, iOS with an earliest-begin date and no more — so
+  what the relay can read is *awake sometime today* rather than a punctual tick it could
   fingerprint a device by, or read an absence against. That is a scheduling choice doing
   privacy work, not a privacy mechanism, and it should not be described as more — the source
   address on each request is a larger identifier than the timing ever was, and the rules above are

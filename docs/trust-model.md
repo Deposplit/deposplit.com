@@ -210,18 +210,19 @@ active custodian reporting in, and makes opting out a natural act rather than an
   it asks for bytes rather than liveness. The moment you actually need a fresh reading is
   when you are about to reconstruct, and that is exactly when you open retrievals.
 - They do **not wait for anybody to open an app.** Heartbeats ride on the holder's inbox poll,
-  and on Android that poll now runs daily in the background, so a holder who simply does not
-  launch Deposplit keeps reporting in. This is still the holder's own push: the background pass
-  is the *holder's* device emitting, never the owner's device asking, and only the holder's half
-  of the poll runs — so the rule above stands exactly as written. iOS has not landed its half
-  yet, and there a holder who does not open the app still goes silent.
+  and on both platforms that poll now runs daily in the background, so a holder who simply does
+  not launch Deposplit keeps reporting in. This is still the holder's own push: the background
+  pass is the *holder's* device emitting, never the owner's device asking, and only the holder's
+  half of the poll runs — so the rule above stands exactly as written.
 
-  There is an asymmetry that will survive that landing. Android's key storage is available
-  whenever the app runs, so a background pass can sign; iOS keeps its keys
-  `WhenUnlockedThisDeviceOnly`, so a pass on a locked phone can do nothing and must sit out
-  until the next one. That is a deliberate posture, not an oversight — see *Data at rest* in
-  [security.md](security.md) — and it is one reason the loss threshold stays at 3× rather than
-  being tightened now that beats arrive more reliably.
+  Two things keep the loss threshold at 3× rather than tightening it now that beats arrive more
+  reliably. Android's key storage is available whenever the app runs, so a background pass can
+  sign; iOS keeps its keys `WhenUnlockedThisDeviceOnly`, so a pass on a locked phone can do
+  nothing and must sit out until the next one — a deliberate posture, not an oversight, see
+  *Data at rest* in [security.md](security.md). And iOS grants background time in proportion to
+  how much an app is used, so the holder who never opens Deposplit — exactly the holder this
+  exists for — gets the fewest passes. Neither is a reason to expect fewer beats than before;
+  both are reasons not to build a tighter threshold on top of them.
 
 ### Freshness
 
