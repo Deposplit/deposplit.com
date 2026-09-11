@@ -53,7 +53,7 @@ place rather than growing this list into a second manual.
 
 ### Freemium (not written up)
 
-- [ ] `A` `I` **The cap counts active secrets, not lifetime deposits.** Three active secrets; the fourth is refused. Discard one and the fourth succeeds immediately — before any holder has confirmed the removal, since a discarding secret gives its slot up at once.
+- [ ] `A` `I` **The cap counts active secrets, not lifetime deposits.** Three active secrets; the fourth is refused. Destroy one and the fourth succeeds immediately — before any holder has confirmed the removal, since a destroying secret gives its slot up at once.
 - [ ] `A` `I` **A repair at the cap is not blocked.** With three active secrets, run a repair through to the re-deposit. It must go through: the replacement supersedes an active secret rather than adding a fourth.
 - [ ] `I` **Buying unlocks the default-relay editor without a relaunch.** Buy in the Simulator against the scheme's StoreKit configuration, then check Settings — the field becomes editable, because it observes the store. Delete the transaction under Debug → StoreKit → Manage Transactions and confirm it locks again. Add Contact's relay field is not part of this: it is free, and must stay editable throughout.
 - [ ] `A` `I` **A free device can still share with a self-hoster.** On a device without Premium, add a contact whose relay is not the default — once by scanning their QR, once by typing the same three fields by hand. Both must keep the override, and deposits must route to that relay either way. This is the free half of BYOR, and the one gate whose mis-scoping would break interop rather than merely annoy.
@@ -158,7 +158,7 @@ Here's the whole picture, re-derived from the code as it stands after today (Aug
   retainedDepositRepository.save(RetainedDepositBlob(req.id, secretId, contact.id, …))
 
   So ShareRequest.id == ShareMetadata.id == RetainedDepositBlob.id, and three things join on it: syncDistributed's
-  existingMetadata.find { it.id == req.id }, isRetentionStillPending(req.id), and reconcileDiscarding's
+  existingMetadata.find { it.id == req.id }, isRetentionStillPending(req.id), and reconcileDestroying's
   relay.deleteShareRequest(meta.id).
 
   A re-deposit is a fresh POST /share-requests, so the relay mints a new id and the old one names nothing. Both local

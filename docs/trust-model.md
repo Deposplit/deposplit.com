@@ -237,7 +237,7 @@ and that a **single** missed beat is never read as loss.
 
 ## Secret health, and repair
 
-A secret is `ACTIVE` or `DISCARDING`. The alarm ladder compares freshness-gated `n_live`
+A secret is `ACTIVE` or `DESTROYING`. The alarm ladder compares freshness-gated `n_live`
 against `k`:
 
 | Condition | Level | What to do |
@@ -246,7 +246,7 @@ against `k`:
 | `n_live == k + 1` | caution | Margin of one — re-split soon |
 | `n_live == k` | **critical** | Reconstruct and re-split **now** — last recoverable moment |
 | `n_live < k` | lost | Unrecoverable — change the underlying secret |
-| *while `DISCARDING`* | suppressed | The decline is intentional |
+| *while `DESTROYING`* | suppressed | The decline is intentional |
 
 The alarm fires at `n_live == k`, not below it. At exactly *k* you can still gather a
 threshold, reconstruct, and re-split to restore margin. Below it there is nothing left to
@@ -258,21 +258,21 @@ whole exercise. So restoring redundancy means *reconstruct, then re-split to a f
 set*. That is precisely why catching loss while still comfortably above *k* matters.
 
 There is no separate "rotate the value" flow, because none is needed. Replacing a secret is
-`deposit(new value)` followed by `discardSecret(old)`; restoring redundancy on an unchanged
-value is `reconstruct` first, then the same two steps. `discardSecret` fans out a `removal`
+`deposit(new value)` followed by `destroySecret(old)`; restoring redundancy on an unchanged
+value is `reconstruct` first, then the same two steps. `destroySecret` fans out a `removal`
 request to every holder — a *request*, not a command, so each holder still approves, and a
 holder who never responds is escaped locally. Every deposit mints a fresh `secretId` and
 thus a fresh polynomial, which matters: shares from two different polynomials for the same
 value are not interchangeable.
 
 Reconstruction itself is a pure read. It returns the secret and changes nothing —
-`discardSecret` is the only teardown path.
+`destroySecret` is the only teardown path.
 
 **One honest caveat.** Re-splitting the *same* value restores availability, not
 confidentiality: old holders' shares still reconstruct the still-live value until they
 approve their removals. When the value itself changes, a lingering old share reconstructs
 something already retired. For a value that cannot be changed — a seed phrase — best-effort
-discard is the honest but imperfect mitigation.
+destroy is the honest but imperfect mitigation.
 
 ## Choosing k and n
 

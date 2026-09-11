@@ -99,7 +99,7 @@ something of Bob, Bob approves or denies — and one is a push.
 |---|---|---|---|
 | `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType`, `ciphertext` | Give a holder a share. Delivered once on approval, then cleared from the row. |
 | `retrieval` | sender → holder → sender | references `secretId` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
-| `removal` | sender → holder | references the deposit | Ask a holder to discard a share. |
+| `removal` | sender → holder | references the deposit | Ask a holder to destroy a share. |
 | `inventory` | holder → owner | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
 
 `inventory` is the odd one out: it is created already `Approved`, has no pending phase and

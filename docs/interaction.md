@@ -30,7 +30,7 @@ half of *absence is never a signal*, three rules down.
 
 **Consent is always a separate, explicit act.** A holder approves or denies; nothing is implied by
 navigation, elapsed time, or the sender's wishes. On the owner's side the same rule appears as
-separation: `reconstruct` is a pure read that tears nothing down, and discarding is its own
+separation: `reconstruct` is a pure read that tears nothing down, and destroying is its own
 deliberate action. Wiring one into the other would make reading a secret mean disposing of it.
 
 **Absence is never a signal.** A row vanishing from the relay means "collected, or never sent" —
@@ -94,7 +94,7 @@ proof of custody — against the threshold *k*:
 | Caution | `n_live == k + 1` | Margin of one — re-split soon |
 | Critical | `n_live == k` | Reconstruct + re-split now |
 | Lost | `n_live < k` | Unrecoverable |
-| Discarding | the secret is being torn down | Discarding |
+| Destroying | the secret is being torn down | Destroying |
 
 Each badge names the action, not just the condition. "Margin of one" is a fact; "re-split soon" is
 what the user can do about it, and the second half is the reason for showing the first.
@@ -111,9 +111,17 @@ alarm itself.
 
 The holders, each opening that holder's own screen; the three actions that operate on the whole
 secret; the reconstructed content when there is some; then **Repair** (offered only at Caution or
-Critical), **Discard**, and **Force Forget** for a discarding secret whose holders will never all
-answer. Discard states its own cost in the confirmation: every holder must approve before the secret
-leaves the list.
+Critical), **Destroy**, and **Force Forget** for a destroying secret whose holders will never all
+answer. **Destroy** is the only action here that reaches other people's phones and the only one that
+can never be undone, and its confirmation says both rather than softening either: every holder is
+asked to destroy their piece, and once they all have, nothing can put this secret back together.
+Until they have, it stays in the list as *Destroying*, which is what Force Forget is for.
+
+**The word is deliberate, and *Delete* is deliberately not it.** Delete is what this product calls
+its local, narrow, survivable actions — removing a contact, dropping a share this device holds for
+someone else. Destroying a secret is the opposite on every axis, so it may not borrow the milder
+word, and the mildness of **Force Forget** beside it is equally deliberate: that one is local-only
+teardown, and the shares stay where they are.
 
 **Three actions, always all three, never a different three.** They are not phases of one task —
 retrieving and clearing are legitimately available at the same time — so they are three controls
@@ -122,7 +130,7 @@ learned is worth more than one whose meaning has to be re-read.
 
 | | Enabled when | What the disabled state says |
 |---|---|---|
-| **Retrieve shares** | the secret is active, and some holder has no pending or approved retrieval | *Every holder has been asked already* · *This secret is being discarded* |
+| **Retrieve shares** | the secret is active, and some holder has no pending or approved retrieval | *Every holder has been asked already* · *This secret is being destroyed* |
 | **Reconstruct** | approved retrievals ≥ *k* | *n more holders have to hand a piece back first* — or which of the three biometric reasons applies |
 | **Clear collected copies** | at least one holder has handed a piece back | *Nothing has been handed back yet* |
 
@@ -245,7 +253,7 @@ low enough that a minority could reconstruct behind the owner's back; and a thre
 that losing one holder loses the secret. Each is a confirmation, never a refusal — *Deposit Anyway*
 is always there.
 
-At the free-tier limit the form says how many of how many slots are in use, and that discarding one
+At the free-tier limit the form says how many of how many slots are in use, and that destroying one
 frees a slot immediately.
 
 ## Settings
