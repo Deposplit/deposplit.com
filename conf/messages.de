@@ -79,7 +79,7 @@ phon.action.delete = Löschen
 phon.action.retry = Erneut versuchen
 phon.action.approve = Zustimmen
 phon.action.deny = Ablehnen
-phon.action.dismiss = Ausblenden
+phon.action.dismiss = Verwerfen
 phon.action.rename = Umbenennen
 phon.action.relink = Neu verknüpfen
 phon.action.confirmRelink = Neuverknüpfung bestätigen
@@ -144,7 +144,6 @@ phon.relink.levelFooter = Wählen Sie die Stufe komplett neu. Neue Schlüssel be
 
 phon.distributed.threshold = {0} von {1} nötig
 phon.distributed.holderCount = {0,choice,1#1 Verwahrer|1<{0} Verwahrer}
-phon.distributed.destroying = Warten auf Bestätigung der Verwahrer
 
 phon.health.destroying = Wird vernichtet
 phon.health.caution = Nur einer in Reserve - bald neu aufteilen
@@ -177,6 +176,7 @@ phon.transaction.inventory = Bestand
 phon.conflict.title = Möglicher Identitätsdiebstahl
 phon.conflict.body = Jemand, der sich als {0} ausgibt, hat neue Schlüssel vorgelegt, unterschrieben mit einem Schlüssel, den Sie als kompromittiert gemeldet haben. Das wurde abgelehnt. Nur ein persönliches Treffen mit Neuverknüpfung bringt sie weiter.
 phon.conflict.detected = Bemerkt am {0}
+phon.conflict.permanence = Das Verwerfen hinterlässt keinen Eintrag — dieser hier ist der einzige, und es lässt sich nicht rückgängig machen.
 
 phon.deposit.labelPlaceholder = z. B. BitLocker-Schlüssel
 phon.deposit.recipients = Wer soll einen Teil verwahren?
@@ -195,6 +195,7 @@ phon.secretDetail.approvedCount = {0} von {1} nötigen haben ihren Teil zurückg
 phon.secretDetail.retrieveDisabled.allAsked = Alle Verwahrer wurden bereits gefragt.
 phon.secretDetail.retrieveDisabled.destroying = Dieses Geheimnis wird gerade vernichtet.
 phon.secretDetail.reconstructDisabled = {0,choice,1#Ein weiterer Verwahrer muss|1<{0} weitere Verwahrer müssen} den Teil noch zurückgeben.
+phon.secretDetail.destroyingWaiting = {0,choice,1#Ein Verwahrer muss seinen Teil|1<{0} Verwahrer müssen ihren Teil} noch vernichten.
 phon.secretDetail.clearDisabled = Bisher wurde nichts zurückgegeben.
 phon.secretDetail.clearReminder = Die gesammelten Kopien nach Gebrauch freigeben - die Verwahrer behalten ihre Teile in jedem Fall.
 

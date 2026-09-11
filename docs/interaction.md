@@ -117,6 +117,13 @@ can never be undone, and its confirmation says both rather than softening either
 asked to destroy their piece, and once they all have, nothing can put this secret back together.
 Until they have, it stays in the list as *Destroying*, which is what Force Forget is for.
 
+**A state badge and a status line must not say the same thing.** The health badge already reads
+*Destroying*, so the line beside Force Forget carries what the badge cannot: how many holders have
+still to answer — *Waiting for 2 holders to destroy their piece*. That is precisely the judgement
+Force Forget asks for, since waiting on one dark phone and waiting on everybody are different
+situations, and the count is free: each holder's `ShareMetadata` row is dropped as their removal is
+approved, so the number of holders left *is* the number outstanding.
+
 **The word is deliberate, and *Delete* is deliberately not it.** Delete is what this product calls
 its local, narrow, survivable actions — removing a contact, dropping a share this device holds for
 someone else. Destroying a secret is the opposite on every axis, so it may not borrow the milder
@@ -204,7 +211,13 @@ Two things sit above the list, because they are about identity rather than about
 - **Possible impersonation attempt**, when a contact's key has changed and their previous key is
   flagged compromised. It is never auto-resolved and offers only *Dismiss*: reconnecting means
   verifying the person fresh and relinking from Contacts, which is a deliberate act elsewhere, not
-  a button here.
+  a button here. **Dismissing is permanent, and the card says so.** The relay's copy of the notice
+  was deleted when the conflict was captured, so what the card holds is the only record there is,
+  and dismissing deletes it. What is lost is the history rather than the protection — the contact
+  still cannot be relinked without verifying them again, and a second attempt raises a fresh
+  conflict — but a one-way door may not be offered as though it were a closing X. The German is
+  *Verwerfen*, which is the only one of the three words the platforms had reached for that means
+  throwing something away rather than hiding or ignoring it.
 
 ## Contacts
 

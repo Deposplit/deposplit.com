@@ -45,6 +45,9 @@
         <div class="small text-body-secondary mb-2">
             @messages("phon.conflict.detected", PhonDates.format(row.conflict.detectedAt))
         </div>
+        @* The alert has already done its informing; the button behind it is a one-way door, so the
+           card says so rather than letting the mildness of the word stand in for the consequence. *@
+        <p class="small text-danger-emphasis mb-2">@messages("phon.conflict.permanence")</p>
         <button type="button" class="btn btn-sm btn-outline-danger"
             hx-delete="@controllers.phon.routes.RequestsController.dismissConflict(row.conflict.id)"
             hx-target="#screen" hx-swap="outerHTML">
