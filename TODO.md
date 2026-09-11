@@ -36,7 +36,8 @@ place rather than growing this list into a second manual.
 ### The documented edge cases
 
 - [ ] `A` `I` Fresh keypairs after reinstall — existing contacts can no longer decrypt shares sent to the old ones.
-- [ ] `A` `I` Reconstruct stays hidden until *k* approved retrievals exist for the same `secretId`.
+- [ ] `A` `I` Reconstruct stays disabled until *k* approved retrievals exist for the same `secretId`, and the line beneath says how far short it is. The button itself never leaves the screen.
+- [ ] `A` `I` Request Retrieval stays enabled at *k*: with three holders and 2-of-3, two approvals must not silence the third ask. It goes quiet only once every holder has a pending or approved retrieval.
 - [ ] `A` `I` 2-of-3 with only two approvals still reconstructs.
 - [ ] `A` `I` Integrity margin with a surplus holder: the advisory reports the margin honestly rather than claiming more confidence than it has.
 - [ ] `A` `I` Verification levels: manual entry never offers `VERY_HIGH`; a QR scan defaults to it.
