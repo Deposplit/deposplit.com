@@ -60,6 +60,16 @@ trait ShareManagement:
     */
   def reconstruct(secretId: UUID): ReconstructionResult
 
+  /** The counterpart to `reconstruct`'s pure read: deletes every retrieval row this device opened for secretId — the
+    * copies collected from holders, and any ask still waiting for an answer — so they stop existing on the relay once
+    * the sender no longer needs them.
+    *
+    * Deliberately *not* teardown. The deposit rows, the local `ShareMetadata` and the holders' own copies are all left
+    * alone, so the secret stays split among the same people and can be asked for again: afterwards `requestAll` will
+    * ask every holder afresh, and `reconstruct` refuses until enough of them answer.
+    */
+  def clearCollectedShares(secretId: UUID): Unit
+
   /** Fans out a sender-initiated removal request to every known holder of secretId and flips the Secret to Discarding
     * immediately (before any holder responds).
     */

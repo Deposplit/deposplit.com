@@ -426,6 +426,20 @@ class ShareService @Inject() (
       else ReconstructionIntegrity.ExcludedSuspects(result.excludedIndices.map(decryptedWithContact(_)._2))
     ReconstructionResult(result.secret, integrity, secret.mimeType)
 
+  /** Deletes every retrieval row for secretId through the relay it was found on — approved and still pending alike, so
+    * that afterwards there is no retrieval flow for this secret at all: `requestAll` asks every holder again (it skips
+    * only holders with a live row, and none are left) and `reconstruct` refuses until they answer.
+    *
+    * Clearing the approved rows alone would leave asks that nobody has answered yet still standing, and copies would go
+    * on arriving after the sender said they were finished.
+    *
+    * Each deletion is soft-failed on its own: one unreachable relay must not strand the rows held on the others.
+    */
+  override def clearCollectedShares(secretId: UUID): Unit =
+    rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval))
+      .filter(_._2.secretId == secretId)
+      .foreach((relay, req) => Try(relay.deleteShareRequest(req.id)))
+
   /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to Discarding
     * immediately, before any holder has responded.
     */
