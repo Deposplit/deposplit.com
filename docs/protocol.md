@@ -230,6 +230,15 @@ rotations, inventory pushes, tombstones) or re-issuable by the user (action requ
 Clients follow one rule when reconciling: **upsert, never delete.** A row's disappearance
 must never cause a client to forget something.
 
+**The rule binds the relay too.** Approving a `removal` sweeps the rest of that
+(`secret_id`, `sender_key`, `recipient_key`) triple — the `deposit` above all, which may
+still hold ciphertext for a share that no longer exists — but keeps the answered `removal`
+row, signed. It fits neither escape above: the holder cannot re-emit it, having deleted
+everything it refers to, and the sender cannot re-issue a request for a share that is
+already gone. Since the sweep takes every other trace of that holder's custody with it,
+deleting the answer as well would leave the sender an absence to read, and an absence says
+nothing. She deletes the row herself once she has acted on it.
+
 Retention classes are an operator concern, not application logic: consent-gated action
 requests want generous retention so an offline counterparty can still act, while
 fire-and-forget pushes can be short-lived and latest-wins. Neither is enforced by the relay
