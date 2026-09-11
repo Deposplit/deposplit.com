@@ -237,8 +237,9 @@ and that a **single** missed beat is never read as loss.
 
 ## Secret health, and repair
 
-A secret is `ACTIVE` or `DESTROYING`. The alarm ladder compares freshness-gated `n_live`
-against `k`:
+A secret is `ACTIVE` or `DESTROYING` — the whole state machine, and what drives each
+transition, is in [lifecycles.md](lifecycles.md). The alarm ladder compares freshness-gated
+`n_live` against `k`:
 
 | Condition | Level | What to do |
 |---|---|---|

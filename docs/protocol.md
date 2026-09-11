@@ -93,7 +93,8 @@ against a fixed signature instead.)
 ## Transaction types
 
 Four types share the `share_requests` table. Three are consent-gated — Alice asks
-something of Bob, Bob approves or denies — and one is a push.
+something of Bob, Bob approves or denies — and one is a push. Where each one falls in the
+life of a secret or a share is in [lifecycles.md](lifecycles.md).
 
 | Type | Direction | Carries | Purpose |
 |---|---|---|---|

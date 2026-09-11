@@ -9,8 +9,9 @@ This page is that missing half. It records what each screen is for and which of 
 **decisions** rather than accidents — the ones that must survive a redesign. It is not a style
 guide and says nothing about pixels, spacing or colour, which are each platform's own business.
 
-For the flows these screens serve, see [testing.md](testing.md); for why the domain behaves as it
-does, [architecture.md](architecture.md) and [trust-model.md](trust-model.md).
+For the flows these screens serve, see [testing.md](testing.md); for the states they are reading
+from, [lifecycles.md](lifecycles.md); for why the domain behaves as it does,
+[architecture.md](architecture.md) and [trust-model.md](trust-model.md).
 
 ## The rules that outrank any screen
 

@@ -6,8 +6,9 @@ cooperate. Fewer than *k* shares reveal **nothing** — not "not much": below th
 the shares are information-theoretically independent of the secret.
 
 This document covers the bones. Wire formats are in [protocol.md](protocol.md),
-cryptographic constructions in [security.md](security.md), and the human trust rules in
-[trust-model.md](trust-model.md).
+cryptographic constructions in [security.md](security.md), the human trust rules in
+[trust-model.md](trust-model.md), and the states a secret and a share move through in
+[lifecycles.md](lifecycles.md).
 
 ## Architecture, and what is merely design
 
