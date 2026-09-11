@@ -273,8 +273,32 @@ frees a slot immediately.
 ## Settings
 
 Default relay (Premium, with the free per-contact override explained beside it), catalog backup, an
-honest paragraph on what the platform's own device backup does and does not carry, and identity
-regeneration with its consequences stated before the confirmation rather than after it.
+honest paragraph on what the platform's own device backup does and does not carry, notifications,
+and identity regeneration with its consequences stated before the confirmation rather than after it.
+
+**Notifications get a paragraph, not a switch** — the same shape as the backup entry above, and for
+the same reason: the platform owns the switch. What the screen owes is what the notice is for, that
+it names nobody, whether it is currently on, and a way back to the system page for somebody who
+dismissed the prompt and has no other route to it. A control that cannot work says so; it does not
+disappear, and it does not duplicate a switch that lives elsewhere.
+
+## What a notification may say
+
+One interruption exists: a contact is waiting on a share this phone keeps, and cannot go further
+until it is answered. The notice says exactly that, in one sentence, and **names nobody, names no
+secret, and does not count them** — a locked screen must give away nothing beyond the app being
+installed, which the launcher already did. It is produced on the device from rows it already
+fetched; [privacy.md](privacy.md) says why that is not push and why push is out.
+
+**A pending removal says nothing at all.** The sender flipped her secret to `DESTROYING` the moment
+she asked and is not waiting on the answer to carry on, so learning of it at the next launch costs
+nobody anything — and a lock screen that speaks twice as often for one real interruption is worse
+at the job. This is *absence is never a signal* meeting its own limit: silence here is a choice
+about attention, not about state, and the removal request is still sitting in the Requests tab
+saying so.
+
+The permission is asked the first time the device is actually keeping something for somebody.
+Before that, there is nothing a notice could ever say.
 
 phon adds a **Danger zone** that resets a phone to a clean slate. It has no mobile counterpart and
 needs none: resetting a test phone is the entire point of having one.

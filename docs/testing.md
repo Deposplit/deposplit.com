@@ -182,3 +182,34 @@ in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
   itself rather than offer a button that cannot work.
 - **Key-change indicator.** After a contact rotates keys, their retrieval requests should
   carry the "key changed N days ago" warning — and only retrieval requests.
+
+## Background refresh, Android
+
+Custody no longer waits for somebody to open the app: a WorkManager job runs `syncInbox()` daily,
+so heartbeats and pickups happen on their own, and a waiting retrieval raises one local
+notification. None of that is reachable by a unit test — it is adapter code by definition — so it
+is checked here or nowhere.
+
+**Firing a pass by hand.** WorkManager runs on JobScheduler underneath, so:
+
+```bash
+adb shell dumpsys jobscheduler | grep -A 3 com.deposplit   # find the job id
+adb shell cmd jobscheduler run -f com.deposplit <id>       # -f ignores the constraints
+```
+
+Force-stop the app first for the checks that claim the app was never opened, and confirm from the
+*sender's* device rather than the holder's — the point is what the owner can see.
+
+- **A pass emits without a launch.** Hold a share, force-stop the holder, fire a pass, then check
+  the sender: `lastConfirmedAt` moves and the holder stays Confirmed.
+- **Silence past the threshold no longer costs anything.** Move the clock past nine days with the
+  holder's app never opened. The owner must still read Confirmed rather than Silent / overdue.
+- **A waiting retrieval notifies exactly once.** Request a retrieval, fire two passes. One
+  notification, not two — and read it on the lock screen: it must name nobody, name no secret, and
+  not say how many are waiting. Also confirm the sentence is not truncated.
+- **Answering clears it.** Approve the request, fire a pass, and confirm nothing is re-announced.
+- **A removal is silent.** Request a removal with no retrieval outstanding, fire a pass, and
+  confirm nothing at all is posted. It is still in the Requests tab.
+- **The permission is asked at the right moment.** A fresh install that holds nothing must never
+  see the prompt; it appears on the launch where the first share lands, and never again. Deny it,
+  then check Settings: the line says notifications are off and offers the way to the system page.

@@ -209,6 +209,19 @@ active custodian reporting in, and makes opting out a natural act rather than an
   flavour, and the retrieval flow already *is* the on-demand check — a stronger one, since
   it asks for bytes rather than liveness. The moment you actually need a fresh reading is
   when you are about to reconstruct, and that is exactly when you open retrievals.
+- They do **not wait for anybody to open an app.** Heartbeats ride on the holder's inbox poll,
+  and on Android that poll now runs daily in the background, so a holder who simply does not
+  launch Deposplit keeps reporting in. This is still the holder's own push: the background pass
+  is the *holder's* device emitting, never the owner's device asking, and only the holder's half
+  of the poll runs — so the rule above stands exactly as written. iOS has not landed its half
+  yet, and there a holder who does not open the app still goes silent.
+
+  There is an asymmetry that will survive that landing. Android's key storage is available
+  whenever the app runs, so a background pass can sign; iOS keeps its keys
+  `WhenUnlockedThisDeviceOnly`, so a pass on a locked phone can do nothing and must sit out
+  until the next one. That is a deliberate posture, not an oversight — see *Data at rest* in
+  [security.md](security.md) — and it is one reason the loss threshold stays at 3× rather than
+  being tightened now that beats arrive more reliably.
 
 ### Freshness
 

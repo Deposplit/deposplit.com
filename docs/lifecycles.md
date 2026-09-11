@@ -21,9 +21,11 @@ together:
 | `HeldShare` | the holder's phone | the share itself, plaintext |
 
 There is no transaction across them, and no push channel either. Every transition below is
-therefore driven by **a poll**: a device opens the app, reads what its relays have, and
-reconciles. Two rules govern that reconciliation everywhere, and most of what looks odd in
-these machines follows from them:
+therefore driven by **a poll**: a device reads what its relays have and reconciles. That
+happens while somebody has the app open, and on Android also on a daily background pass, so
+nothing here waits on a launch — see *Custody monitoring* in [trust-model.md](trust-model.md).
+Two rules govern that reconciliation everywhere, and most of what looks odd in these machines
+follows from them:
 
 - **Absence is never a signal.** A row that is gone means *collected, or never sent* — never
   *done*, and never *lost*. Clients upsert; they never delete because something stopped
