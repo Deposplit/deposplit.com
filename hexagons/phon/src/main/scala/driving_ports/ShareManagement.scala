@@ -55,7 +55,7 @@ trait ShareManagement:
   def openRequest(shareId: UUID, transactionType: ShareTransactionType): ShareRequest
 
   /** Pure read — collects approved retrieval shares (possibly more than k) and decrypts them. Never tears down local
-    * `ShareMetadata` or relay rows; use `discardSecret` for that. Cross-checks any surplus beyond k for consistency —
+    * `ShareMetadata` or relay rows; use `destroySecret` for that. Cross-checks any surplus beyond k for consistency —
     * throws rather than returning a guessed secret if the surplus can't be reconciled.
     */
   def reconstruct(secretId: UUID): ReconstructionResult
@@ -70,12 +70,12 @@ trait ShareManagement:
     */
   def clearCollectedShares(secretId: UUID): Unit
 
-  /** Fans out a sender-initiated removal request to every known holder of secretId and flips the Secret to Discarding
+  /** Fans out a sender-initiated removal request to every known holder of secretId and flips the Secret to Destroying
     * immediately (before any holder responds).
     */
-  def discardSecret(secretId: UUID): Unit
+  def destroySecret(secretId: UUID): Unit
 
-  /** Local-only teardown for a Discarding secret whose holders will never all respond (e.g. a permanently dark holder).
+  /** Local-only teardown for a Destroying secret whose holders will never all respond (e.g. a permanently dark holder).
     * Does not wait for or require relay confirmation.
     */
   def forceForgetSecret(secretId: UUID): Unit

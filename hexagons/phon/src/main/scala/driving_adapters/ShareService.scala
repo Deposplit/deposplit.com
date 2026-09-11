@@ -258,24 +258,24 @@ class ShareService @Inject() (
           }
         }
     }
-    reconcileDiscarding()
+    reconcileDestroying()
     processHeartbeats()
 
   private def isRetentionStillPending(depositId: UUID): Boolean =
     Try(retainedDepositRepository.getAll()).getOrElse(Nil).exists(_.id == depositId)
 
-  /** For every Discarding `Secret`, checks whether each remaining holder's fanned-out removal request has been
-    * approved; approved ones are cleaned up (relay row deleted, local `ShareMetadata` removed). Once a Discarding
-    * secret has no `ShareMetadata` rows left, its `Secret` record itself is removed — the Active/Discarding two-state
+  /** For every Destroying `Secret`, checks whether each remaining holder's fanned-out removal request has been
+    * approved; approved ones are cleaned up (relay row deleted, local `ShareMetadata` removed). Once a Destroying
+    * secret has no `ShareMetadata` rows left, its `Secret` record itself is removed — the Active/Destroying two-state
     * lifecycle.
     */
-  private def reconcileDiscarding(): Unit =
-    val discarding = secretRepository.getAll().filter(_.state == SecretState.Discarding)
-    if discarding.nonEmpty then
-      val discardingIds = discarding.map(_.id).toSet
+  private def reconcileDestroying(): Unit =
+    val destroying = secretRepository.getAll().filter(_.state == SecretState.Destroying)
+    if destroying.nonEmpty then
+      val destroyingIds = destroying.map(_.id).toSet
       val removalRequests = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Removal))
-        .filter((_, request) => discardingIds.contains(request.secretId))
-      discarding.foreach { secret =>
+        .filter((_, request) => destroyingIds.contains(request.secretId))
+      destroying.foreach { secret =>
         val metasForSecret = shareMetadataRepository.getAll().filter(_.secretId == secret.id)
         metasForSecret.foreach { meta =>
           contactRepository.getById(meta.contactId).foreach { contact =>
@@ -391,7 +391,7 @@ class ShareService @Inject() (
     )
 
   /** Pure read: collects and decrypts k approved retrieval shares, but never tears down local `ShareMetadata` or relay
-    * rows. Use `discardSecret` for teardown — reconstruct is now a *step* toward a possible re-split, not an implicit
+    * rows. Use `destroySecret` for teardown — reconstruct is now a *step* toward a possible re-split, not an implicit
     * "I'm done with this" signal.
     */
   override def reconstruct(secretId: UUID): ReconstructionResult =
@@ -440,21 +440,21 @@ class ShareService @Inject() (
       .filter(_._2.secretId == secretId)
       .foreach((relay, req) => Try(relay.deleteShareRequest(req.id)))
 
-  /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to Discarding
+  /** Fans out a sender-initiated removal to every known holder of secretId and flips the Secret to Destroying
     * immediately, before any holder has responded.
     */
-  override def discardSecret(secretId: UUID): Unit =
+  override def destroySecret(secretId: UUID): Unit =
     val secret = secretRepository
       .getAll()
       .find(_.id == secretId)
       .getOrElse(throw IllegalStateException(s"No local record for secret $secretId"))
-    secretRepository.save(secret.copy(state = SecretState.Discarding))
+    secretRepository.save(secret.copy(state = SecretState.Destroying))
     shareMetadataRepository
       .getAll()
       .filter(_.secretId == secretId)
       .foreach(share => Try(openRequest(share.id, ShareTransactionType.Removal)))
 
-  /** Local-only teardown for a Discarding secret whose holders won't all respond (e.g. a permanently dark holder) —
+  /** Local-only teardown for a Destroying secret whose holders won't all respond (e.g. a permanently dark holder) —
     * removes the Secret and its remaining `ShareMetadata` rows without waiting for relay confirmation.
     */
   override def forceForgetSecret(secretId: UUID): Unit =

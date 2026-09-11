@@ -116,9 +116,9 @@ class PhonSecretActionsSpec extends PlaySpec {
     }
 
     "say so when the secret is on its way out instead" in {
-      val discarding = SecretGroup(secret(2, 2, SecretState.Discarding), List(holder(None), holder(None)))
-      discarding.canRequestRetrieval mustBe false
-      discarding.retrievalUnavailableReason mustBe Some("phon.secretDetail.retrieveDisabled.discarding")
+      val destroying = SecretGroup(secret(2, 2, SecretState.Destroying), List(holder(None), holder(None)))
+      destroying.canRequestRetrieval mustBe false
+      destroying.retrievalUnavailableReason mustBe Some("phon.secretDetail.retrieveDisabled.destroying")
     }
   }
 

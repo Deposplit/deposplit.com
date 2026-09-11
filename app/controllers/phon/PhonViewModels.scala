@@ -69,7 +69,7 @@ enum FreshnessBucket:
 
 /** Graduated n_live health alarm. */
 enum SecretHealth:
-  case Healthy, Caution, Critical, Lost, Discarding
+  case Healthy, Caution, Critical, Lost, Destroying
 
 final case class HolderStatus(
     shareId: UUID,
@@ -105,7 +105,7 @@ final case class SecretGroup(secret: Secret, holders: List[HolderStatus]):
   def nLive(now: Instant): Int = holders.count(_.freshnessBucket(now) == FreshnessBucket.Confirmed)
 
   def health(now: Instant): SecretHealth =
-    if secret.state == SecretState.Discarding then SecretHealth.Discarding
+    if secret.state == SecretState.Destroying then SecretHealth.Destroying
     else
       val live = nLive(now)
       if live < secret.k then SecretHealth.Lost
@@ -129,7 +129,7 @@ final case class SecretGroup(secret: Secret, holders: List[HolderStatus]):
     * says so in words rather than disappearing.
     */
   def retrievalUnavailableReason: Option[String] =
-    if secret.state != SecretState.Active then Some("phon.secretDetail.retrieveDisabled.discarding")
+    if secret.state != SecretState.Active then Some("phon.secretDetail.retrieveDisabled.destroying")
     else if !canRequestRetrieval then Some("phon.secretDetail.retrieveDisabled.allAsked")
     else None
 

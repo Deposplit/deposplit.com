@@ -157,7 +157,7 @@ class SecretsController @Inject() (
   }
 
   /** A pure read: it collects the approved shares and puts them together, and tears nothing down. Letting the copies go
-    * again is `clearCollected`, and discarding the secret altogether is `discard` — each its own deliberate act.
+    * again is `clearCollected`, and destroying the secret altogether is `destroy` — each its own deliberate act.
     */
   def reconstruct(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
     registered {
@@ -176,14 +176,14 @@ class SecretsController @Inject() (
     }
   }
 
-  def discard(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
+  def destroy(secretId: UUID) = Action { implicit request: Request[AnyContent] =>
     registered {
-      Try(shareManagement.discardSecret(secretId))
+      Try(shareManagement.destroySecret(secretId))
       goTo(routes.HomeController.distributed())
     }
   }
 
-  /** The escape hatch for a Discarding secret whose holders will never all answer — a permanently dark phone, which in
+  /** The escape hatch for a Destroying secret whose holders will never all answer — a permanently dark phone, which in
     * a teaching session is simply one that was closed.
     */
   def forceForget(secretId: UUID) = Action { implicit request: Request[AnyContent] =>

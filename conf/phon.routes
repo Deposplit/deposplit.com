@@ -49,7 +49,7 @@ POST   /secrets/:secretId/retrievals    controllers.phon.SecretsController.reque
 POST   /secrets/:secretId/reconstruction controllers.phon.SecretsController.reconstruct(secretId: java.util.UUID)
 DELETE /secrets/:secretId/collected     controllers.phon.SecretsController.clearCollected(secretId: java.util.UUID)
 POST   /secrets/:secretId/forget        controllers.phon.SecretsController.forceForget(secretId: java.util.UUID)
-DELETE /secrets/:secretId               controllers.phon.SecretsController.discard(secretId: java.util.UUID)
+DELETE /secrets/:secretId               controllers.phon.SecretsController.destroy(secretId: java.util.UUID)
 POST   /shares/:shareId/requests        controllers.phon.SecretsController.openRequest(shareId: java.util.UUID)
 
 # ── Shares this device holds for other people ───────────────────────────────────────────────
