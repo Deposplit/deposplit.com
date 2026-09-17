@@ -38,6 +38,7 @@ import play.api.mvc.*
 
 import scala.io.Codec
 import scala.io.Source
+import scala.util.Using
 
 case class MarkdownFilePath(sanitized: String)
 
@@ -94,37 +95,28 @@ class MarkdownController @Inject() (val controllerComponents: ControllerComponen
     .headOption
     .getOrElse("Markdown")
 
+  // Using closes the underlying stream, which on Windows would otherwise keep Play's dev mode from replacing a markdown
+  // once public/markdowns changes. Not Source.fromResource: a missing markdown is the language fallback or a 404 here,
+  // and fromResource would turn it into a NullPointerException.
+  private def readMarkdown(resource: String): Option[String] =
+    env
+      .resourceAsStream(resource)
+      .map(is =>
+        Using.resource(Source.fromInputStream(is)(using Codec.UTF8))(_.mkString)
+      ) // or use java.nio.Files, cf. Scala for the Impatient (§9.2) and https://horstmann.com/unblog/2023-04-09/index.html
+
   def get(markdownFilePath: MarkdownFilePath, embedded: Boolean = true) = Action {
     implicit request: Request[AnyContent] =>
       val language = request.lang.language
       val sanitizedMarkdownFilePath = markdownFilePath.sanitized
-      Option(env.classLoader.getResourceAsStream(s"public/markdowns/$language/$sanitizedMarkdownFilePath.md"))
-        .orElse(Option(env.classLoader.getResourceAsStream(s"public/markdowns/$sanitizedMarkdownFilePath.md")))
-        .flatMap(is =>
+      readMarkdown(s"public/markdowns/$language/$sanitizedMarkdownFilePath.md")
+        .orElse(readMarkdown(s"public/markdowns/$sanitizedMarkdownFilePath.md"))
+        .flatMap(markdown =>
           parser
-            .parse(
-              Source.fromInputStream(is)(using Codec.UTF8).mkString
-            ) // or use java.nio.Files, cf. Scala for the Impatient (§9.2) and https://horstmann.com/unblog/2023-04-09/index.html
+            .parse(markdown)
             .flatMap(doc => renderer.render(doc).map((getDocTitle(doc), _)))
             .toOption
         )
         .map(titledHtml => Ok(views.html.markdown(titledHtml._1, titledHtml._2, embedded)))
         .getOrElse(NotFound)
   }
-
-  /*
-  private val transformer = Transformer
-    .from(Markdown)
-    .to(laika.format.HTML)
-    .using(Markdown.GitHubFlavor)
-    .build
-
-  def get(unsanitizedMarkdownFilePath: String) = Action { implicit request: Request[AnyContent] =>
-    val language = request.lang.language
-    Option(env.classLoader.getResourceAsStream(s"public/markdowns/$language/$unsanitizedMarkdownFilePath.md"))
-      .orElse(Option(env.classLoader.getResourceAsStream(s"public/markdowns/$unsanitizedMarkdownFilePath.md")))
-      .flatMap(is => transformer.transform(Source.fromInputStream(is)(Codec.UTF8).mkString).toOption)
-      .map(html => Ok(views.html.markdown("title", html)))
-      .getOrElse(NotFound)
-  }
-   */
