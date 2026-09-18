@@ -482,25 +482,6 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
-  // ── Bulk DELETE ────────────────────────────────────────────────────────────
-
-  "DELETE /share-requests (bulk)" should {
-
-    "remove all requests the caller holds as recipient" in {
-      // Deposit a fresh share so Bob has at least one row
-      val body = depositBody(alice, bob, sid = UUID.randomUUID().toString)
-      val depositResult = route(app, alice.post("/share-requests", body)).get
-      status(depositResult) mustBe CREATED
-
-      val deleteResult = route(app, bob.delete("/share-requests")).get
-      status(deleteResult) mustBe NO_CONTENT
-
-      val listResult = route(app, bob.get("/share-requests?role=recipient")).get
-      status(listResult) mustBe OK
-      contentAsJson(listResult).as[JsArray].value mustBe empty
-    }
-  }
-
   // ── Withdraw (recipient-initiated tombstone) ────────────────────────────────
 
   "POST /share-requests/withdraw" should {

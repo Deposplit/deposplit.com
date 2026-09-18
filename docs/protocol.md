@@ -190,7 +190,6 @@ GET    /share-requests             list requests visible to the caller
 GET    /share-requests/{id}        fetch one
 PATCH  /share-requests/{id}        approve or deny (recipient only)
 DELETE /share-requests/{id}        delete one
-DELETE /share-requests             recipient-initiated bulk delete
 POST   /share-requests/withdraw    recipient-initiated unilateral withdrawal
 
 POST   /key-rotations              push a signed rotation notice

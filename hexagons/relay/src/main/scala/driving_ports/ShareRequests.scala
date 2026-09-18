@@ -105,19 +105,10 @@ trait ShareRequests:
     */
   def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit]
 
-  /** Bulk recipient-initiated deletion — unilateral, no sender consent required. Deletes all rows where `recipientKey`
-    * is the recipient, optionally filtered by sender and/or secretId.
-    */
-  def deleteShareRequests(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Either[Error, Unit]
-
-  /** Recipient-initiated unilateral withdrawal — Bob stops holding secretId (or all secrets from a given sender).
-    * Unlike `deleteShareRequests`, this does not hard-delete the matching Deposit rows; it flips matching `Approved`
-    * Deposit rows to `Withdrawn` so the sender's next poll can observe the tombstone. Retrieval/Removal rows for the
-    * same grouping are untouched — those are separate, already-resolving consent flows.
+  /** Recipient-initiated unilateral withdrawal — Bob stops holding secretId (or all secrets from a given sender). This
+    * does not hard-delete the matching Deposit rows; it flips matching `Approved` Deposit rows to `Withdrawn` so the
+    * sender's next poll can observe the tombstone. Retrieval/Removal rows for the same grouping are untouched — those
+    * are separate, already-resolving consent flows.
     *
     * Best-effort and fire-and-forget: the relay may still garbage-collect a `Withdrawn` row at any time, so its absence
     * must never be read as a signal — only an *observed* `Withdrawn` row counts.

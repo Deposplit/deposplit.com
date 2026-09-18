@@ -9,7 +9,6 @@ GET     /share-requests                  controllers.api.ShareRequestsController
 GET     /share-requests/:requestId       controllers.api.ShareRequestsController.getShareRequest(requestId: String)
 PATCH   /share-requests/:requestId       controllers.api.ShareRequestsController.respondToShareRequest(requestId: String)
 DELETE  /share-requests/:requestId       controllers.api.ShareRequestsController.deleteShareRequest(requestId: String)
-DELETE  /share-requests                  controllers.api.ShareRequestsController.deleteShareRequests()
 POST    /share-requests/withdraw         controllers.api.ShareRequestsController.withdrawShareRequests()
 
 # Signed rotate(K_old -> K_new) push — not a share request, see KeyRotationsController

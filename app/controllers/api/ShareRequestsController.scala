@@ -182,17 +182,6 @@ class ShareRequestsController @Inject() (
     result.merge
   }
 
-  /** DELETE /share-requests?senderKey=...&secretId=... — recipient-initiated bulk delete. */
-  def deleteShareRequests() = Action { (request: Request[AnyContent]) =>
-    val result = for
-      callerKey <- AuthHelper.verify(request, Array.empty)
-      senderKey = request.getQueryString("senderKey").flatMap(s => PublicKey.fromBase64Url(s).toOption)
-      secretId = request.getQueryString("secretId").flatMap(parseUuid).map(SecretId(_))
-      _ <- shares.deleteShareRequests(callerKey, senderKey, secretId).left.map(domainErrorToResult)
-    yield NoContent
-    result.merge
-  }
-
   /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral withdrawal. Flips
     * matching approved Deposit rows to `withdrawn` instead of deleting them, so the sender's next poll can observe the
     * tombstone. Best-effort and fire-and-forget.

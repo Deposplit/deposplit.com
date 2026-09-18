@@ -122,13 +122,13 @@ class InMemoryShareRepository extends ShareRepository:
 
   override def deleteShareRequests(
       recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
+      senderKey: PublicKey,
+      secretId: SecretId
   ): Unit =
     requests = requests.filterNot(r =>
       sameKey(r.recipientKey, recipientKey) &&
-        senderKey.forall(sk => sameKey(r.senderKey, sk)) &&
-        secretId.forall(sid => r.secretId == sid)
+        sameKey(r.senderKey, senderKey) &&
+        r.secretId == secretId
     )
 
   override def deleteShareRequestsExcept(
@@ -867,25 +867,6 @@ class ShareRequestsServiceTests extends munit.FunSuite:
   test("deleteShareRequestById returns NotFound for unknown id") {
     val (_, service) = newService()
     assertEquals(service.deleteShareRequestById(bob, UUID.randomUUID()), Left(Error.NotFound))
-  }
-
-  // --- deleteShareRequests (bulk recipient-initiated) ---
-
-  test("deleteShareRequests removes all rows for the recipient") {
-    val (repo, service) = newService()
-    deposit(service)
-    deposit(service)
-    service.deleteShareRequests(bob, None, None)
-    assertEquals(repo.getShareRequestsAsRecipient(bob, None, None), Seq.empty)
-  }
-
-  test("deleteShareRequests filtered by sender removes only matching rows") {
-    val (repo, service) = newService()
-    val req1 = deposit(service, sender = alice, recipient = bob)
-    val req2 = deposit(service, sender = charlie, recipient = bob)
-    service.deleteShareRequests(bob, Some(alice), None)
-    assertEquals(repo.getShareRequestById(req1.id), None)
-    assert(repo.getShareRequestById(req2.id).isDefined)
   }
 
   // --- withdrawShareRequests (recipient-initiated tombstone) ---

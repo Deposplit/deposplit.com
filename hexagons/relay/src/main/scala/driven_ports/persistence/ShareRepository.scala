@@ -76,19 +76,18 @@ trait ShareRepository:
   /** Deletes a single request row by primary key. */
   def deleteShareRequestById(id: UUID): Unit
 
-  /** Bulk delete — all rows where `recipientKey` matches, optionally filtered by `senderKey` and/or `secretId`. Used
-    * for recipient-initiated cleanup and cascaded deletion when a Deposit row is removed.
+  /** Deletes every row for one (secretId, senderKey, recipientKey) triple. Used when a Deposit row is deleted by id, so
+    * that the Retrieval and Removal rows for the same share go with it.
     */
   def deleteShareRequests(
       recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
+      senderKey: PublicKey,
+      secretId: SecretId
   ): Unit
 
-  /** Same bulk delete, narrowed to one (secretId, senderKey, recipientKey) triple and sparing the row named by
-    * `keeping`. Used when a Removal is approved: everything that removal made pointless goes, but the answer itself
-    * stays, because it is the sender's only evidence that this holder destroyed their share — and absence proves
-    * nothing.
+  /** Same delete, sparing the row named by `keeping`. Used when a Removal is approved: everything that removal made
+    * pointless goes, but the answer itself stays, because it is the sender's only evidence that this holder destroyed
+    * their share — and absence proves nothing.
     */
   def deleteShareRequestsExcept(
       recipientKey: PublicKey,

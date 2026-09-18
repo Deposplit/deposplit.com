@@ -552,30 +552,6 @@ paths:
                 items:
                   $ref: '#/components/schemas/ShareRequest'
 
-    delete:
-      operationId: deleteShareRequests
-      summary: Recipient-initiated bulk delete
-      description: >
-        Deletes all share request rows where the authenticated caller is the recipient.
-        Optionally scoped to a specific sender and/or secret.
-      tags: [ShareRequests]
-      parameters:
-        - name: senderKey
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/PublicKey'
-          description: Limit deletion to rows from this sender.
-        - name: secretId
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/SecretId'
-          description: Limit deletion to rows for this secret.
-      responses:
-        '204':
-          description: Rows deleted (or nothing matched — idempotent).
-
   /share-requests/withdraw:
     post:
       operationId: withdrawShareRequests

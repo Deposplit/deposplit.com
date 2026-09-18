@@ -73,11 +73,6 @@ trait ShareRelay:
     */
   def deleteShareRequest(requestId: UUID): Unit
 
-  /** Recipient-initiated bulk delete — removes all requests where the caller is the recipient, optionally filtered by
-    * sender key and/or secret id.
-    */
-  def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit
-
   /** Recipient-initiated unilateral withdrawal — flips matching approved Deposit rows to Withdrawn on the relay instead
     * of deleting them, so the sender's next poll can observe the tombstone. Best-effort and fire-and-forget.
     */

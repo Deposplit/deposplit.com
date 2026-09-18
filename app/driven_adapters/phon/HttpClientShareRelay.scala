@@ -113,12 +113,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "htt
     send("DELETE", s"/share-requests/$requestId")
     ()
 
-  override def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit =
-    val q = senderKey.fold("")(k => s"?senderKey=${encodeBase64Url(k)}") +
-      secretId.fold("")(id => s"${if senderKey.isDefined then "&" else "?"}secretId=$id")
-    send("DELETE", s"/share-requests$q")
-    ()
-
   override def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit =
     val q = senderKey.fold("")(k => s"?senderKey=${encodeBase64Url(k)}") +
       secretId.fold("")(id => s"${if senderKey.isDefined then "&" else "?"}secretId=$id")

@@ -89,7 +89,7 @@ phon is still normal and needs no justification; skipping domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (383: relay 104, phon 154, root 125)
+sbt test                                    # all tests (391: relay 104, phon 160, root 127)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist

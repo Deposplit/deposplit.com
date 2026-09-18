@@ -203,16 +203,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       case Some(req) =>
         repository.deleteShareRequestById(requestId)
         if req.transactionType == ShareTransactionType.Deposit then
-          repository.deleteShareRequests(req.recipientKey, Some(req.senderKey), Some(req.secretId))
+          repository.deleteShareRequests(req.recipientKey, req.senderKey, req.secretId)
         Right(())
-
-  override def deleteShareRequests(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Either[Error, Unit] =
-    repository.deleteShareRequests(recipientKey, senderKey, secretId)
-    Right(())
 
   override def withdrawShareRequests(
       recipientKey: PublicKey,

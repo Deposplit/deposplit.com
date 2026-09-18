@@ -278,30 +278,16 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
 
   override def deleteShareRequests(
       recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
+      senderKey: PublicKey,
+      secretId: SecretId
   ): Unit =
     db.withConnection { implicit conn =>
-      (senderKey, secretId) match
-        case (None, None) =>
-          SQL("DELETE FROM share_requests WHERE recipient_key = {rk}")
-            .on("rk" -> recipientKey.toBytes)
-            .executeUpdate()
-        case (Some(sk), None) =>
-          SQL("DELETE FROM share_requests WHERE recipient_key = {rk} AND sender_key = {sk}")
-            .on("rk" -> recipientKey.toBytes, "sk" -> sk.toBytes)
-            .executeUpdate()
-        case (None, Some(sid)) =>
-          SQL("DELETE FROM share_requests WHERE recipient_key = {rk} AND secret_id = {sid}::uuid")
-            .on("rk" -> recipientKey.toBytes, "sid" -> sid.value.toString)
-            .executeUpdate()
-        case (Some(sk), Some(sid)) =>
-          SQL("""
-            DELETE FROM share_requests
-            WHERE recipient_key = {rk} AND sender_key = {sk} AND secret_id = {sid}::uuid
-          """)
-            .on("rk" -> recipientKey.toBytes, "sk" -> sk.toBytes, "sid" -> sid.value.toString)
-            .executeUpdate()
+      SQL("""
+        DELETE FROM share_requests
+        WHERE recipient_key = {rk} AND sender_key = {sk} AND secret_id = {sid}::uuid
+      """)
+        .on("rk" -> recipientKey.toBytes, "sk" -> senderKey.toBytes, "sid" -> secretId.value.toString)
+        .executeUpdate()
     }
 
   override def deleteShareRequestsExcept(

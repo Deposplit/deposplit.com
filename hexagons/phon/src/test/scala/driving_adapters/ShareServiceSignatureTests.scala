@@ -220,7 +220,6 @@ private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRela
     updated
 
   override def deleteShareRequest(requestId: UUID): Unit = deletedRequestIds :+= requestId
-  override def deleteShareRequests(senderKey: Option[Array[Byte]], secretId: Option[UUID]): Unit = ()
 
   override def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit =
     withdrawCalls :+= WithdrawCall(senderKey, secretId)
