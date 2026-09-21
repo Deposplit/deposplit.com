@@ -81,11 +81,6 @@ Written up in [docs/testing.md](docs/testing.md), which carries the `adb` and `l
 - [ ] `A` `I` **A holder who opts out of heartbeating stops counting as confirmed.** Opt out on the holder, then check the sender: the health signal degrades, and a recent timestamp alone must not make that holder count as confirmed.
 - [ ] `A` `I` **A restored backup really does carry the corpus.** Back up a device holding shares for someone, restore onto a second one, and confirm three things: the held shares, contacts and secret metadata are all there; the keys-lost screen appears, because the private keys are not; and after relinking, that holder can answer a retrieval again. The decision recorded in [docs/security.md](docs/security.md) rests on this and nothing else can test it. Worth running the device-to-device transfer separately from the cloud restore — they are different transports, and on iOS whether files survive a direct migration is undocumented.
 
-### The relay under load and restart (not written up)
-
-- [ ] `R` `A` `I` **A restart mid-flight loses nothing.** `conf/localhost.conf` is file-backed H2, so a deposit made before a relay restart must still be collectable after it. Kill the relay between deposit and pickup and confirm the share arrives.
-- [ ] `R` `A` `I` **Two senders, one holder.** Bob holds shares from both Alice and Carol. Deleting all of Alice's from Bob's Held view must leave Carol's untouched, and Carol's sender view unaffected.
-
 ## Chores
 
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
