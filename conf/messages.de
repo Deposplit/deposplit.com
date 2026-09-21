@@ -77,8 +77,8 @@ phon.action.getStarted = Loslegen
 phon.action.save = Speichern
 phon.action.delete = Löschen
 phon.action.retry = Erneut versuchen
-phon.action.approve = Zustimmen
-phon.action.deny = Ablehnen
+phon.action.approve = Genehmigen
+phon.action.deny = Verweigern
 phon.action.dismiss = Verwerfen
 phon.action.rename = Umbenennen
 phon.action.relink = Neu verknüpfen
@@ -160,7 +160,7 @@ phon.held.sort.label = Etikett
 phon.held.sort.sender = Absender
 
 phon.requests.from = Von {0}
-phon.requests.keyChanged = Dieser Schlüssel hat sich {0,choice,0#heute|1#gestern|1#vor {0} Tagen} geändert
+phon.requests.keyChanged = Dieser Schlüssel hat sich {0,choice,0#heute|1#gestern|1<vor {0} Tagen} geändert.
 
 phon.requestState.pending = Wartet
 phon.requestState.approved = Zugestimmt
@@ -199,7 +199,7 @@ phon.secretDetail.clearDisabled = Bisher wurde nichts zurückgegeben.
 phon.secretDetail.clearReminder = Die gesammelten Kopien nach Gebrauch freigeben - die Verwahrer behalten ihre Teile in jedem Fall.
 
 phon.reconstruct.noMargin = Genau genug Teile, also hat nichts sie gegengeprüft.
-phon.reconstruct.confirmed = Mehr Teile als nötig, und alle stimmten überein.
+phon.reconstruct.confirmed = Mehr Teile als nötig, und alle stimmen überein.
 phon.reconstruct.excluded = {0,choice,1#Ein Teil wich ab und wurde|1<{0} Teile wichen ab und wurden} ausgeschlossen.
 phon.reconstruct.opaque = {0}, {1} Bytes - phon kann diese Art Geheimnis nicht anzeigen.
 phon.reconstruct.failed = Konnte nicht zusammengesetzt werden: {0}

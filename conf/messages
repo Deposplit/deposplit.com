@@ -160,7 +160,7 @@ phon.held.sort.label = Label
 phon.held.sort.sender = Sender
 
 phon.requests.from = From {0}
-phon.requests.keyChanged = This key changed {0,choice,0#today|1#yesterday|1<{0} days ago}
+phon.requests.keyChanged = This key changed {0,choice,0#today|1#yesterday|1<{0} days ago}.
 
 phon.requestState.pending = Waiting
 phon.requestState.approved = Approved

@@ -139,7 +139,7 @@ learned is worth more than one whose meaning has to be re-read.
 | | Enabled when | What the disabled state says |
 |---|---|---|
 | **Retrieve shares** | the secret is active, and some holder has no pending or approved retrieval | *Every holder has been asked already* · *This secret is being destroyed* |
-| **Reconstruct** | approved retrievals ≥ *k* | *n more holders have to hand a piece back first* — or which of the three biometric reasons applies |
+| **Reconstruct** | approved retrievals ≥ *k* | *n more holders have to hand a piece back first* — or that the phone has nothing to authenticate its owner with |
 | **Clear collected copies** | at least one holder has handed a piece back | *Nothing has been handed back yet* |
 
 **Retrieve shares stays enabled once *k* copies are in.** Stopping at the threshold would forfeit the
@@ -148,9 +148,11 @@ surplus, and the surplus is what the integrity cross-check is made of: asking th
 quiet only when nobody is left to ask, which is exactly what the service underneath does — it skips
 a holder with a live request and asks everyone else.
 
-**Reconstruction is gated twice**: by the threshold, and by biometrics. Where biometrics are
-unavailable the screen names which of the three reasons applies — no enrolment, no sensor,
-temporarily unavailable — in place of the button.
+**Reconstruction is gated twice**: by the threshold, and by the owner authenticating to the
+phone. Both phones ask for the face or the finger first and fall back to the device passcode,
+because an owner whose Face ID is off, or whose face will not be recognised today, must still be
+able to reach their own secret. Where the phone has neither set up there is nothing to
+authenticate against, and the screen says so in place of the button.
 
 The result carries an honest advisory about its own integrity: reconstructed from exactly *k*
 shares with no cross-check possible; reconstructed with every collected share agreeing; or

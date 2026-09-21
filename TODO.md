@@ -24,8 +24,8 @@ place rather than growing this list into a second manual.
 
 ### The documented flows
 
-- [ ] `A` `I` **Flow 1 — happy path.** 2-of-2 across two holders. Watch step 10: pickup is where the holder decrypts and where the relay stops holding anything.
-- [ ] `A` `I` **Flow 2 — deny and re-request.**
+- [~] `A` **Flow 1 — happy path.** 2-of-2 across two holders. Watch step 10: pickup is where the holder decrypts and where the relay stops holding anything.
+- [~] `A` `I` **Flow 2 — deny and re-request.**
 - [ ] `A` `I` **Flow 3 — sender-initiated removal.** The deposit row cascades to its retrieval and removal rows.
 - [ ] `A` `I` **Flow 4 — holder-initiated deletion.** Alice must learn of it, and never by a row simply going missing.
 - [ ] `A` `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
@@ -41,7 +41,8 @@ place rather than growing this list into a second manual.
 - [ ] `A` `I` 2-of-3 with only two approvals still reconstructs.
 - [ ] `A` `I` Integrity margin with a surplus holder: the advisory reports the margin honestly rather than claiming more confidence than it has.
 - [ ] `A` `I` Verification levels: manual entry never offers `VERY_HIGH`; a QR scan defaults to it.
-- [ ] `A` Biometric on a device with no enrolment explains itself instead of offering a button that cannot work.
+- [ ] `A` `I` A phone with neither a biometric nor a passcode set up explains itself instead of offering a button that cannot work.
+- [ ] `A` `I` The passcode fallback reaches the secret: turn the face off, or fail it three times, and reconstruct still completes.
 - [ ] `A` `I` The key-change indicator appears on retrieval requests, and only on those.
 
 ### Background refresh
@@ -77,7 +78,7 @@ Written up in [docs/testing.md](docs/testing.md), which carries the `adb` and `l
 
 - [ ] `A` `I` **A share sealed before a rotation still opens after it.** Alice deposits for Bob, then regenerates her identity before Bob picks the share up. Bob's pickup must succeed from the retained previous key, and his later retrieval must come back sealed to Alice's *new* key. Run it with Alice and Bob on different platforms.
 - [ ] `A` `I` **A rotation from a key flagged compromised is refused auto-accept.** Mark a contact's key compromised on one platform, then push a rotation from that contact on the other. It must land as a `KeyConflict` for manual resolution, never as a silent relink.
-- [ ] `A` `I` **Identity recovery rebuilds the sender's view.** Alice reinstalls with fresh keys, relinks with Bob, and Bob pushes recovery metadata. Alice's Distributed view must come back — metadata only, with no share bytes crossing the wire.
+- [~] `A` **Identity recovery rebuilds the sender's view.** Alice reinstalls with fresh keys, relinks with Bob, and Bob pushes recovery metadata. Alice's Distributed view must come back — metadata only, with no share bytes crossing the wire. Worth running with a phony phone as Bob: its relink pushed nothing at all until the call was added, and only this check would have caught it.
 - [ ] `A` `I` **A holder who opts out of heartbeating stops counting as confirmed.** Opt out on the holder, then check the sender: the health signal degrades, and a recent timestamp alone must not make that holder count as confirmed.
 - [ ] `A` `I` **A restored backup really does carry the corpus.** Back up a device holding shares for someone, restore onto a second one, and confirm three things: the held shares, contacts and secret metadata are all there; the keys-lost screen appears, because the private keys are not; and after relinking, that holder can answer a retrieval again. The decision recorded in [docs/security.md](docs/security.md) rests on this and nothing else can test it. Worth running the device-to-device transfer separately from the cloud restore — they are different transports, and on iOS whether files survive a direct migration is undocumented.
 

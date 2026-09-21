@@ -16,7 +16,7 @@ watches all traffic still learns nothing worth having.
 | Full relay breach: database, disk, traffic | Opaque ciphertext addressed between public keys. No plaintext, no identities, no social graph. |
 | A single malicious or compromised holder | Holds one share. Fewer than *k* shares are information-theoretically independent of the secret — not merely hard to invert, but carrying no information about it. |
 | A malicious holder who lies at reconstruction | Detected, and with enough margin identified and excluded. See *Reconstruction integrity*. |
-| Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind biometrics. |
+| Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind device-owner authentication — the face or finger first, the device passcode otherwise. Biometrics alone would not raise that bar: whoever knows the passcode can enrol a new face with it. |
 | Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). |
 | A stolen device backup or transfer image | One share per secret held, plus the contact graph and the secret labels. Below threshold on its own; the attacker's next step is *k* more backups. See *Data at rest, and what a backup carries*. |
 | Fewer than *k* holders colluding | Nothing. This is the guarantee Shamir actually provides. |

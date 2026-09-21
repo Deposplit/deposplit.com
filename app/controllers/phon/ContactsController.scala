@@ -135,6 +135,10 @@ class ContactsController @Inject() (
 
   /** Updates in place, preserving the contact id: a relink is the same person presenting new keys, and minting a fresh
     * id would orphan every share this device already holds from them.
+    *
+    * Then pushes this device's inventory back to them, as the apps do from their own relink screens. A contact who
+    * re-presents their identity has usually lost everything, including the record of which secrets they split and who
+    * holds them; these pushes are what rebuilds it. Metadata only — never the shares.
     */
   def relink(contactId: UUID) = Action { implicit request: Request[AnyContent] =>
     registered {
@@ -180,6 +184,9 @@ class ContactsController @Inject() (
                       )
                     )
                   )
+                  // After the update, never before: the push is addressed to the contact's verify key, and the whole
+                  // point is that it reaches the new one. A no-op when this device holds nothing from them.
+                  .flatMap(_ => Try(shareManagement.pushRecoveryMetadata(contactId)))
                   .fold(
                     failure =>
                       render(

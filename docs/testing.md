@@ -14,7 +14,7 @@ live in both app READMEs.
 From `deposplit.com/`:
 
 ```bash
-sbt run -Dconfig.file=conf/localhost.conf
+sbt -> h2-browser => run -Dconfig.file=conf/localhost.conf
 ```
 
 It listens on port 9000 and uses a file-backed H2 database, so state survives restarts.
@@ -43,14 +43,14 @@ three simulators, phony phones, or a mix.
 - *Android*: create two extra AVDs (API 35+, matching `minSdk`) in the Device Manager and
   launch them alongside the first.
 - *iOS*: Xcode runs one simulator from the Run button, but you can open more via
-  **Xcode → Open Developer Tool → Simulator**, then **File → Open Simulator**.
+  **Xcode → Open Developer Tool → Device Hub**, then **File → New Simulator**.
 - *phon*: one phone per running instance, each with its own stores, named after the port it
   was started on. The relay is the instance on 9000, so start the extra phones beside it:
 
   ```bash
-  sbt run -Dconfig.file=conf/localhost.conf                      # relay + Alice, port 9000
-  sbt "run -Dconfig.file=conf/phon.conf -Dhttp.port=9001"        # Bob
-  sbt "run -Dconfig.file=conf/phon.conf -Dhttp.port=9002"        # Carol
+  sbt -> h2-browser => run -Dconfig.file=conf/localhost.conf                 # relay + Alice, port 9000
+  sbt startServer "run -Dconfig.file=conf/phon.conf -Dhttp.port=9001"        # Bob
+  sbt startServer "run -Dconfig.file=conf/phon.conf -Dhttp.port=9002"        # Carol
   ```
 
   Each answers at `http://localhost:<port>/phonyPhone`. Bob's and Carol's own port is not a
@@ -139,8 +139,8 @@ constructions agree; this proves the whole stack does.
 Run **two** relays on different ports:
 
 ```bash
-sbt run -Dconfig.file=conf/localhost.conf                      # port 9000
-sbt run -Dconfig.file=conf/phon.conf -Dhttp.port=9001          # port 9001
+sbt -> h2-browser => run -Dconfig.file=conf/localhost.conf                   # port 9000
+sbt startServer "run -Dconfig.file=conf/phon.conf -Dhttp.port=9001"          # port 9001
 ```
 
 The per-contact override is free everywhere, so it needs no unlock. Only **Settings → Default
@@ -175,11 +175,14 @@ in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
   reports the margin honestly rather than claiming more confidence than it has.
 - **Verification levels.** Manual key entry defaults to `VERY_LOW` and offers `LOW`/`HIGH`
   but never `VERY_HIGH`; QR scan defaults to `VERY_HIGH`.
-- **Biometric availability, not biometric API level.** Every device Deposplit installs on
-  offers "or use PIN", because `minSdk` is 35 and the combined
-  `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` authenticator is only missing below API 30. What
-  still varies is the *device*: check an emulator with no enrolment, which must explain
-  itself rather than offer a button that cannot work.
+- **Authentication availability, not API level.** Every phone Deposplit installs on takes the
+  device passcode as well as the face or finger — Android because `minSdk` is 35 and the
+  combined `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` authenticator is only missing below API 30,
+  iOS because `.deviceOwnerAuthentication` has always had it. Check both halves: turning Face
+  ID off, or failing the face three times, must still reach the passcode and then the secret.
+  What still varies is the *device*: an emulator or Simulator with nothing set up at all must
+  explain itself rather than offer a button that cannot work. That is also the state
+  `skipBiometric` exists for on the Simulator — see `iOS/CLAUDE.md`.
 - **Key-change indicator.** After a contact rotates keys, their retrieval requests should
   carry the "key changed N days ago" warning — and only retrieval requests.
 
