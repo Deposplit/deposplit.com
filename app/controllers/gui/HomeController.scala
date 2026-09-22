@@ -34,3 +34,7 @@ class HomeController @Inject() (val controllerComponents: ControllerComponents) 
   def index() = Action { implicit request: Request[AnyContent] =>
     Ok(views.html.index())
   }
+
+  def manifest() = Action { implicit request: Request[AnyContent] =>
+    Ok(views.txt.manifest()).as("application/manifest+json")
+  }

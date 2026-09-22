@@ -14,3 +14,6 @@ target
 .bloop
 .metals
 metals.sbt
+
+# macOS
+.DS_Store

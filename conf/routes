@@ -2,6 +2,7 @@
 
 # Landing page
 GET     /                                controllers.gui.HomeController.index()
+GET     /site.webmanifest                controllers.gui.HomeController.manifest()
 
 # REST API for the native apps — all share interactions go through /share-requests
 POST    /share-requests                  controllers.api.ShareRequestsController.openShareRequest()
