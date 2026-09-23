@@ -26,6 +26,7 @@ GET     /assets/*file                    controllers.Assets.versioned(path="/pub
 
 # Files tools fetch from a fixed URL whatever the page links to — above the catch-all, which rejects any dot with a 400
 GET     /favicon.ico                     controllers.Assets.at(path="/public/images", file="favicon.ico")
+GET     /robots.txt                      controllers.Assets.at(path="/public", file="robots.txt")
 
 # Static assets in Markdown
 GET     /*markdownFilePath               controllers.gui.MarkdownController.get(markdownFilePath: controllers.gui.MarkdownFilePath, embedded: Boolean ?= true)

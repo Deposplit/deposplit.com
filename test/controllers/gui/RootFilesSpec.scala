@@ -45,4 +45,17 @@ class RootFilesSpec extends PlaySpec with GuiceOneAppPerSuite {
       contentAsBytes(icon)(using defaultAwaitTimeout, app.materializer).take(4).toSeq mustBe Seq[Byte](0, 0, 1, 0)
     }
   }
+
+  "GET /robots.txt" should {
+
+    // A 4xx is not harmless here: RFC 9309 reads it as "no rules at all", so the catch-all's 400 would silently stand in
+    // for whatever the file says.
+    "serve the file as plain text rather than fall through to the Markdown catch-all" in {
+      val robots = route(app, FakeRequest(GET, "/robots.txt")).get
+
+      status(robots) mustBe OK
+      contentType(robots) mustBe Some("text/plain")
+      contentAsString(robots)(using defaultAwaitTimeout, app.materializer) must include("User-agent: *")
+    }
+  }
 }

@@ -1,0 +1,4 @@
+# Everything here is public copy about Deposplit, and every crawler is welcome to it:
+# search engines, AI search and AI training alike.
+User-agent: *
+Disallow:
