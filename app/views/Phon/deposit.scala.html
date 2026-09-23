@@ -55,8 +55,11 @@
             </div>
             <div class="mb-3">
                 <label class="form-label" for="deposit-secret">@messages("phon.field.secret")</label>
+                @* Taken exactly as typed, as on the phones. spellcheck="false" also keeps a browser's
+                   cloud spell checker from sending the secret off to be checked. *@
                 <textarea class="form-control @if(depositForm("secret").hasErrors){is-invalid}"
-                    id="deposit-secret" name="secret" rows="4">@depositForm("secret").value</textarea>
+                    id="deposit-secret" name="secret" rows="4" autocomplete="off" autocorrect="off"
+                    autocapitalize="off" spellcheck="false">@depositForm("secret").value</textarea>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="deposit-file">@messages("phon.field.secretFile")</label>

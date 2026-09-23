@@ -271,6 +271,12 @@ text or …*, then a label — *… choose secret photo* — followed by two lin
 the photo library and the files a gallery cannot see. The label is not clickable; what is clickable
 is the source. The three lines read as one sentence.
 
+**Typed text is split exactly as it is typed.** The field turns off autocorrection and automatic
+capitals, and on iOS smart punctuation and Writing Tools too, because a secret is not prose: a
+lower-case start, a deliberate misspelling or a straight quote is part of it, and a keyboard that
+fixes any of them changes the secret without saying so. The owner finds out only on
+reconstruction, which is too late.
+
 A picked image is split exactly as it stands. It is never re-encoded to make it easier to handle,
 which is why an unsupported type is refused by name instead of converted, and why an oversized one
 is refused with its real size before it is read into memory.
