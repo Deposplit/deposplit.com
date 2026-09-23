@@ -108,10 +108,16 @@ share disappears from Bob's Keeping safe view.
 
 ## Flow 4 — Holder-initiated deletion
 
-Bob deletes Alice's share from his Keeping safe view directly — swipe on iOS, delete icon on
-Android — with no request and no approval. If Bob holds several shares from Alice, the
-confirmation also offers to delete all of them. Then check what Alice sees on refresh: she
-should learn about it eventually, but never by a row simply going missing.
+Bob deletes Alice's share from his Keeping safe view directly — the trash icon on the row, or a
+swipe on iOS, which opens the same confirmation — with no request and no approval. If Bob holds
+several shares from Alice, the confirmation also offers to delete all of them. Then check what
+Alice sees on refresh: she should learn about it eventually, but never by a row simply going
+missing.
+
+Before Alice refreshes, have her ask for the share back. Her phone has not seen the deletion yet,
+so the ask reaches Bob, whose Requests tab must show it with Approve disabled and the reason
+beneath it — there is nothing left to hand back — while Deny still works. Once Alice refreshes,
+her phone drops Bob as a holder and the ask disappears from Bob's list on his next refresh.
 
 ## Flow 5 — Offline and error states
 

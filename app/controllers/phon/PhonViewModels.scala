@@ -171,7 +171,12 @@ final case class RequestRow(
     /** Days since the requester's key last changed, and only on a retrieval — the attack signature this hardens against
       * is a key change followed quickly by a retrieval request.
       */
-    keyChangedDaysAgo: Option[Long]
+    keyChangedDaysAgo: Option[Long],
+    /** False only on a retrieval for a share this device no longer holds. Approving re-encrypts the share to the
+      * requester, so it needs the share in hand, and the ask can still arrive after a unilateral delete: the owner
+      * learns of the withdrawal only on their next poll.
+      */
+    canApprove: Boolean
 )
 
 final case class KeyConflictRow(conflict: KeyConflict, contactName: String)
@@ -258,7 +263,14 @@ object PhonViewModels:
   /** Inbound requests, newest first. The sender is matched by verify key rather than by contact id, because a request
     * arrives from a key: a sender this device does not know yet has no contact row to look up.
     */
-  def requestRows(requests: List[ShareRequest], contacts: List[Contact], now: Instant): List[RequestRow] =
+  def requestRows(
+      requests: List[ShareRequest],
+      contacts: List[Contact],
+      held: List[HeldShare],
+      now: Instant
+  ): List[RequestRow] =
+    // Matched on secretId, as ShareService.respond matches: a holder keeps one share per secret per sender.
+    val heldSecretIds = held.map(_.secretId).toSet
     requests
       .map { request =>
         val contact = contacts.find(_.verifyKey.sameElements(request.senderKey))
@@ -269,7 +281,9 @@ object PhonViewModels:
           keyChangedDaysAgo = Option
             .when(request.transactionType == ShareTransactionType.Retrieval)(contact.flatMap(_.keyChangedAt))
             .flatten
-            .map(at => Duration.between(at, now).toDays)
+            .map(at => Duration.between(at, now).toDays),
+          canApprove =
+            request.transactionType != ShareTransactionType.Retrieval || heldSecretIds.contains(request.secretId)
         )
       }
       .sortBy(_.request.requestedAt)

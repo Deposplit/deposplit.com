@@ -136,6 +136,7 @@ class HomeController @Inject() (
         PhonViewModels.requestRows(
           Try(shareManagement.listPendingRequests()).getOrElse(Nil),
           contacts,
+          shareManagement.listHeld(),
           java.time.Instant.now()
         )
     render(

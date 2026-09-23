@@ -161,6 +161,7 @@ phon.held.sort.sender = Absender
 
 phon.requests.from = Von {0}
 phon.requests.keyChanged = Dieser Schlüssel hat sich {0,choice,0#heute|1#gestern|1<vor {0} Tagen} geändert.
+phon.requests.notHeld = Dieser Anteil ist nicht auf diesem Gerät, es gibt also nichts zurückzugeben.
 
 phon.requestState.pending = Wartet
 phon.requestState.approved = Zugestimmt

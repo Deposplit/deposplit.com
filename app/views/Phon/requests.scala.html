@@ -97,12 +97,17 @@
                         hx-vals='{"approved": "false"}' hx-target="#screen" hx-swap="outerHTML">
                         @messages("phon.action.deny")
                     </button>
-                    <button type="button" class="btn btn-sm btn-primary"
+                    <button type="button" class="btn btn-sm btn-primary" @if(!row.canApprove){disabled}
                         hx-post="@controllers.phon.routes.RequestsController.respond(row.request.id)"
                         hx-vals='{"approved": "true"}' hx-target="#screen" hx-swap="outerHTML">
                         @messages("phon.action.approve")
                     </button>
                 </div>
+                @* Deny stays available: it is the one answer the relay can carry, and it gives the owner an
+                   outcome rather than an ask that waits for ever. *@
+                @if(!row.canApprove) {
+                    <div class="small text-body-secondary mt-1">@messages("phon.requests.notHeld")</div>
+                }
             </div>
         }
     </div>

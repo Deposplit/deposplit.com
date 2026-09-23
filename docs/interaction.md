@@ -205,6 +205,13 @@ Only inbound, and only pending: the things other people are waiting on this user
 carries the sender, the kind, and Approve and Deny given equal visual weight, because a denial is a
 legitimate answer rather than a failure path.
 
+A retrieval for a share this device no longer holds keeps its Approve button, disabled, with *This
+share is not on this device, so there is nothing to hand back* beneath it. Approving re-encrypts the
+share to the requester, so it needs the share in hand — and the ask can still arrive after a
+unilateral delete, because the owner learns of the withdrawal only on their next poll. Deny stays
+available: it is the one answer the relay can carry, and it gives the owner an outcome rather than
+an ask that waits for ever.
+
 Two things sit above the list, because they are about identity rather than about a request:
 
 - **Key changed *n* days ago — verify fresh before approving**, on retrieval requests only. A
