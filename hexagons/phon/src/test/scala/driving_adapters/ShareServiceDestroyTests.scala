@@ -130,6 +130,15 @@ class ShareServiceDestroyTests extends munit.FunSuite:
   private def destroyingService(
       relay: CascadingFakeShareRelay
   ): (ShareService, FakeShareMetadataRepository, FakeSecretRepository, Map[String, ShareRequest]) =
+    serviceWithRemovalsOut(relay, SecretState.Destroying)
+
+  /** The same, with the secret in whichever state the test needs: a removal can be asked of one holder of a secret that
+    * stays Active, as well as of every holder of one being destroyed.
+    */
+  private def serviceWithRemovalsOut(
+      relay: CascadingFakeShareRelay,
+      state: SecretState
+  ): (ShareService, FakeShareMetadataRepository, FakeSecretRepository, Map[String, ShareRequest]) =
     val identityStore = InMemoryForgettableIdentityStore()
     val identity = IdentityService(identityStore)
     identity.register("owner")
@@ -144,7 +153,7 @@ class ShareServiceDestroyTests extends munit.FunSuite:
         k = 2,
         n = 2,
         secretCreatedAt = secretCreatedAt,
-        state = SecretState.Destroying
+        state = state
       )
     )
     val rows = List(aliceContact -> aliceKeys, charlieContact -> charlieKeys).flatMap { (contact, _) =>
@@ -228,6 +237,22 @@ class ShareServiceDestroyTests extends munit.FunSuite:
 
     assertEquals(metaRepo.getAll().size, 2)
     assertEquals(secretRepo.getAll().map(_.state), List(SecretState.Destroying))
+  }
+
+  // A removal is not only a destruction's fan-out: one holder can be asked to destroy their piece of a secret that stays
+  // active, and their approval is just as much the only evidence left. Missing it leaves the owner believing in that
+  // holder for good, and asking them again on every retrieval.
+  test("A holder removed from an active secret is dropped, and the secret stays active") {
+    val relay = CascadingFakeShareRelay()
+    val (svc, metaRepo, secretRepo, rows) = serviceWithRemovalsOut(relay, SecretState.Active)
+    val removalId = rows("alice.removal").id
+
+    relay.approveRemoval(rows("alice.removal"), aliceKeys)
+    svc.syncDistributed()
+
+    assertEquals(metaRepo.getAll().map(_.contactId), List(charlieContact.id))
+    assertEquals(secretRepo.getAll().map(_.state), List(SecretState.Active))
+    assert(relay.deletedRequestIds.contains(removalId), "the answered removal was left on the relay")
   }
 
   test("destroySecret flips the secret and asks every holder, before any of them has answered") {

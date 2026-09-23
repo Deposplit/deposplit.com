@@ -57,7 +57,7 @@ stateDiagram-v2
 | → `Active`, by deposit | splits the secret, encrypts one share per holder, opens *n* deposit requests, saves *n* `ShareMetadata` rows and *n* retained blobs, then saves the `Secret` | a new entry in Split & shared |
 | → `Active`, by recovery | `processRecoveryMetadata` rebuilds the record from a relinked holder's signed inventory notice — metadata only, never a share | the secret reappears, with the holders who have reported in so far |
 | `Active` → `Destroying` | `destroySecret` writes the state **first**, then fans out one removal request per holder | the badge reads *Destroying*; Retrieve goes quiet; Force Forget appears |
-| `Destroying` → gone | `reconcileDestroying` drops each holder's `ShareMetadata` as their removal comes back approved, and removes the `Secret` once none are left | it leaves the list |
+| `Destroying` → gone | `reconcileRemovals` drops each holder's `ShareMetadata` as their removal comes back approved, and removes the `Secret` once none are left | it leaves the list |
 | `Destroying` → gone, forced | `forceForgetSecret` removes the same records locally, without waiting | it leaves the list; the shares stay exactly where they are |
 
 **Two states, and no `Destroyed` tombstone.** The second state exists because there is a
