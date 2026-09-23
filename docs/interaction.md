@@ -68,6 +68,11 @@ or endpoints. The empty state is
 | One holder | `share_detail/{shareId}` | `ShareDetailView` | `GET /shares/:shareId` |
 | Always reachable | My QR code · New secret · Contacts · Settings | same | My QR code · Contacts · Settings |
 
+**A tab is as fresh as the moment it was looked at.** Switching to a tab reads it from the relay,
+and so does bringing the app back to the foreground — Android on `ON_RESUME`, iOS on a return from
+the background, phon by making each tab a page of its own. The refresh button remains for somebody
+who stays on one tab and wants to know whether anything has changed since.
+
 Registration asks for one thing, a pseudonym, and never for an account. That is the first and
 loudest claim the product makes about itself, so it stays a single field.
 
