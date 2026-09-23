@@ -1,0 +1,10 @@
+# Please report through GitHub's private vulnerability reporting, one form per repository:
+# the relay and this website, the Android app, the iOS app.
+Contact: https://github.com/Deposplit/deposplit.com/security/advisories/new
+Contact: https://github.com/Deposplit/Android/security/advisories/new
+Contact: https://github.com/Deposplit/iOS/security/advisories/new
+Expires: 2027-09-01T00:00:00Z
+Preferred-Languages: en, de
+Policy: https://github.com/Deposplit/deposplit.com/blob/main/SECURITY.md
+Canonical: https://www.deposplit.com/.well-known/security.txt
+Canonical: https://api.deposplit.com/.well-known/security.txt

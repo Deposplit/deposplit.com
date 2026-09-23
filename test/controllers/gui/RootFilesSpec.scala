@@ -29,8 +29,12 @@ import org.scalatestplus.play.guice.*
 import play.api.test.*
 import play.api.test.Helpers.*
 
-/** Files that crawlers and link-preview fetchers request from a fixed URL, whatever the page itself links to. Each must
-  * be routed ahead of the Markdown catch-all, which would otherwise answer with a 400 because it rejects any dot.
+import java.time.Duration
+import java.time.Instant
+
+/** Files that crawlers, scanners and link-preview fetchers request from a fixed URL, whatever the page itself links to.
+  * Each must be routed ahead of the Markdown catch-all, which would otherwise answer with a 400 because it rejects any
+  * dot.
   */
 class RootFilesSpec extends PlaySpec with GuiceOneAppPerSuite {
 
@@ -56,6 +60,32 @@ class RootFilesSpec extends PlaySpec with GuiceOneAppPerSuite {
       status(robots) mustBe OK
       contentType(robots) mustBe Some("text/plain")
       contentAsString(robots)(using defaultAwaitTimeout, app.materializer) must include("User-agent: *")
+    }
+  }
+
+  "GET /.well-known/security.txt" should {
+
+    // A def, not a val: the body is a stream, readable once, so each test needs a response of its own.
+    def securityTxt = route(app, FakeRequest(GET, "/.well-known/security.txt")).get
+
+    "serve the file as UTF-8 plain text, which RFC 9116 requires" in {
+      status(securityTxt) mustBe OK
+      contentType(securityTxt) mustBe Some("text/plain")
+      charset(securityTxt) mustBe Some("utf-8")
+      contentAsString(securityTxt)(using defaultAwaitTimeout, app.materializer) must include("Contact: https://")
+    }
+
+    // RFC 9116 treats a file past its Expires as stale, and recommends that date be less than a year out. Failing a
+    // month early turns the yearly renewal into a build that asks for it while the published file is still valid.
+    "expire more than a month and less than a year from now" in {
+      val expires =
+        contentAsString(securityTxt)(using defaultAwaitTimeout, app.materializer).linesIterator.collectFirst {
+          case s"Expires: $timestamp" => Instant.parse(timestamp.trim)
+        }.get
+      val now = Instant.now()
+
+      expires.isAfter(now.plus(Duration.ofDays(30))) mustBe true
+      expires.isBefore(now.plus(Duration.ofDays(365))) mustBe true
     }
   }
 }
