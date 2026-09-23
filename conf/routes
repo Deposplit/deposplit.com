@@ -24,5 +24,8 @@ GET     /custody-heartbeats              controllers.api.CustodyHeartbeatsContro
 # Static assets
 GET     /assets/*file                    controllers.Assets.versioned(path="/public", file: Asset)
 
+# Files tools fetch from a fixed URL whatever the page links to — above the catch-all, which rejects any dot with a 400
+GET     /favicon.ico                     controllers.Assets.at(path="/public/images", file="favicon.ico")
+
 # Static assets in Markdown
 GET     /*markdownFilePath               controllers.gui.MarkdownController.get(markdownFilePath: controllers.gui.MarkdownFilePath, embedded: Boolean ?= true)
