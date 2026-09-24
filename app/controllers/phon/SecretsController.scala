@@ -213,7 +213,7 @@ class SecretsController @Inject() (
       .secretGroups(
         shareManagement.listSecrets(),
         shareManagement.listDistributed(),
-        Try(shareManagement.listSentRequests()).getOrElse(Nil),
+        Try(shareManagement.listSentRequests().items).getOrElse(Nil),
         contactManagement.listContacts()
       )
       .find(_.secret.id == secretId)

@@ -48,7 +48,8 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-class HttpClientShareRelay @Inject() (identity: Identity, baseUrl: String = "http://localhost:9000") extends ShareRelay:
+class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = "http://localhost:9000")
+    extends ShareRelay:
 
   private val httpClient = HttpClient.newHttpClient()
   private val secureRandom = SecureRandom()

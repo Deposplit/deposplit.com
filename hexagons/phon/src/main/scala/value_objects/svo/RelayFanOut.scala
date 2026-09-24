@@ -22,25 +22,12 @@
  * THE SOFTWARE.
  */
 
-package driven_adapters.phon
+package value_objects.svo
 
-import driven_ports.ShareRelayResolver
-import jakarta.inject.Inject
-import jakarta.inject.Singleton
-import value_objects.svo.Role
-
-import scala.util.Try
-
-/** Answers "is the relay answering?" so a screen can say so.
-  *
-  * The hexagon cannot answer it: `syncInbox` and `syncDistributed` deliberately swallow a per-relay failure, because
-  * one unreachable relay must not blank out the contacts routed through the others. That is the right behaviour for the
-  * domain and the wrong one for a banner, so the question is asked here instead - against the device's default relay,
-  * through the same signed call a sync makes, so it cannot report reachable for a relay that would reject the real
-  * traffic.
-  */
-@Singleton
-class RelayProbe @Inject() (relayResolver: ShareRelayResolver):
-
-  def defaultRelayAnswers(): Boolean =
-    Try(relayResolver.resolve(None).listShareRequests(Role.Recipient)).isSuccess
+// The rows every relay that answered returned, and the base URLs of those that did not. A list
+// read from the relays alone has nothing local to fall back on, so the caller needs both halves:
+// a partial list is still worth showing, and each missing relay is worth naming. anyAnswered
+// separates that from a list that is empty only because nobody could be asked.
+case class RelayFanOut[T](items: List[T], unreachableRelays: Set[String], anyAnswered: Boolean):
+  def mapItems[R](transform: List[T] => List[R]): RelayFanOut[R] =
+    RelayFanOut(transform(items), unreachableRelays, anyAnswered)

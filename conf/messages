@@ -63,7 +63,8 @@ phon.signIn.placeholder = e.g. Alice
 phon.signIn.port = This phony phone is {0}. Start another on a different port to play a second person.
 
 phon.advisory.awaitingRelink = {0,choice,1#One contact still has|1<{0} contacts still have} your old key - meet them and let them scan your code again
-phon.advisory.relayUnreachable = Relay not reachable
+phon.advisory.relayUnreachable = Relay {0} not reachable. Showing the last known state.
+phon.advisory.relayUnreachableRequests = Relay {0} not reachable. Its requests cannot be shown right now.
 
 phon.empty.distributed = No secrets split & shared yet
 phon.empty.held = No shares to keep safe yet

@@ -89,7 +89,7 @@ phon is still normal and needs no justification; skipping domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (401: relay 104, phon 161, root 136)
+sbt test                                    # all tests (405: relay 104, phon 165, root 136)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
@@ -102,13 +102,13 @@ The sibling repositories, for reference:
 
 ```bash
 # from Android/
-./gradlew test                    # JVM unit tests, no device needed (168 :hexagon, 20 :app)
+./gradlew test                    # JVM unit tests, no device needed (172 :hexagon, 20 :app)
 ./gradlew :app:lintDebug          # the four gated lint checks
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 
 # from iOS/hexagon/
-swift test                        # 165 tests
+swift test                        # 169 tests
 swift build
 ```
 

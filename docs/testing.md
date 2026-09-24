@@ -124,11 +124,14 @@ her phone drops Bob as a holder and the ask disappears from Bob's list on his ne
 Kill the relay, then open or refresh both apps.
 
 - Split & shared and Keeping safe views must still render **from local storage**, with a soft
-  "relay not reachable" banner rather than a blocking error.
-- The Requests tab queries the relay for pending events that are not stored locally, so it
-  will show an error. That is correct behaviour.
+  warning rather than a blocking error: *Relay 10.0.2.2:9000 not reachable. Showing the last
+  known state.* — naming whichever host and port that device uses.
+- The Requests tab queries the relay for pending events that are not stored locally, so with
+  its only relay down it has nothing to show but a warning naming that relay — and no *No
+  pending requests*, which it cannot know. That is correct behaviour.
 
-Restart the relay, navigate away and back — the banner clears and data refreshes.
+Restart the relay, navigate away and back — the warning clears and data refreshes. Flow 7 covers
+the case with two relays, where only one goes dark.
 
 ## Flow 6 — Cross-platform
 
@@ -160,6 +163,11 @@ override. Then verify that deposit, pickup, retrieval and removal all route thro
 override for the first contact while the second still round-trips through the default —
 and that killing one relay degrades only that contact, leaving the other's operations
 working. The fan-out is independently soft-failed per relay precisely so that holds.
+
+With the 9001 relay killed, refresh: Split & shared and Keeping safe show exactly one warning,
+naming `localhost:9001` (or whatever host this device reaches it by), and none for the default. The
+Requests tab still lists what the default relay holds, with one line saying the 9001 relay's
+requests cannot be shown right now.
 
 ## Flow 8 — Locale
 

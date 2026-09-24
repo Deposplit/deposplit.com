@@ -76,9 +76,9 @@
             @messages("phon.advisory.awaitingRelink", shell.awaitingRelinkCount)
         </button>
     }
-    @if(shell.syncWarning) {
+    @for(relay <- shell.unreachableRelays) {
         <div class="phon-advisory border-bottom px-3 py-2 text-danger-emphasis bg-danger-subtle">
-            <i class="bi bi-exclamation-triangle"></i> @messages("phon.advisory.relayUnreachable")
+            <i class="bi bi-exclamation-triangle"></i> @messages(shell.relayWarningKey, relay)
         </div>
     }
 

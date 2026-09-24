@@ -48,6 +48,7 @@ import value_objects.svo.PayloadCanonical
 import value_objects.svo.ReconstructionIntegrity
 import value_objects.svo.ReconstructionResult
 import value_objects.svo.RegenerateIdentityResult
+import value_objects.svo.RelayFanOut
 import value_objects.svo.RetainedDepositBlob
 import value_objects.svo.Role
 import value_objects.svo.Secret
@@ -59,11 +60,13 @@ import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
 import value_objects.svo.ShareTransactionType
 import value_objects.svo.SignatureVerificationException
+import value_objects.svo.SyncReport
 import value_objects.svo.VerificationLevel
 
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import scala.collection.mutable
 import scala.util.Try
 
 class ShareService @Inject() (
@@ -84,7 +87,8 @@ class ShareService @Inject() (
   /** Every distinct relay referenced across the contact list, plus the default — used by fan-out methods (syncInbox,
     * listPendingRequests, syncDistributed, listSentRequests) since a device has no other way to know in advance which
     * relay a given contact's pending item lives on. Each relay call is independently soft-failed so one unreachable
-    * BYOR relay doesn't blank out results from the default relay or others.
+    * BYOR relay doesn't blank out results from the default relay or others — and recorded by `fromRelay`, so that it
+    * does not go unnoticed either.
     *
     * Resolve first, then dedupe: `None` and a contact pinned to this device's own default relay are two names for one
     * relay, and only the resolver knows that. Deduping the overrides instead leaves the same relay in the list twice,
@@ -95,6 +99,16 @@ class ShareService @Inject() (
     (contactRepository.getAll().map(_.relayBaseUrl) :+ None).map(relayResolver.resolve).distinct
 
   private def relayForContact(contact: Contact): ShareRelay = relayResolver.resolve(contact.relayBaseUrl)
+
+  /** One listing against one relay. A relay that fails contributes nothing and is noted in `unreachable` by its base
+    * URL, which is how a sync pass or a fan-out read reports it. Only listings go through here: whether a relay answers
+    * is a question about the relay, whereas a failure acting on one row is about that row.
+    */
+  private def fromRelay[T](relay: ShareRelay, unreachable: mutable.Set[String])(listing: => List[T]): List[T] =
+    Try(listing).getOrElse {
+      unreachable += relay.baseUrl
+      Nil
+    }
 
   /** Every row this device is a party to, from every relay it knows, listed once — each paired with the relay it was
     * found on, so a caller can act on it through that same one.
@@ -111,10 +125,15 @@ class ShareService @Inject() (
       role: Role,
       transactionType: Option[ShareTransactionType] = None,
       state: Option[ShareRequestState] = None
-  ): List[(ShareRelay, ShareRequest)] =
-    allRelays()
-      .flatMap(relay => Try(relay.listShareRequests(role, transactionType, state)).getOrElse(Nil).map(relay -> _))
+  ): RelayFanOut[(ShareRelay, ShareRequest)] =
+    val relays = allRelays()
+    val unreachable = mutable.Set.empty[String]
+    val rows = relays
+      .flatMap(relay =>
+        fromRelay(relay, unreachable)(relay.listShareRequests(role, transactionType, state)).map(relay -> _)
+      )
       .distinctBy(_._2.id)
+    RelayFanOut(rows, unreachable.toSet, anyAnswered = unreachable.size < relays.size)
 
   /** Finds a row by id across every known relay — the caller (UI) has no relay context for a bare requestId, only the
     * fan-out list already used to discover it. Returns the relay it was found on too, so the caller can act on it
@@ -212,11 +231,11 @@ class ShareService @Inject() (
 
   override def listSecrets(): List[Secret] = secretRepository.getAll()
 
-  override def syncDistributed(): Unit =
+  override def syncDistributed(): SyncReport =
     val existingMetadata = shareMetadataRepository.getAll()
+    val unreachable = mutable.Set.empty[String]
     allRelays().foreach { relay =>
-      Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Deposit)))
-        .getOrElse(Nil)
+      fromRelay(relay, unreachable)(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Deposit)))
         .foreach { req =>
           if req.state == ShareRequestState.Withdrawn then
             // Best-effort tombstone: the holder unilaterally stopped holding this
@@ -246,8 +265,9 @@ class ShareService @Inject() (
       // A retrieve approval is also proof-of-custody. Polled here purely for that
       // freshness side effect; the functional read path for these rows is reconstruct()/
       // listSentRequests(), unchanged.
-      Try(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval), Some(ShareRequestState.Approved)))
-        .getOrElse(Nil)
+      fromRelay(relay, unreachable)(
+        relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval), Some(ShareRequestState.Approved))
+      )
         .foreach { req =>
           // Matched on secretId plus the holder's key, the same pair requestAll fans out on —
           // the row itself carries no pointer back to this device's records, and needs none.
@@ -258,8 +278,9 @@ class ShareService @Inject() (
           }
         }
     }
-    reconcileRemovals()
-    processHeartbeats()
+    reconcileRemovals(unreachable)
+    processHeartbeats(unreachable)
+    SyncReport(unreachable.toSet)
 
   private def isRetentionStillPending(depositId: UUID): Boolean =
     Try(retainedDepositRepository.getAll()).getOrElse(Nil).exists(_.id == depositId)
@@ -276,11 +297,13 @@ class ShareService @Inject() (
     * for the same reason it is checked on a retrieval approval: a relay that could forge one could make this device
     * forget a share that is still out there.
     */
-  private def reconcileRemovals(): Unit =
+  private def reconcileRemovals(unreachable: mutable.Set[String]): Unit =
     val metas = shareMetadataRepository.getAll()
     if metas.nonEmpty then
       val secretIds = metas.map(_.secretId).toSet
-      val removalRequests = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Removal))
+      val fanOut = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Removal))
+      unreachable ++= fanOut.unreachableRelays
+      val removalRequests = fanOut.items
         .filter((_, request) => secretIds.contains(request.secretId))
       metas.foreach { meta =>
         contactRepository.getById(meta.contactId).foreach { contact =>
@@ -309,10 +332,10 @@ class ShareService @Inject() (
 
   override def listDistributed(): List[ShareMetadata] = shareMetadataRepository.getAll()
 
-  override def listSentRequests(): List[ShareRequest] =
-    rowsAcrossRelays(Role.Sender)
-      .map(_._2)
-      .filterNot(_.transactionType == ShareTransactionType.Deposit)
+  override def listSentRequests(): RelayFanOut[ShareRequest] =
+    rowsAcrossRelays(Role.Sender).mapItems(
+      _.map(_._2).filterNot(_.transactionType == ShareTransactionType.Deposit)
+    )
 
   // A holder is worth prioritizing for a fresh retrieval ask when the custody-freshness rule
   // that decides "still counts toward n_live" already trusts them: an unexpired
@@ -329,7 +352,7 @@ class ShareService @Inject() (
   override def requestAll(secretId: UUID): Unit =
     secretRepository.getAll().find(_.id == secretId).foreach { secret =>
       val deposited = shareMetadataRepository.getAll().filter(_.secretId == secretId)
-      val existing = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval)).map(_._2)
+      val existing = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval)).items.map(_._2)
       // Fan out to the health-informed fresh set first; widen to everyone only when
       // there aren't enough confirmed holders to reach k. A retrieval request exists solely to
       // feed an eventual reconstruct(), so this targeting applies here rather than as a
@@ -412,7 +435,7 @@ class ShareService @Inject() (
       .getAll()
       .find(_.id == secretId)
       .getOrElse(throw IllegalStateException(s"No local record for secret $secretId"))
-    val allRequests = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval))
+    val allRequests = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval)).items
     // An unverified recipientSignature is treated as "not yet approved" rather than a hard
     // error — a forged approval simply doesn't count toward the threshold.
     val approved = allRequests.filter { case (_, r) =>
@@ -449,7 +472,7 @@ class ShareService @Inject() (
     * Each deletion is soft-failed on its own: one unreachable relay must not strand the rows held on the others.
     */
   override def clearCollectedShares(secretId: UUID): Unit =
-    rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval))
+    rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Retrieval)).items
       .filter(_._2.secretId == secretId)
       .foreach((relay, req) => Try(relay.deleteShareRequest(req.id)))
 
@@ -479,13 +502,12 @@ class ShareService @Inject() (
 
   // ── Recipient flows ───────────────────────────────────────────────────────
 
-  override def syncInbox(): Unit =
+  override def syncInbox(): SyncReport =
+    val unreachable = mutable.Set.empty[String]
     allRelays().foreach { relay =>
-      val pending =
-        Try(
-          relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Deposit), Some(ShareRequestState.Pending))
-        )
-          .getOrElse(Nil)
+      val pending = fromRelay(relay, unreachable)(
+        relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Deposit), Some(ShareRequestState.Pending))
+      )
       // Unknown sender or unverified senderSignature: skip silently, do not auto-approve.
       pending.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { senderContact =>
@@ -534,9 +556,10 @@ class ShareService @Inject() (
         }
       }
     }
-    processRecoveryMetadata()
-    processRotations()
+    processRecoveryMetadata(unreachable)
+    processRotations(unreachable)
     emitHeartbeats()
+    SyncReport(unreachable.toSet)
 
   // Holder side — opportunistically piggybacks this same inbox poll: for each distinct
   // sender this device currently holds at least one share from, pushes one coalesced heartbeat
@@ -580,13 +603,13 @@ class ShareService @Inject() (
     Try(contactManagement.markRelinked(contact.id))
     ()
 
-  private def processHeartbeats(): Unit =
+  private def processHeartbeats(unreachable: mutable.Set[String]): Unit =
     // Nothing here can be verified without our own key, so a device whose key storage is locked does nothing and
     // picks this up on a later pass rather than failing every notice.
     identity.verifyKey().foreach { myKey =>
       val existingMetadata = shareMetadataRepository.getAll()
       allRelays().foreach { relay =>
-        val notices = Try(relay.listHeartbeats()).getOrElse(Nil)
+        val notices = fromRelay(relay, unreachable)(relay.listHeartbeats())
         notices.foreach { notice =>
           contactRepository.getByVerifyKey(notice.holderKey).foreach { contact =>
             noteRelinked(contact)
@@ -622,9 +645,9 @@ class ShareService @Inject() (
     * preserving contactId. Unknown senders and forged/mismatched signatures are silently skipped — a stranger's notice
     * must never mutate a real contact.
     */
-  private def processRotations(): Unit =
+  private def processRotations(unreachable: mutable.Set[String]): Unit =
     allRelays().foreach { relay =>
-      val notices = Try(relay.listRotations()).getOrElse(Nil)
+      val notices = fromRelay(relay, unreachable)(relay.listRotations())
       notices.foreach { notice =>
         contactRepository.getByVerifyKey(notice.oldVerifyKey).foreach { contact =>
           noteRelinked(contact)
@@ -691,30 +714,22 @@ class ShareService @Inject() (
     val signature = identity.sign(canon)
     relayForContact(contact).pushRotation(contact.verifyKey, newVerifyKey, newEncKey, newCipherSuite, signature)
 
-  /** Whether every relay this device knows of answered. `syncInbox` and `syncDistributed` soft-fail per relay on
-    * purpose — one dark BYOR relay must not blank out results from the others — which also means neither can tell its
-    * caller that a relay went unheard. Rotation is the one caller that needs to know, because it is about to retire the
-    * identity those rows are addressed to, so it asks separately rather than the fan-out growing a return value every
-    * other caller would ignore.
-    */
-  private def allRelaysAnswered(): Boolean =
-    allRelays().forall { relay =>
-      Try(
-        relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Deposit), Some(ShareRequestState.Pending))
-      ).isSuccess
-    }
-
   /** The identity-regeneration trigger. Order matters: the drain and the rotation pushes must both happen before
     * activateKeyPair, since pushRotation (and the drain's own relay calls) sign with whatever identity is currently
     * persisted — that's what proves continuity from the old key to each contact. If the app dies partway through, the
     * old identity is still active (nothing was persisted yet), so a retry simply regenerates and re-pushes from
     * scratch; any contact who received an orphaned first attempt auto-corrects on the next successful push, per the
     * existing K_old-signed auto-accept rule.
+    *
+    * The drain succeeded only if both passes ran and every relay answered them: it is about to retire the identity
+    * those rows are addressed to, so a relay that went unheard is exactly what it must report.
     */
   override def regenerateIdentity(): RegenerateIdentityResult =
-    Try(syncInbox())
-    Try(syncDistributed())
-    val drainSucceeded = allRelaysAnswered()
+    val inbox = Try(syncInbox()).toOption
+    val distributed = Try(syncDistributed()).toOption
+    val drainSucceeded = (inbox, distributed) match
+      case (Some(i), Some(d)) => i.unreachableRelays.isEmpty && d.unreachableRelays.isEmpty
+      case _                  => false
     val newKeys = identity.generateNewKeyPair()
     val contacts = contactRepository.getAll()
     val notified = contacts.count { contact =>
@@ -728,17 +743,11 @@ class ShareService @Inject() (
     * senderSignature verifies against a *known* contact — the holder must already have been re-added out-of-band before
     * their push is honored. Consumed rows are deleted from the relay once processed.
     */
-  private def processRecoveryMetadata(): Unit =
+  private def processRecoveryMetadata(unreachable: mutable.Set[String]): Unit =
     allRelays().foreach { relay =>
-      val pushes =
-        Try(
-          relay.listShareRequests(
-            Role.Recipient,
-            Some(ShareTransactionType.Inventory),
-            Some(ShareRequestState.Approved)
-          )
-        )
-          .getOrElse(Nil)
+      val pushes = fromRelay(relay, unreachable)(
+        relay.listShareRequests(Role.Recipient, Some(ShareTransactionType.Inventory), Some(ShareRequestState.Approved))
+      )
       pushes.filter(verifyOpen).foreach { req =>
         contactRepository.getByVerifyKey(req.senderKey).foreach { holderContact =>
           noteRelinked(holderContact)
@@ -795,12 +804,13 @@ class ShareService @Inject() (
 
   override def listHeld(): List[HeldShare] = shareRepository.getAll()
 
-  override def listPendingRequests(): List[ShareRequest] =
-    rowsAcrossRelays(Role.Recipient, state = Some(ShareRequestState.Pending))
-      .map(_._2)
-      .filterNot(_.transactionType == ShareTransactionType.Deposit)
-      // A forged removal/retrieval request has no AEAD backstop — must never reach the UI.
-      .filter(verifyOpen)
+  override def listPendingRequests(): RelayFanOut[ShareRequest] =
+    rowsAcrossRelays(Role.Recipient, state = Some(ShareRequestState.Pending)).mapItems(
+      _.map(_._2)
+        .filterNot(_.transactionType == ShareTransactionType.Deposit)
+        // A forged removal/retrieval request has no AEAD backstop — must never reach the UI.
+        .filter(verifyOpen)
+    )
 
   override def respond(requestId: UUID, approved: Boolean): Unit =
     val (relay, request) = findShareRequest(requestId)

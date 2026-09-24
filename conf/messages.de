@@ -63,7 +63,8 @@ phon.signIn.placeholder = z. B. Alice
 phon.signIn.port = Dieses Phony-Phone ist {0}. Starten Sie ein weiteres auf einem anderen Port, um eine zweite Person zu spielen.
 
 phon.advisory.awaitingRelink = {0,choice,1#Ein Kontakt hat noch|1<{0} Kontakte haben noch} Ihren alten Schlüssel - treffen Sie sie und lassen Sie sie Ihren Code erneut scannen
-phon.advisory.relayUnreachable = Relais nicht erreichbar
+phon.advisory.relayUnreachable = Relais {0} nicht erreichbar. Angezeigt wird der zuletzt bekannte Stand.
+phon.advisory.relayUnreachableRequests = Relais {0} nicht erreichbar. Anfragen über dieses Relais können gerade nicht angezeigt werden.
 
 phon.empty.distributed = Noch keine Geheimnisse aufgeteilt & verteilt
 phon.empty.held = Noch keine Anteile zu verwahren

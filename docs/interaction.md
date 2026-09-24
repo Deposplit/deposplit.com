@@ -45,13 +45,23 @@ Manual key entry therefore stops one level short of `VeryHigh`: typing keys out 
 not being in the same room, and no interface should let it look like it was.
 
 **Local first, relay second.** Every list renders from local storage before any network call, and a
-relay that is down degrades to a soft banner over real content — never a spinner, never a blank
-screen, never a blocking error. The Requests tab is the sole exception, and legitimately so: it has
-nothing local to fall back on, because a pending inbound request exists only on the relay.
+relay that is down degrades to a soft warning over real content — never a spinner, never a blank
+screen, never a blocking error. There is one warning per relay that did not answer, naming it by
+host and port and saying that what is shown is the last known state: a device talks to its own
+default relay and to every relay a contact is pinned to, and a single banner could not say whose
+data is stale.
+
+The Requests tab is the exception, and legitimately so: it has nothing local to fall back on,
+because a pending inbound request exists only on the relay. It shows what the relays that answered
+returned and names each one that did not as unable to show its requests. When none answered, those
+lines are all it shows: no error beside them, which would only repeat them, and no *No pending
+requests*, which it cannot know.
 
 **The relay is never a character in the copy.** The user's mental model is people and secrets — who holds a
 piece, who is waiting on what. Nothing in the interface asks anyone to think about rows
-or endpoints. The empty state is
+or endpoints. The one place a relay is named is the warning above, because it answers the only
+question a person has then — why is this not up to date? — and the relay is the answer. The empty
+state is
 - *No secrets split & shared yet*,
 - *No shares to keep safe yet*,
 - *No pending requests*, and

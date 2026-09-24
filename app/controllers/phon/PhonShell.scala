@@ -56,7 +56,26 @@ final case class Shell(
       * expected work after a phone switch and clears itself as each contact gets back in touch.
       */
     awaitingRelinkCount: Int = 0,
-    /** The relay could not be reached on the last attempt. Soft — the local lists still render. */
-    syncWarning: Boolean = false
+    /** Every relay the last refresh could not reach, as a person would name it. Each gets a warning of its own, soft —
+      * the local lists still render — because with several relays a single one could not say whose data is stale.
+      */
+    unreachableRelays: List[String] = Nil,
+    /** What each of those warnings says: the Requests tab has no local state to fall back on, so it says what it cannot
+      * show instead.
+      */
+    relayWarningKey: String = "phon.advisory.relayUnreachable"
 ):
   def isTab: Boolean = tab.isDefined
+
+object Shell:
+
+  /** A relay as a person would recognise it: its host, and its port when it has one. The scheme and any path add length
+    * without telling two relays apart. Falls back to the URL as stored, since a warning that names a relay oddly is
+    * still better than one that names none.
+    */
+  def relayName(baseUrl: String): String =
+    scala.util
+      .Try(java.net.URI(baseUrl))
+      .toOption
+      .flatMap(uri => Option(uri.getHost).map(host => if uri.getPort == -1 then host else s"$host:${uri.getPort}"))
+      .getOrElse(baseUrl)

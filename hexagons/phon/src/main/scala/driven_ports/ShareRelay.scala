@@ -37,6 +37,9 @@ import java.time.Instant
 import java.util.UUID
 
 trait ShareRelay:
+  /** The URL this relay answers at — what a warning names when it does not. */
+  def baseUrl: String
+
   /** Open a Deposit, Retrieval, or Removal request on the relay. For Deposit: ciphertext must be supplied (the
     * encrypted share). For Retrieval/Removal: ciphertext is absent.
     */

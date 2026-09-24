@@ -123,7 +123,8 @@ private object FailingShareEncryption extends ShareEncryption:
 /** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns whatever `pending` is
   * configured to, which is all these tests need.
   */
-private class FakeShareRelay(var unreachable: Boolean = false) extends ShareRelay:
+private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: String = "http://relay.example:9000")
+    extends ShareRelay:
   case class OpenedRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
@@ -440,7 +441,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val forged = unsigned.copy(senderSignature = signOpenAs(strangerKeys, unsigned))
     relay.pending = List(forged)
 
-    assertEquals(svc.listPendingRequests(), List.empty)
+    assertEquals(svc.listPendingRequests().items, List.empty)
   }
 
   test("respond throws SignatureVerificationException when senderSignature doesn't verify") {
@@ -1323,7 +1324,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       override def resolve(relayBaseUrl: Option[String]): ShareRelay =
         instances.getOrElseUpdate(
           relayBaseUrl.getOrElse("http://localhost:9000"), {
-            val relay = FakeShareRelay()
+            val relay = FakeShareRelay(baseUrl = relayBaseUrl.getOrElse("http://localhost:9000"))
             relay.pending = rows
             relay
           }
@@ -1334,7 +1335,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val result = svc.reconstruct(secretId)
 
     assertEquals(result.secret.toList, secretBytes.toList)
-    assertEquals(svc.listSentRequests().map(_.id).sortBy(_.toString), rows.map(_.id).sortBy(_.toString))
+    assertEquals(svc.listSentRequests().items.map(_.id).sortBy(_.toString), rows.map(_.id).sortBy(_.toString))
   }
 
   test("reconstruct with exactly k approved shares has no integrity margin") {

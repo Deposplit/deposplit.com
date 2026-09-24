@@ -31,10 +31,12 @@ import value_objects.svo.KeyConflict
 import value_objects.svo.MimeType
 import value_objects.svo.ReconstructionResult
 import value_objects.svo.RegenerateIdentityResult
+import value_objects.svo.RelayFanOut
 import value_objects.svo.Secret
 import value_objects.svo.ShareMetadata
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareTransactionType
+import value_objects.svo.SyncReport
 
 import java.util.UUID
 
@@ -48,9 +50,9 @@ trait ShareManagement:
       mimeType: MimeType = MimeType.Default
   ): Unit
   def listSecrets(): List[Secret]
-  def syncDistributed(): Unit
+  def syncDistributed(): SyncReport
   def listDistributed(): List[ShareMetadata]
-  def listSentRequests(): List[ShareRequest]
+  def listSentRequests(): RelayFanOut[ShareRequest]
   def requestAll(secretId: UUID): Unit
   def openRequest(shareId: UUID, transactionType: ShareTransactionType): ShareRequest
 
@@ -81,9 +83,9 @@ trait ShareManagement:
   def forceForgetSecret(secretId: UUID): Unit
 
   // ─── Recipient ──────────────────────────────────────────────────────────────
-  def syncInbox(): Unit
+  def syncInbox(): SyncReport
   def listHeld(): List[HeldShare]
-  def listPendingRequests(): List[ShareRequest]
+  def listPendingRequests(): RelayFanOut[ShareRequest]
   def respond(requestId: UUID, approved: Boolean): Unit
   def deleteHeldShare(shareId: UUID): Unit
   def deleteAllHeldFromSender(contactId: UUID): Unit

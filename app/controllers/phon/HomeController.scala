@@ -24,7 +24,6 @@
 
 package controllers.phon
 
-import driven_adapters.phon.RelayProbe
 import driven_ports.RelaySettings
 import driving_ports.ContactManagement
 import driving_ports.ForgettableIdentity
@@ -51,8 +50,7 @@ class HomeController @Inject() (
     override protected val identity: ForgettableIdentity,
     override protected val contactManagement: ContactManagement,
     override protected val shareManagement: ShareManagement,
-    override protected val relaySettings: RelaySettings,
-    relayProbe: RelayProbe
+    override protected val relaySettings: RelaySettings
 ) extends PhonSupport,
       Logging:
 
@@ -63,83 +61,96 @@ class HomeController @Inject() (
   // ── Distributed ───────────────────────────────────────────────────────────────────────────
 
   def distributed() = Action { implicit request: Request[AnyContent] =>
-    registered(renderDistributed(syncPending = true, syncWarning = false))
+    registered(renderDistributed(syncPending = true, unreachable = Set.empty))
   }
 
   def syncDistributed() = Action { implicit request: Request[AnyContent] =>
     registered {
-      Try(shareManagement.syncDistributed())
-      renderDistributed(syncPending = false, syncWarning = !relayProbe.defaultRelayAnswers())
+      val report = Try(shareManagement.syncDistributed()).toOption
+      renderDistributed(syncPending = false, unreachable = report.fold(Set.empty)(_.unreachableRelays))
     }
   }
 
-  private def renderDistributed(syncPending: Boolean, syncWarning: Boolean)(using
+  private def renderDistributed(syncPending: Boolean, unreachable: Set[String])(using
       request: Request[AnyContent]
   ) =
     // Requests are a relay read, so the first pass groups without them: the cards render with their
     // holders and health, and the per-holder request state fills in a moment later.
-    val sentRequests = if syncPending then Nil else Try(shareManagement.listSentRequests()).getOrElse(Nil)
+    val sent = if syncPending then None else Try(shareManagement.listSentRequests()).toOption
     val groups = PhonViewModels.secretGroups(
       shareManagement.listSecrets(),
       shareManagement.listDistributed(),
-      sentRequests,
+      sent.fold(Nil)(_.items),
       contactManagement.listContacts()
     )
     render(
-      shellFor("phon.title.distributed", tab = Some(PhonTab.Distributed), syncWarning = syncWarning),
+      shellFor(
+        "phon.title.distributed",
+        tab = Some(PhonTab.Distributed),
+        unreachableRelays = unreachable ++ sent.fold(Set.empty)(_.unreachableRelays)
+      ),
       views.html.Phon.distributed(groups, syncPending)
     )
 
   // ── Held ──────────────────────────────────────────────────────────────────────────────────
 
   def held(sort: String) = Action { implicit request: Request[AnyContent] =>
-    registered(renderHeld(HeldSortOrder.fromWire(sort), syncPending = true, syncWarning = false))
+    registered(renderHeld(HeldSortOrder.fromWire(sort), syncPending = true, unreachable = Set.empty))
   }
 
   def syncHeld(sort: String) = Action { implicit request: Request[AnyContent] =>
     registered {
-      Try(shareManagement.syncInbox())
-      renderHeld(HeldSortOrder.fromWire(sort), syncPending = false, syncWarning = !relayProbe.defaultRelayAnswers())
+      val report = Try(shareManagement.syncInbox()).toOption
+      renderHeld(
+        HeldSortOrder.fromWire(sort),
+        syncPending = false,
+        unreachable = report.fold(Set.empty)(_.unreachableRelays)
+      )
     }
   }
 
-  private def renderHeld(order: HeldSortOrder, syncPending: Boolean, syncWarning: Boolean)(using
+  private def renderHeld(order: HeldSortOrder, syncPending: Boolean, unreachable: Set[String])(using
       request: Request[AnyContent]
   ) =
     val rows = PhonViewModels.heldRows(shareManagement.listHeld(), contactManagement.listContacts(), order)
     render(
-      shellFor("phon.title.held", tab = Some(PhonTab.Held), syncWarning = syncWarning),
+      shellFor("phon.title.held", tab = Some(PhonTab.Held), unreachableRelays = unreachable),
       views.html.Phon.held(rows, order, syncPending)
     )
 
   // ── Requests ──────────────────────────────────────────────────────────────────────────────
 
   def requests() = Action { implicit request: Request[AnyContent] =>
-    registered(renderRequests(syncPending = true, syncWarning = false))
+    registered(renderRequests(syncPending = true))
   }
 
   def syncRequests() = Action { implicit request: Request[AnyContent] =>
     registered {
       Try(shareManagement.syncInbox())
-      renderRequests(syncPending = false, syncWarning = !relayProbe.defaultRelayAnswers())
+      renderRequests(syncPending = false)
     }
   }
 
-  private def renderRequests(syncPending: Boolean, syncWarning: Boolean)(using request: Request[AnyContent]) =
+  private def renderRequests(syncPending: Boolean)(using request: Request[AnyContent]) =
     val contacts = contactManagement.listContacts()
     // Key conflicts are local and durable — captured when a rotation notice was refused, kept because the relay may
     // lose its own state at any moment — so they render in the first pass, above the requests they explain.
     val conflicts = PhonViewModels.keyConflictRows(shareManagement.listKeyConflicts(), contacts)
-    val rows =
-      if syncPending then Nil
-      else
-        PhonViewModels.requestRows(
-          Try(shareManagement.listPendingRequests()).getOrElse(Nil),
-          contacts,
-          shareManagement.listHeld(),
-          java.time.Instant.now()
-        )
+    // A pending request exists only on the relay, so what the relays that answered returned is shown, and each one that
+    // did not is named rather than passed off as having nothing to ask.
+    val pending = if syncPending then None else Try(shareManagement.listPendingRequests()).toOption
+    val rows = PhonViewModels.requestRows(
+      pending.fold(Nil)(_.items),
+      contacts,
+      shareManagement.listHeld(),
+      java.time.Instant.now()
+    )
     render(
-      shellFor("phon.title.requests", tab = Some(PhonTab.Requests), syncWarning = syncWarning),
+      shellFor(
+        "phon.title.requests",
+        tab = Some(PhonTab.Requests),
+        unreachableRelays = pending.fold(Set.empty)(_.unreachableRelays),
+        relayWarningKey = "phon.advisory.relayUnreachableRequests"
+      ),
       views.html.Phon.requests(conflicts, rows, syncPending)
     )

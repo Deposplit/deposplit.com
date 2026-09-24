@@ -159,8 +159,8 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
     val askedOfBob = retrievalRow(aliceKeys, bobIdentity.verifyKey().get)
     defaultRelay.pending = List(askedOfBob)
 
-    assertEquals(svc.listPendingRequests().map(_.id), List(askedOfBob.id))
-    assertEquals(svc.listSentRequests().map(_.id), List(askedOfBob.id))
+    assertEquals(svc.listPendingRequests().items.map(_.id), List(askedOfBob.id))
+    assertEquals(svc.listSentRequests().items.map(_.id), List(askedOfBob.id))
   }
 
   test("syncInbox polls both the default relay and a contact's BYOR relay, merging results") {
@@ -229,4 +229,80 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
     assertEquals(defaultRelay.respondCalls, List(fromAliceOnDefault.id))
     assertEquals(shareRepo.getAll().map(_.id), List(fromAliceOnDefault.id))
+  }
+
+  // ── Reporting a relay that did not answer ──────────────────────────────────
+
+  // Bob, with alice on this device's default relay and charlie pinned to a second one.
+  private def newTwoRelayService(
+      defaultRelay: FakeShareRelay,
+      byorRelay: FakeShareRelay
+  ): (ShareService, IdentityService) =
+    val identityStore = InMemoryForgettableIdentityStore()
+    val bobIdentity = IdentityService(identityStore)
+    bobIdentity.register("bob")
+    val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
+    val svc = ShareService(
+      relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
+      encryption = NoOpShareEncryption,
+      shareRepository = FakeShareRepository(),
+      shareMetadataRepository = FakeShareMetadataRepository(),
+      secretRepository = FakeSecretRepository(),
+      contactRepository = contactRepo,
+      contactManagement =
+        ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
+      keyConflictRepository = FakeKeyConflictRepository(),
+      retainedDepositRepository = FakeRetainedDepositRepository(),
+      identity = bobIdentity
+    )
+    (svc, bobIdentity)
+
+  /** Each relay is soft-failed on its own, so a sync pass never throws for one that is down — which is exactly why it
+    * has to say so. Otherwise a dead relay reads as an empty one, and nothing on screen tells the person that what they
+    * see is only the last known state.
+    */
+  test("both sync passes name the relay that did not answer, and only that one") {
+    val (svc, _) = newTwoRelayService(
+      FakeShareRelay(baseUrl = defaultUrl),
+      FakeShareRelay(unreachable = true, baseUrl = byorUrl)
+    )
+
+    assertEquals(svc.syncInbox().unreachableRelays, Set(byorUrl))
+    assertEquals(svc.syncDistributed().unreachableRelays, Set(byorUrl))
+  }
+
+  test("both sync passes report nothing when every relay answers") {
+    val (svc, _) = newTwoRelayService(FakeShareRelay(baseUrl = defaultUrl), FakeShareRelay(baseUrl = byorUrl))
+
+    assertEquals(svc.syncInbox().unreachableRelays, Set.empty[String])
+    assertEquals(svc.syncDistributed().unreachableRelays, Set.empty[String])
+  }
+
+  test("listPendingRequests keeps the rows from the relay that answered and names the one that did not") {
+    val defaultRelay = FakeShareRelay(baseUrl = defaultUrl)
+    val (svc, bob) = newTwoRelayService(defaultRelay, FakeShareRelay(unreachable = true, baseUrl = byorUrl))
+    val askedOfBob = retrievalRow(aliceKeys, bob.verifyKey().get)
+    defaultRelay.pending = List(askedOfBob)
+
+    val fanOut = svc.listPendingRequests()
+
+    assertEquals(fanOut.items.map(_.id), List(askedOfBob.id))
+    assertEquals(fanOut.unreachableRelays, Set(byorUrl))
+    assert(fanOut.anyAnswered)
+  }
+
+  /** An empty list from relays that answered means there is nothing to do; an empty list because none answered means
+    * nobody knows. The Requests page has nothing local to fall back on, so it must be able to tell the two apart.
+    */
+  test("listPendingRequests says no relay answered when every one of them failed") {
+    val (svc, _) = newTwoRelayService(
+      FakeShareRelay(unreachable = true, baseUrl = defaultUrl),
+      FakeShareRelay(unreachable = true, baseUrl = byorUrl)
+    )
+
+    val fanOut = svc.listPendingRequests()
+
+    assert(fanOut.items.isEmpty)
+    assertEquals(fanOut.unreachableRelays, Set(defaultUrl, byorUrl))
+    assert(!fanOut.anyAnswered)
   }

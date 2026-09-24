@@ -89,7 +89,8 @@ trait PhonSupport extends BaseController, I18nSupport:
       titleKey: String,
       tab: Option[PhonTab] = None,
       back: Option[play.api.mvc.Call] = None,
-      syncWarning: Boolean = false
+      unreachableRelays: Set[String] = Set.empty,
+      relayWarningKey: String = "phon.advisory.relayUnreachable"
   ): Shell =
     Shell(
       titleKey = titleKey,
@@ -97,5 +98,6 @@ trait PhonSupport extends BaseController, I18nSupport:
       tab = tab,
       back = back,
       awaitingRelinkCount = contactManagement.contactsAwaitingRelink().size,
-      syncWarning = syncWarning
+      unreachableRelays = unreachableRelays.toList.sorted.map(Shell.relayName),
+      relayWarningKey = relayWarningKey
     )
