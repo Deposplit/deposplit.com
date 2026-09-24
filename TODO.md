@@ -24,11 +24,7 @@ place rather than growing this list into a second manual.
 
 ### The documented flows
 
-- [~] `A` **Flow 1 — happy path.** 2-of-2 across two holders. Watch step 10: pickup is where the holder decrypts and where the relay stops holding anything.
-- [~] `A` **Flow 2 — deny and re-request.**
-- [~] `A` **Flow 3 — sender-initiated removal.** The deposit row cascades to its retrieval and removal rows.
-- [~] `A` **Flow 4 — holder-initiated deletion.** Alice must learn of it, and never by a row simply going missing.
-- [ ] `A` `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
+- [~] `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
 - [ ] `A` `I` **Flow 6 — cross-platform.** The highest-value flow in the document: the only test that proves CryptoKit and BouncyCastle agree on a live wire rather than only on the vectors.
 - [ ] `A` `I` **Flow 7 — BYOR.** Two relays, one contact overridden and one not; killing one degrades only that contact. Needs the Premium unlock first.
 - [ ] `A` `I` **Flow 8 — locale.** German throughout, dates in `dd.MM.yyyy`. Worth re-running now that several strings take format arguments.
