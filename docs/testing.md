@@ -29,11 +29,55 @@ is configured.
 | Target | Set the default relay to | Notes |
 |---|---|---|
 | Android emulator | `http://10.0.2.2:9000` | `10.0.2.2` is the emulator's alias for the host. Cleartext to that host is already allowed by `app/src/debug/res/xml/network_security_config.xml`. |
-| Android device | `http://<your-LAN-IP>:9000` | Same Wi-Fi. The `10.0.2.2` alias is emulator-only. |
+| Android device | `http://localhost:9000` | Through `adb reverse` — see [An Android phone](#an-android-phone). The `10.0.2.2` alias is emulator-only. |
 | iOS Simulator | `http://localhost:9000` | The Simulator shares the host's network stack. |
 | iOS device | `http://<your-LAN-IP>:9000` | Same Wi-Fi. Add the IP and port to `play.filters.hosts.allowed` in `conf/localhost.conf`. |
 
 This is a one-time step per fresh install; the setting persists across restarts.
+
+## An Android phone
+
+A real phone reaches the relay through an `adb` tunnel rather than over Wi-Fi. That keeps the
+phone's view of the relay at `localhost`, which the debug network security config already
+permits cleartext to and `conf/localhost.conf` already lists in `play.filters.hosts.allowed`
+— so there is no LAN IP to allow, no firewall rule to add, and nothing to change when DHCP
+hands the computer a new address. The steps are the same on Windows and macOS; only the setup
+around them differs.
+
+**Before you start.** The phone needs Android 15 or newer (`minSdk` is 35) and a screen lock,
+because Reconstruct goes through the biometric-or-device-credential prompt.
+
+| | Windows | macOS |
+|---|---|---|
+| `adb` | `%LOCALAPPDATA%\Android\Sdk\platform-tools`, not on the PATH by default — add it under *Edit environment variables for your account*, or call `adb.exe` by its full path | `~/Library/Android/sdk/platform-tools`, not on the PATH by default — add `export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"` to `~/.zshrc` |
+| USB driver | Pixels need the *Google USB Driver* (Android Studio → SDK Manager → SDK Tools); other makers ship their own, such as Samsung's. Without it the phone never shows up in `adb devices` | None needed |
+| First connection | — | On Apple silicon, allow the phone when macOS asks whether to let the accessory connect |
+| Gradle wrapper | `./gradlew` in Git Bash, `.\gradlew` in PowerShell | `./gradlew` |
+
+1. **Enable USB debugging.** *Settings → About phone* (on Samsung, *→ Software information*),
+   tap **Build number** seven times, then turn on *Settings → Developer options → USB
+   debugging*. Connect the phone, accept the *Allow USB debugging?* prompt with *Always allow
+   from this computer*, and check that `adb devices` lists it as `device`, not `unauthorized`.
+   *Wireless debugging* in the same menu works too — pair with `adb pair` or Android Studio's
+   *Pair devices using Wi-Fi* — and everything below applies unchanged.
+2. **Start the relay** as described above.
+3. **Open the tunnel.** `adb reverse tcp:9000 tcp:9000` makes the phone's `localhost:9000` the
+   computer's port 9000. It lasts only as long as the connection, so run it again after every
+   reconnect.
+4. **Install the debug build.** From `Android/`, `./gradlew installDebug` — or select the phone
+   in Android Studio's device menu and press Run, which also gives you Logcat.
+5. **Point the app at the relay.** Register, then set *Settings → Default relay* to
+   `http://localhost:9000`.
+
+A phone makes a good partner for phony phones: its camera can scan the QR code phon shows,
+which exercises the real scanning path that phon itself cannot.
+
+Wi-Fi instead of the tunnel is possible but more fragile: the LAN IP has to be added both to
+the debug `network_security_config.xml` and to `play.filters.hosts.allowed`, the computer's
+firewall has to let Java accept connections on port 9000 — on Windows, allow `java.exe` when
+Windows Defender Firewall asks, and on macOS, allow `java` when asked or under *System Settings
+→ Network → Firewall → Options* — and some networks isolate clients from one another
+altogether.
 
 ## Three devices
 
