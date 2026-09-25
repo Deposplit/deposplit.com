@@ -32,6 +32,20 @@
 
 @if(rows.isEmpty) {
     @emptyState("bi-people", "phon.empty.contacts")
+    @* The add screen's two tabs, offered directly while there is nothing else on screen - pasting
+       first, because it stands in for a scan and is the only one that can earn Very High. *@
+    <div class="d-flex flex-column align-items-center gap-2 px-3">
+        <button type="button" class="btn btn-primary"
+            hx-get="@controllers.phon.routes.ContactsController.addForm("payload")"
+            hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+            <i class="bi bi-qr-code-scan"></i> @messages("phon.addContact.paste")
+        </button>
+        <button type="button" class="btn btn-link"
+            hx-get="@controllers.phon.routes.ContactsController.addForm("manual")"
+            hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+            @messages("phon.addContact.manual")
+        </button>
+    </div>
 } else {
     <div class="list-group list-group-flush">
         @for(row <- rows) {

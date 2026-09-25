@@ -262,6 +262,13 @@ person — or, on phon, pasting the payload that stands in for a scan — earns 
 pseudonym and the two keys by hand offers Very Low, Low and High and never Very High. All three
 platforms enforce this identically and show the same guidance for what each level asserts.
 
+**Both ways in sit behind one entry point, scanning first.** Android's floating action button and
+iOS's toolbar button each open a menu offering *Scan QR code* and *Enter contact manually*; phon's
+opens the add screen, whose two tabs are the same pair. Neither is ever split off on its own — scanning in
+a top bar while the add button leads to typing would make the weaker way the obvious one. An empty contact list offers
+the pair directly as two buttons, the stronger one prominent, because that is where a first-time
+user is looking for the way in.
+
 **A relay override on a contact is free; this device's own default relay is Premium.** Naming
 someone else's relay says where *their* mailbox is and makes the person entering it reachable
 nowhere new, so gating it would protect nothing. Naming your own is the self-hosting feature.

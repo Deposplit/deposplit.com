@@ -22,7 +22,11 @@
 * THE SOFTWARE.
 *@
 
-@* Every list says the same thing when it is empty: nothing here yet, and no button to press. *@
+@*
+* Every list says the same thing when it is empty: nothing here yet. Buttons, where a list needs
+* them, are the caller's - only Contacts has any, because an empty contact list is where a first-time
+* user has to find the way in.
+*@
 @(icon: String, messageKey: String)(implicit messages: Messages)
 
 <div class="phon-empty">
