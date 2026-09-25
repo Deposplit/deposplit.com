@@ -27,7 +27,7 @@ place rather than growing this list into a second manual.
 - [~] `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
 - [ ] `A` `I` **Flow 6 — cross-platform.** The highest-value flow in the document: the only test that proves CryptoKit and BouncyCastle agree on a live wire rather than only on the vectors.
 - [ ] `A` `I` **Flow 7 — BYOR.** Two relays, one contact overridden and one not; killing one degrades only that contact. Needs the Premium unlock first.
-- [ ] `A` `I` **Flow 8 — locale.** German throughout, dates in `dd.MM.yyyy`. Worth re-running now that several strings take format arguments.
+- [~] `I` **Flow 8 — locale.** German throughout, dates in `dd.MM.yyyy`. Worth re-running now that several strings take format arguments.
 
 ### The documented edge cases
 
@@ -82,6 +82,7 @@ Written up in [docs/testing.md](docs/testing.md), which carries the `adb` and `l
 
 - [ ] `doc` arrows overlap in the C4 system-context and container diagrams in [docs/architecture.md](docs/architecture.md). Cosmetic, deliberately deferred. Mermaid's C4 renderer offers little layout control — `UpdateLayoutConfig` with `$c4ShapeInRow`/`$c4BoundaryInRow` is the usual lever, and converting a diagram to a styled `flowchart` gives full control at the cost of the C4 shape vocabulary.
 - [ ] `A` `I` a notification tap opens the app rather than the **Requests** tab. Deliberately deferred, and deliberately deferred on *both* platforms at once: iOS needs a `UNUserNotificationCenterDelegate`, which means an `@UIApplicationDelegateAdaptor` and therefore the UIKit `iOS/CLAUDE.md` keeps out, so doing it on Android alone would split the two in the one place they should match. Requests is a top-level tab, so the cost is one tap.
+- [ ] `A` switch from Material Icons to Material Symbols, and give the home screen's **New secret** button `arrow_split` instead of `Share`. `material-icons-extended` covers only the old Material Icons set, which is no longer updated, so `arrow_split` is not in it; and with `isMinifyEnabled = false` in the release build, all of its thousands of icon classes ship in the APK. Symbols has no Compose library, so each icon becomes a vector drawable downloaded as Android XML from Google Fonts and drawn with `Icon(painterResource(R.drawable.…), …)`, not a bundled variable font. The app uses 27 distinct icons across 15 files, all with a Symbols counterpart under the same name in snake_case. Pick one style for all of them first: today's filled icons look closest to `FILL@1`, while the `arrow_split` settings picked on Google Fonts are `FILL@0` (outlined), and mixing the two would look inconsistent. Then remove the `material-icons-extended` dependency. Do it as a change of its own, not mixed into a behavioural one.
 
 ## Open questions
 
