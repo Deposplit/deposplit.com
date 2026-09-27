@@ -31,7 +31,7 @@ is configured.
 | Android emulator | `http://10.0.2.2:9000` | `10.0.2.2` is the emulator's alias for the host. Cleartext to that host is already allowed by `app/src/debug/res/xml/network_security_config.xml`. |
 | Android device | `http://localhost:9000` | Through `adb reverse` — see [An Android phone](#an-android-phone). The `10.0.2.2` alias is emulator-only. |
 | iOS Simulator | `http://localhost:9000` | The Simulator shares the host's network stack. |
-| iOS device | `http://<your-LAN-IP>:9000` | Same Wi-Fi. Add the IP and port to `play.filters.hosts.allowed` in `conf/localhost.conf`. |
+| iOS device | `http://<the Mac's LAN IP>:9000` | Same Wi-Fi, and the IP rather than the Mac's `.local` name — see [An iPhone or iPad](#an-iphone-or-ipad). |
 
 This is a one-time step per fresh install; the setting persists across restarts.
 
@@ -64,8 +64,10 @@ because Reconstruct goes through the biometric-or-device-credential prompt.
 3. **Open the tunnel.** `adb reverse tcp:9000 tcp:9000` makes the phone's `localhost:9000` the
    computer's port 9000. It lasts only as long as the connection, so run it again after every
    reconnect.
-4. **Install the debug build.** From `Android/`, `./gradlew installDebug` — or select the phone
-   in Android Studio's device menu and press Run, which also gives you Logcat.
+4. **Install the debug build.** Set `FAKE_PREMIUM=true` in `Android/local.properties` first:
+   the relay field in the next step sits behind Premium, and `local.properties` is untracked,
+   so every computer needs its own. Then, from `Android/`, `./gradlew installDebug` — or select
+   the phone in Android Studio's device menu and press Run, which also gives you Logcat.
 5. **Point the app at the relay.** Register, then set *Settings → Default relay* to
    `http://localhost:9000`.
 
@@ -78,6 +80,120 @@ firewall has to let Java accept connections on port 9000 — on Windows, allow `
 Windows Defender Firewall asks, and on macOS, allow `java` when asked or under *System Settings
 → Network → Firewall → Options* — and some networks isolate clients from one another
 altogether.
+
+## An iPhone or iPad
+
+The app target covers both device families (`TARGETED_DEVICE_FAMILY = 1,2`), so on an iPad it
+runs as an iPad app rather than as an enlarged iPhone one. Any iPhone or iPad on iOS or iPadOS
+26.4 or newer will do — that is the deployment target — and it needs a Mac with Xcode. There is
+no counterpart to `adb reverse`, so the device reaches the relay over Wi-Fi, by the Mac's LAN IP.
+
+**Before you start.** The device needs a passcode, because Reconstruct asks for Face ID, Touch
+ID or the passcode, and neither biometric can be set up without one. It must be on the same
+Wi-Fi as the Mac. And it needs a team to be signed by. The app carries no entitlements, so a free
+Personal Team is enough; the differences are in the housekeeping:
+
+| | Personal Team (any Apple Account) | Apple Developer Program team |
+|---|---|---|
+| Bundle ID | `com.deposplit.Deposplit` may already belong to another team. If Xcode says it is not available, append something of your own for local runs | Registered to the team on the first run, if it is not already |
+| Profile | Expires after 7 days; run from Xcode again to renew it | Lasts a year |
+| First launch | Refused until you trust the developer under *Settings → General → VPN & Device Management* | Runs straight away |
+
+1. **Choose the team.** Add the account under *Xcode → Settings → Apple Accounts*. In
+   `iOS/Deposplit.xcodeproj`, select the **Deposplit** target and pick the team under
+   *Signing & Capabilities*; *Automatically manage signing* is already on. This writes
+   `DEVELOPMENT_TEAM` into `project.pbxproj`, which is tracked and deliberately carries none —
+   like the scheme edit for `skipBiometric`, it is for running, not committing. So is a changed
+   bundle ID.
+2. **Pair the device.** Connect it by cable, unlock it, and tap *Trust* when it asks about the
+   computer; on Apple silicon, also allow the accessory when macOS asks. Choose *Manage
+   Devices…* from the run destination menu to open Device Hub, select the device, and click
+   *Pair* if it offers one. The first connection can take a few minutes while Xcode prepares
+   the device. Wireless pairing needs iOS or iPadOS 27, so an older device pairs by cable —
+   but once paired, it runs over Wi-Fi as well, provided the network has IPv6. After an OS
+   update, pair it again.
+3. **Turn on Developer Mode.** *Settings → Privacy & Security → Developer Mode*. The switch only
+   appears once pairing has begun. The device restarts, then asks once more; confirm with the
+   passcode.
+4. **Let the device in, then start the relay.** Add the Mac's LAN IP — `ipconfig getifaddr en0`
+   on most Macs — to `play.filters.hosts.allowed` in `conf/localhost.conf`, then start the relay
+   as described above. That edit is for running, not committing, too. If the macOS firewall is
+   on, allow `java` to accept incoming connections when asked, or under *System Settings →
+   Network → Firewall → Options*.
+5. **Run.** Choose the device as the run destination and press Run. With a Personal Team, the
+   first launch fails until you trust the developer as above; then press Run again.
+6. **Point the app at the relay.** Register. *Settings → Default relay* sits behind Premium, so
+   buy it on the paywall first: a run from Xcode uses the scheme's `Deposplit.storekit` on a
+   device just as it does in the Simulator, so nothing is charged and no App Store Connect record
+   is involved. Then set the default relay to `http://<the Mac's LAN IP>:9000`. The first request
+   raises the *Local Network* alert — allow it, then refresh, because the request that raised it
+   may already have failed.
+
+**Why the IP and not the Mac's name.** App Transport Security does not apply to IP addresses, so
+plain HTTP to one needs no exception. `http://<name>.local:9000` would be refused: that needs
+`NSAllowsLocalNetworking`, which the app does not carry. The price is the one the Android tunnel
+avoids — when DHCP hands the Mac a new address, both `play.filters.hosts.allowed` and the
+setting in the app need it too. Some networks also isolate clients from one another altogether.
+
+**The Local Network permission.** The Mac's IP is a local network address, so every connection
+to it needs the device's *Local Network* permission. The Simulator has no such permission, which
+is why none of this shows up there. If it was denied, the relay simply looks unreachable; turn it
+back on under *Settings → Privacy & Security → Local Network*. A background pass that finds the
+permission still undecided is denied without an alert, so grant it in the foreground before
+relying on [Background refresh](#background-refresh).
+
+**A relay on a Windows PC.** The relay need not run on the Mac, which still builds and installs
+the app. On a PC, the PC's IP — from `ipconfig` — takes the Mac's place in
+`play.filters.hosts.allowed` and in the app, and Windows Defender Firewall is the extra hurdle.
+Nothing else has had to reach the PC before, because the Android phone arrives through its
+tunnel, so several things can stand in the way:
+
+- Windows may class the network as *Public*. Make it *Private* under *Settings → Network &
+  internet →* the connection *→ Network profile type*.
+- The firewall asked about `java.exe` the first time the relay started. Answering *Cancel* leaves
+  inbound **block** rules behind, and so does any answer from an account without administrator
+  rights. A block rule beats every allow rule, so adding one later changes nothing until the
+  block is gone. Allowing private networks only, while the network was classed public, leaves it
+  blocked too.
+- A rule for `java.exe` names one full path, so a JDK update quietly leaves it behind.
+
+With the network set to *Private*, removing any such block rules and allowing the port rather
+than the program settles the other two. In an administrator PowerShell:
+
+```powershell
+# What Windows has already decided for java.exe. Look before removing anything.
+Get-NetFirewallApplicationFilter | Where-Object Program -like '*java.exe' |
+  Get-NetFirewallRule | Format-Table DisplayName, Action, Profile, Enabled
+
+# Remove the block rules among them.
+Get-NetFirewallApplicationFilter | Where-Object Program -like '*java.exe' |
+  Get-NetFirewallRule | Where-Object Action -eq Block | Remove-NetFirewallRule
+
+# Allow the relay's port, whichever JDK serves it: private networks, local subnet only.
+New-NetFirewallRule -DisplayName 'Deposplit dev relay' -Direction Inbound -Protocol TCP `
+  -LocalPort 9000 -RemoteAddress LocalSubnet -Profile Private -Action Allow
+```
+
+Test from the Mac before involving the device: `curl -i http://<the PC's IP>:9000/`. Any HTTP
+reply, even a 400 because the host is not allowed yet, means the firewall lets it through and only
+`play.filters.hosts.allowed` is left to fix. A hang means the firewall, or a network that isolates
+its clients. If the Mac gets through and the device does not, look at its Local Network
+permission. All of this holds for an Android phone that uses Wi-Fi instead of its tunnel, too.
+
+What a real device adds over the Simulator:
+
+- **The camera.** Scanning runs for real, so scan the QR code phon shows on the Mac's screen.
+- **Touch ID.** An iPad without Face ID — every iPad mini, for one — authenticates with Touch
+  ID, so the *Authentication availability* edge case is about the finger rather than the face.
+- **iPad layout.** All four orientations and resizable windows. Check each tab in landscape and
+  in a narrow window, and that sheets such as the scanner and the paywall present sensibly.
+- **A locked device.** The last check under [Background refresh](#background-refresh) is only
+  answerable here. The `plutil` path there reads `Debug-iphoneos` for a device build, not
+  `Debug-iphonesimulator`.
+
+An Android phone can share the relay at the same time — the phone at `localhost` through its
+tunnel, this device at the Mac's IP. That is Flow 6 on real hardware, with each camera scanning
+the other's QR code.
 
 ## Three devices
 
@@ -197,8 +313,8 @@ sbt startServer "run -Dconfig.file=conf/phon.conf -Dhttp.port=9001"          # p
 ```
 
 The per-contact override is free everywhere, so it needs no unlock. Only **Settings → Default
-relay** sits behind Premium: on iOS buy it in the Simulator (the scheme carries
-`Deposplit.storekit`, so no App Store Connect record is needed); on Android set
+relay** sits behind Premium: on iOS buy it in the Simulator or on a device run from Xcode (the
+scheme carries `Deposplit.storekit`, so no App Store Connect record is needed); on Android set
 `FAKE_PREMIUM=true` in `local.properties` and rebuild, since Play Billing cannot run without a
 Play Console listing. phon has no purchases at all, so both are simply editable there.
 
