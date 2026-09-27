@@ -86,7 +86,7 @@ There is nothing to undo, which is the whole reason to write the rules now:
 |---|---|
 | Relay | No metrics, no tracing, no access log, no rate limiter. The only `logger.` calls in the repository belong to `phon`, a development tool that is not routed in production. The root logger is at `WARN`, with `play` at `INFO` and `application` at `DEBUG`, and there is no custom `ErrorHandler` — so Play's default one logs an unhandled server error together with the request method and URI. No headers and no body: quiet, but not silent. |
 | Android | Four permissions — `INTERNET`, `CAMERA`, `USE_BIOMETRIC`, `POST_NOTIFICATIONS`, the last for one local notice and nothing else. Dependencies are AndroidX, Compose, kotlinx-serialization, CameraX, ZXing, WorkManager and BouncyCastle. No Firebase, no Crashlytics, no Play Services analytics. |
-| iOS | One package reference, the local `hexagon`. No remote packages at all. Two usage-description strings, for the camera and for Face ID, and one background mode, `fetch`, for the daily custody pass. Notifications are posted locally by the app itself; nothing is registered for remote push. |
+| iOS | One package reference, the local `hexagon`. No remote packages at all. Three usage-description strings, for the camera, for Face ID and for the local network — the last shown only when a relay sits on it — and one background mode, `fetch`, for the daily custody pass. Notifications are posted locally by the app itself; nothing is registered for remote push. |
 | Landing page | One cookie, `PLAY_LANG`, two letters, written only when a visitor picks a language. No third-party request. |
 
 ## What the rules already settle
