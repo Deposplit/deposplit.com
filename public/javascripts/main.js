@@ -22,16 +22,27 @@
  * THE SOFTWARE.
  */
 
-// Optional-chained because not every page in this app carries the switch: phon has a frame of
-// its own, with no marketing navbar to hang it on.
-document.getElementById('bsThemeSwitch')?.addEventListener('change', switchBootstrapTheme);
+const DARK = "dark";
+const LIGHT = "light";
 
-// cf. https://htmx.org/docs/#scripting or https://hypermedia.systems/client-side-scripting/#rsjs for more htmx-idiomatic approaches
+let bsTheme;
+if (localStorage.getItem("bsTheme") !== null) {
+  bsTheme = localStorage.getItem("bsTheme");
+} else {
+  bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? DARK : LIGHT;
+  localStorage.setItem("bsTheme", bsTheme);
+}
+document.documentElement.dataset.bsTheme = bsTheme;
+
+if (document.getElementById('bsThemeSwitch') !== null) {
+  const bsThemeSwitch = document.getElementById('bsThemeSwitch');
+  bsThemeSwitch.checked = bsTheme === DARK;
+  bsThemeSwitch.ariaChecked = bsTheme === DARK;
+  bsThemeSwitch.addEventListener('change', switchBootstrapTheme);
+}
+
 function switchBootstrapTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute("data-bs-theme");
-  html.setAttribute(
-    "data-bs-theme",
-    currentTheme === "light" ? "dark" : "light"
-  );
+  bsTheme = bsTheme === LIGHT ? DARK : LIGHT;
+  document.documentElement.dataset.bsTheme = bsTheme;
+  localStorage.setItem("bsTheme", bsTheme);
 }

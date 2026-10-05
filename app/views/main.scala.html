@@ -37,7 +37,9 @@
    <script src="@routes.Assets.versioned("javascripts/htmx400.js")"></script>
     <script src="@routes.Assets.versioned("javascripts/hx-live400.js")"></script>
     <script src="@routes.Assets.versioned("lib/popperjs__core/dist/umd/popper.js")"></script>
-    <link rel="stylesheet" href="@routes.Assets.versioned("lib/bootstrap/dist/css/bootstrap.css")">
+    <!-- link rel="stylesheet" href="@routes.Assets.versioned("lib/bootstrap/dist/css/bootstrap.css")" -->
+    <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/fonts.css")">
+    <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/bootstrapCD.css")">
     <script src="@routes.Assets.versioned("lib/bootstrap/dist/js/bootstrap.js")"></script>
     <link rel="stylesheet" href="@routes.Assets.versioned("lib/bootstrap-icons/font/bootstrap-icons.css")">
 </head>
@@ -46,9 +48,8 @@
     <a class="visually-hidden-focusable" href="#content">@messages("skipToMainContent")</a> @* https://getbootstrap.com/docs/5.3/getting-started/accessibility/#visually-hidden-content *@
     <header class="navbar navbar-expand-md navbar-dark fixed-top bg-primary">
         <nav class="container-fluid" aria-label="Main navigation">
-            <a class="navbar-brand" href="/">Deposplit</a>
-            <a class="navbar-brand" href="https://www.squeng.com/" target="Squeng"
-                rel="noreferrer noopener"><small>Squeng<sup>&reg;</sup>&nbsp;made</small></a>
+            <a class="navbar-brand" href="/"><img src="@routes.Assets.versioned("images/deposplit-icon.svg")" alt="Deposplit icon" width="30" height="30" style="border-radius: 7px;">&nbsp;Deposplit</a>
+            <a class="navbar-brand" href="https://www.squeng.com/" target="Squeng" rel="noreferrer noopener"><small>Squeng<sup>&reg;</sup>&nbsp;made</small></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse"
                 aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -89,8 +90,8 @@
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/prices">
-                            @messages("prices")
+                        <a class="nav-link" href="/price">
+                            @messages("price")
                         </a>
                     </li>
                 </ul>
@@ -111,8 +112,8 @@
                 &nbsp;
                 &nbsp;
                 <div class="form-check form-switch text-bg-primary">
-                    <input class="form-check-input" type="checkbox" role="switch" id="bsThemeSwitch" aria-checked="false">
-                    <label class="form-check-label" for="bsThemeSwitch"><i class="bi bi-emoji-sunglasses-fill"></i> / <i class="bi bi-emoji-sunglasses"></i></label>
+                    <input class="form-check-input" type="checkbox" role="switch" id="bsThemeSwitch" aria-checked="false" switch>
+                    <label class="form-check-label" for="bsThemeSwitch"><i class="bi bi-emoji-sunglasses"></i> / <i class="bi bi-emoji-sunglasses-fill"></i></label>
                 </div>
                 &nbsp;
                 &nbsp;

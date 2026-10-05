@@ -111,3 +111,5 @@ tests the `hexagon` package only, since the app target needs a simulator.
 ## Licence
 
 MIT. Copyright © 2026 [Squeng AG](https://www.squeng.com).
+
+[IBM Plex](https://github.com/IBM/plex?tab=OFL-1.1-1-ov-file) and [Space Grotesk](https://github.com/floriankarsten/space-grotesk?tab=OFL-1.1-1-ov-file) in [`public/fonts/`](https://github.com/Deposplit/deposplit.com/tree/main/public/fonts), however, are OFL-licensed.

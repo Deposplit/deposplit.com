@@ -196,7 +196,7 @@ identity is not there to join to.
 — views per path, locale split, referrers by source, status codes — with no cookie, no script, no
 identifier and no address retained. The HTMX design makes that unusually informative for free:
 `/problem`, `/solution`, `/theory` and `/practice` are fetched as separate requests by the
-carousel, and `/name`, `/origin` and `/prices` are pages in their own right, so a per-path counter
+carousel, and `/name`, `/origin` and `/price` are pages in their own right, so a per-path counter
 reports which sections were actually pulled rather than merely which page was opened.
 
 **The honest limitation is bots**, and it cuts against the tidy answer. Raw hits at this stage are
