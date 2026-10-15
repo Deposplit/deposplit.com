@@ -87,7 +87,7 @@ There is nothing to undo, which is the whole reason to write the rules now:
 | Relay | No metrics, no tracing, no access log, no rate limiter. The only `logger.` calls in the repository belong to `phon`, a development tool that is not routed in production. The root logger is at `WARN`, with `play` at `INFO` and `application` at `DEBUG`, and there is no custom `ErrorHandler` — so Play's default one logs an unhandled server error together with the request method and URI. No headers and no body: quiet, but not silent. |
 | Android | Four permissions — `INTERNET`, `CAMERA`, `USE_BIOMETRIC`, `POST_NOTIFICATIONS`, the last for one local notice and nothing else. Dependencies are AndroidX, Compose, kotlinx-serialization, CameraX, ZXing, WorkManager and BouncyCastle. No Firebase, no Crashlytics, no Play Services analytics. |
 | iOS | One package reference, the local `hexagon`. No remote packages at all. Three usage-description strings, for the camera, for Face ID and for the local network — the last shown only when a relay sits on it — and one background mode, `fetch`, for the daily custody pass. Notifications are posted locally by the app itself; nothing is registered for remote push. |
-| Landing page | One cookie, `PLAY_LANG`, two letters, written only when a visitor picks a language. No third-party request. |
+| Landing page | One cookie, `PLAY_LANG`, two letters, lasting the browser session and written only when a visitor picks a language. One `localStorage` entry, `bsTheme`, written only when a visitor flips the theme switch. No third-party request: fonts and icons are served from this domain. |
 
 ## What the rules already settle
 
@@ -215,16 +215,26 @@ does process an address, however briefly, and "no consent banner required" is a 
 position rather than a settled one.
 
 **A third-party tag is out**, on the same category grounds as rule 4. So is any convenience that
-makes a visitor's browser talk to somebody else, which is the current state of the Bootstrap Icons
-stylesheet: the one outward request on the site, and the only party learning that anybody visited.
-Closing it is worth more than any counter added afterwards.
+makes a visitor's browser talk to somebody else — a CDN stylesheet, a hosted web font, an embedded
+video. Fonts and icons are served from this domain for exactly that reason, so the site makes no
+outward request at all, and no other party learns that anybody visited.
+
+**Nothing is stored on a visitor's device that the visitor did not ask for.** The language cookie
+is written when a language is picked, and the theme when the switch is flipped. Until then the page
+follows the browser's own settings and stores nothing. In the EU, storage that the visitor
+explicitly requested needs no consent, whether it is a cookie or `localStorage`. A default written
+on a first visit would need consent, and with it a banner. Switzerland only requires that visitors
+be informed, which the privacy policy does. This is the line that keeps the site banner-free, and
+every future preference has to follow it too.
 
 **Whether a visitor became an installer** is answered store-side rather than on the site. UTM
 parameters on the store links produce Play Console install-referrer and App Store campaign
 reports, aggregated per campaign — the same category as the store aggregates under *Honest
 limits*, and nothing is added to the page to get them.
 
-Anything added here makes the privacy policy behind `/legalese/pp` non-optional.
+The privacy policy behind `/legalese/pp` is required whatever the site does, because the relay
+processes addresses and keys and both stores demand one. So anything added here is a change to
+the policy as well.
 
 ## What is still open
 
@@ -234,9 +244,14 @@ Anything added here makes the privacy policy behind `/legalese/pp` non-optional.
   can read it.
 - The rate-limiting mechanism, within the constraint above.
 - **The public privacy policy.** This document is the engineering rule and is written for
-  developers. The site's navigation already links to `/legalese/pp`, and there is no Markdown
-  behind it yet. That policy is a separate, legal artefact addressed to users — it should be
-  derivable from this one and must claim nothing this one does not permit.
+  developers. The policy at `/legalese/pp` (`public/markdowns/legalese/pp.md` and its German
+  counterpart) is a separate, legal artefact addressed to users. It is derived from this one and
+  must claim nothing this one does not permit. Before it can go live it still needs:
+  - the facts only Squeng AG can supply, marked `{TODO: …}` in the policy and the imprint: the
+    contact address, the hosting provider and its country, and a maximum retention period
+  - a decision on whether a representative in the EU is needed under DSGVO Art. 27 (the
+    exemption covers only occasional processing, and the relay's is continuous)
+  - a legal review of the wording
 
 ## Honest limits
 

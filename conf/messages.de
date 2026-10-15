@@ -13,10 +13,9 @@ abode.dude = Wo ist mein Geheimnis, Hoschi?
 abode.name = Name ist Schall und Rauch
 
 legalese = Juristenjargon
-legalese.masthead = Impressum
-legalese.pp = Datenschutzrichtlinie
-legalese.tos = Allgemeine Geschäftsbedingungen
-legalese.cya = Ich habe die Datenschutzrichtlinie sowie die Allgemeinen Geschäftsbedingungen gelesen und verstehe und akzeptiere sie.
+legalese.imprint = Impressum
+legalese.pp = Datenschutzerklärung
+legalese.tos = Nutzungsbedingungen
 
 acknowledgements = Danksagung
 price = Preis

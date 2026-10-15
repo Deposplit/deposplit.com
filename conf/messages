@@ -15,10 +15,9 @@ abode.dude = Dude, where''s my secret?
 abode.name = What''s in a name?
 
 legalese = Legalese
-legalese.masthead = Imprint
+legalese.imprint = Imprint
 legalese.pp = Privacy Policy
 legalese.tos = Terms of Service
-legalese.cya = I have read the Privacy Policy as well as the Terms of Service and understand and accept them.
 
 acknowledgements = Acknowledgements
 price = Price

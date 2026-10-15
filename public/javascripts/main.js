@@ -29,8 +29,8 @@ let bsTheme;
 if (localStorage.getItem("bsTheme") !== null) {
   bsTheme = localStorage.getItem("bsTheme");
 } else {
+  // Not stored: storing a theme the visitor picked needs no consent, but storing a default on a first visit would.
   bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? DARK : LIGHT;
-  localStorage.setItem("bsTheme", bsTheme);
 }
 document.documentElement.dataset.bsTheme = bsTheme;
 
