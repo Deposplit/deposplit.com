@@ -33,8 +33,8 @@ import java.util.UUID
   *   - Deposit: provided by Alice at creation; delivered to Bob on approval and cleared.
   *   - Retrieval: provided by Bob on approval; stored until Alice collects it.
   *   - Removal: always None.
-  *   - Inventory: always None — this type never carries share bytes, only the metadata needed to rebuild a
-  *     `ShareMetadata` row (see "state" below).
+  *   - Inventory: always None — this type never carries share bytes, only the metadata a recovering owner needs to
+  *     rebuild her records on her own device (see "state" below).
   *
   * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal). Signed as part of
   * `senderSignature` so a holder can't misreport them without invalidating the row.
