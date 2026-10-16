@@ -38,7 +38,7 @@ case class ShareMetadata(
     secretId: SecretId,
     senderKey: PublicKey,
     recipientKey: PublicKey,
-    label: Label,
+    sealedLabel: SealedLabel,
     createdAt: Instant,
     pickedUpAt: Option[Instant]
 )

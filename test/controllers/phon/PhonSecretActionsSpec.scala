@@ -56,7 +56,7 @@ class PhonSecretActionsSpec extends PlaySpec {
       secretId = UUID.randomUUID(),
       senderKey = Array.emptyByteArray,
       recipientKey = Array.emptyByteArray,
-      label = "a secret",
+      sealedLabel = "a secret".getBytes("UTF-8"),
       secretCreatedAt = secretCreatedAt,
       transactionType = ShareTransactionType.Retrieval,
       state = state,

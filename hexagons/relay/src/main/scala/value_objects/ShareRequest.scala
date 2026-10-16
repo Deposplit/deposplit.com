@@ -57,7 +57,7 @@ case class ShareRequest(
     secretId: SecretId,
     senderKey: PublicKey,
     recipientKey: PublicKey,
-    label: Label,
+    sealedLabel: SealedLabel,
     secretCreatedAt: Instant,
     transactionType: ShareTransactionType,
     state: ShareRequestState,

@@ -51,11 +51,12 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val privateKeySeed: Array[Byte] = (0 until 32).map(_.toByte).toArray
   private val expectedPublicKeyBase64Url = "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   private val expectedSignatureBase64Url =
-    "WFKVgN38zr_3fiLZ1UpxnrvUoW0KA-XjD1ml-VyfITDuCMv9D9uT0ryaHCiHYtWc9_rSpOKDw4kjbtqHMRPwBA"
+    "9E9otlaDVTPp1kcFbjfffN9ycBws7kuU1LaIMmBZQQ8ydtiLIJB8y_zptry8J1M9CN2OdoRiJazdY_nKFiJuBQ"
 
   private val secretId = SecretId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
   private val recipientKey = PublicKey.fromBytes(Array.fill(32)(0x02.toByte)).getOrElse(fail("bad fixture key"))
-  private val label = Label("cross-platform test vector")
+  // Any non-empty bytes will do: this vector checks the canonical construction, not the box that seals a label.
+  private val sealedLabel = SealedLabel.fromBytes(Array[Byte](6, 7, 8, 9, 10)).getOrElse(fail("bad fixture label"))
   private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
   private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
   // k/n, then mimeType — each appended at the end of the field sequence in turn, so the fields
@@ -69,7 +70,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       secretId,
       ShareTransactionType.Deposit,
       recipientKey,
-      label,
+      sealedLabel,
       secretCreatedAt,
       Some(ciphertext),
       k,
@@ -77,7 +78,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       mimeType
     )
     val expected =
-      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\nAQIDBAU=\n2\n3\ntext/plain"
+      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\nBgcICQo=\n1767225600000\nAQIDBAU=\n2\n3\ntext/plain"
     assertEquals(new String(canon, "UTF-8"), expected)
   }
 
@@ -86,7 +87,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       secretId,
       ShareTransactionType.Deposit,
       recipientKey,
-      label,
+      sealedLabel,
       secretCreatedAt,
       Some(ciphertext),
       k,
@@ -109,7 +110,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
       secretId,
       ShareTransactionType.Deposit,
       recipientKey,
-      label,
+      sealedLabel,
       secretCreatedAt,
       Some(ciphertext),
       k,

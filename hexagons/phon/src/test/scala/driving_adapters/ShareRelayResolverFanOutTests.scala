@@ -73,14 +73,14 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
   private def depositRow(id: UUID, senderKeys: TestKeyPair, recipientKey: Array[Byte]): ShareRequest =
     val secretId = UUID.randomUUID()
-    val label = "fan-out test"
+    val sealedLabel = "fan-out test".getBytes("UTF-8")
     val createdAt = Instant.now()
     val ciphertext = Array[Byte](9, 9, 9)
     val canon = PayloadCanonical.forOpen(
       secretId,
       ShareTransactionType.Deposit,
       recipientKey,
-      label,
+      sealedLabel,
       createdAt,
       Some(ciphertext),
       Some(2),
@@ -92,7 +92,7 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = senderKeys.publicKey,
       recipientKey = recipientKey,
-      label = label,
+      sealedLabel = sealedLabel,
       secretCreatedAt = createdAt,
       transactionType = ShareTransactionType.Deposit,
       state = ShareRequestState.Pending,
@@ -108,15 +108,16 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
   private def retrievalRow(senderKeys: TestKeyPair, recipientKey: Array[Byte]): ShareRequest =
     val secretId = UUID.randomUUID()
-    val label = "fan-out test"
+    val sealedLabel = "fan-out test".getBytes("UTF-8")
     val createdAt = Instant.now()
-    val canon = PayloadCanonical.forOpen(secretId, ShareTransactionType.Retrieval, recipientKey, label, createdAt, None)
+    val canon =
+      PayloadCanonical.forOpen(secretId, ShareTransactionType.Retrieval, recipientKey, sealedLabel, createdAt, None)
     ShareRequest(
       id = UUID.randomUUID(),
       secretId = secretId,
       senderKey = senderKeys.publicKey,
       recipientKey = recipientKey,
-      label = label,
+      sealedLabel = sealedLabel,
       secretCreatedAt = createdAt,
       transactionType = ShareTransactionType.Retrieval,
       state = ShareRequestState.Pending,

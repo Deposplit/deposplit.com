@@ -64,10 +64,10 @@ class ShareRequestsController @Inject() (
       secretId <- parseUuid(secretIdStr)
         .map(SecretId(_))
         .toRight(BadRequest(errorJson("invalid_field", "secretId must be a UUID")))
-      labelStr <- (json \ "label")
+      sealedLabelStr <- (json \ "sealedLabel")
         .asOpt[String]
-        .filter(_.nonEmpty)
-        .toRight(BadRequest(errorJson("missing_field", "label is required and must be non-empty")))
+        .toRight(BadRequest(errorJson("missing_field", "sealedLabel is required")))
+      sealedLabel <- SealedLabel.fromBase64(sealedLabelStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
       rkStr <- (json \ "recipientKey")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "recipientKey is required")))
@@ -90,7 +90,7 @@ class ShareRequestsController @Inject() (
           callerKey,
           recipientKey,
           secretId,
-          Label(labelStr),
+          sealedLabel,
           secretCreatedAt,
           transactionType,
           ciphertext,

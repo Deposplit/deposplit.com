@@ -60,6 +60,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   private def parseSignature(bytes: Array[Byte]): Signature =
     Signature.fromBytes(bytes).getOrElse(sys.error(s"corrupt signature in DB (${bytes.length} bytes)"))
 
+  private def parseSealedLabel(bytes: Array[Byte]): SealedLabel =
+    SealedLabel.fromBytes(bytes).getOrElse(sys.error("corrupt sealed label in DB (empty)"))
+
   // ---------------------------------------------------------------------------
   // Row parser
   // ---------------------------------------------------------------------------
@@ -69,7 +72,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       get[UUID]("secret_id") ~
       get[Array[Byte]]("sender_key") ~
       get[Array[Byte]]("recipient_key") ~
-      get[String]("label") ~
+      get[Array[Byte]]("sealed_label") ~
       get[Instant]("secret_created_at") ~
       get[String]("transaction_type") ~
       get[String]("state") ~
@@ -87,7 +90,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             secretId = SecretId(sid),
             senderKey = parseKey(sk),
             recipientKey = parseKey(rk),
-            label = Label(lbl),
+            sealedLabel = parseSealedLabel(lbl),
             secretCreatedAt = sca,
             transactionType = ShareTransactionType.fromWire(tt).getOrElse(sys.error(s"unknown transaction_type: $tt")),
             state = st match
@@ -125,18 +128,18 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
     db.withConnection { implicit conn =>
       SQL("""
         INSERT INTO share_requests
-          (id, secret_id, label, sender_key, recipient_key, transaction_type, state,
+          (id, secret_id, sealed_label, sender_key, recipient_key, transaction_type, state,
            ciphertext, k, n, mime_type, secret_created_at, requested_at, responded_at,
            sender_signature, recipient_signature)
         VALUES
-          ({id}::uuid, {secretId}::uuid, {label}, {senderKey}, {recipientKey},
+          ({id}::uuid, {secretId}::uuid, {sealedLabel}, {senderKey}, {recipientKey},
            {transactionType}, {state}, {ciphertext}, {k}, {n}, {mimeType},
            {secretCreatedAt}, {requestedAt}, {respondedAt}, {senderSignature}, {recipientSignature})
       """)
         .on(
           "id" -> request.id.toString,
           "secretId" -> request.secretId.value.toString,
-          "label" -> request.label.value,
+          "sealedLabel" -> request.sealedLabel.toBytes,
           "senderKey" -> request.senderKey.toBytes,
           "recipientKey" -> request.recipientKey.toBytes,
           "transactionType" -> request.transactionType.wireValue,

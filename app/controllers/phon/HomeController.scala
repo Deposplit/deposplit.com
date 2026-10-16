@@ -143,7 +143,8 @@ class HomeController @Inject() (
       pending.fold(Nil)(_.items),
       contacts,
       shareManagement.listHeld(),
-      java.time.Instant.now()
+      java.time.Instant.now(),
+      shareManagement.labelOf
     )
     render(
       shellFor(

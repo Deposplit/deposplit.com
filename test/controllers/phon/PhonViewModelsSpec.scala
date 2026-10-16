@@ -66,7 +66,7 @@ class PhonViewModelsSpec extends PlaySpec {
       secretId = secretId,
       senderKey = Array.fill(32)(7.toByte),
       recipientKey = Array.fill(32)(8.toByte),
-      label = "label",
+      sealedLabel = "label".getBytes("UTF-8"),
       secretCreatedAt = now,
       transactionType = kind,
       state = ShareRequestState.Pending,
@@ -78,7 +78,7 @@ class PhonViewModelsSpec extends PlaySpec {
     )
 
   private def canApprove(secretId: UUID, kind: ShareTransactionType): Boolean =
-    PhonViewModels.requestRows(List(request(secretId, kind)), Nil, held, now).head.canApprove
+    PhonViewModels.requestRows(List(request(secretId, kind)), Nil, held, now, _ => None).head.canApprove
 
   "A pending request" should {
 
@@ -93,6 +93,12 @@ class PhonViewModelsSpec extends PlaySpec {
     // Approving a removal hands nothing over, so there is nothing it needs in hand.
     "offer Approve on a removal whether or not the share is still here" in {
       canApprove(deletedSecret, ShareTransactionType.Removal) mustBe true
+    }
+
+    "carry the label opened for it, and nothing when none could be" in {
+      val row = request(keptSecret, ShareTransactionType.Retrieval)
+      PhonViewModels.requestRows(List(row), Nil, held, now, _ => Some("passport")).head.label mustBe Some("passport")
+      PhonViewModels.requestRows(List(row), Nil, held, now, _ => None).head.label mustBe None
     }
   }
 }

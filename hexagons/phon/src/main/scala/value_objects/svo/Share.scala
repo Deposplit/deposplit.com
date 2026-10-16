@@ -64,7 +64,8 @@ case class ShareRequest(
     secretId: UUID,
     senderKey: Array[Byte],
     recipientKey: Array[Byte],
-    label: String,
+    // The label, sealed by the sender to the recipient. Only the recipient opens it, through ShareManagement.labelOf.
+    sealedLabel: Array[Byte],
     secretCreatedAt: Instant,
     transactionType: ShareTransactionType,
     state: ShareRequestState,

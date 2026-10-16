@@ -50,6 +50,7 @@ import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 
+import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.time.Instant
 import scala.util.Try
@@ -135,10 +136,21 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   // needed: a device always encrypts with its current preferred TransportSuite, and a decrypting
   // device dispatches on the tag it reads.
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    seal(plaintext, recipientEncKey, IdentityService.ShareInfo)
+
+  override def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte] =
+    seal(label.getBytes(StandardCharsets.UTF_8), recipientEncKey, IdentityService.LabelInfo)
+
+  // Malformed UTF-8 decodes to replacement characters rather than failing, as on the other platforms. A label is only
+  // ever shown, and the box has already proved who sealed it.
+  override def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String =
+    String(unseal(sealedLabel, senderEncKey, IdentityService.LabelInfo), StandardCharsets.UTF_8)
+
+  private def seal(plaintext: Array[Byte], recipientEncKey: Array[Byte], info: Array[Byte]): Array[Byte] =
     val sk = X25519PrivateKeyParameters(identityStore.decKey())
     val nonce = Array.ofDim[Byte](IdentityService.NonceBytes)
     IdentityService.secureRandom.nextBytes(nonce)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce)
+    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce, info)
     val cipher = ChaCha20Poly1305()
     cipher.init(true, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(plaintext.length))
@@ -154,26 +166,34 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
     * Never used for encrypt — this device always seals under its current key.
     */
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    unseal(noncePlusCiphertext, recipientEncKey, IdentityService.ShareInfo)
+
+  private def unseal(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte], info: Array[Byte]): Array[Byte] =
     val tag = noncePlusCiphertext.headOption.getOrElse(
       throw UnsupportedTransportSuiteException("ciphertext is empty — no transport suite tag")
     )
     if TransportSuite.fromTag(tag).isEmpty then
       throw UnsupportedTransportSuiteException("this share used an encryption scheme this app version doesn't support")
-    try open(noncePlusCiphertext, recipientEncKey, identityStore.decKey())
+    try open(noncePlusCiphertext, recipientEncKey, identityStore.decKey(), info)
     catch
       case e: Exception =>
         // The current key's failure is the one worth reporting — the fallback missing or failing too just means there
         // was no earlier generation this box belongs to.
         identityStore
           .previousDecKey()
-          .flatMap(previous => Try(open(noncePlusCiphertext, recipientEncKey, previous)).toOption)
+          .flatMap(previous => Try(open(noncePlusCiphertext, recipientEncKey, previous, info)).toOption)
           .getOrElse(throw e)
 
-  private def open(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte], decKey: Array[Byte]): Array[Byte] =
+  private def open(
+      noncePlusCiphertext: Array[Byte],
+      recipientEncKey: Array[Byte],
+      decKey: Array[Byte],
+      info: Array[Byte]
+  ): Array[Byte] =
     val sk = X25519PrivateKeyParameters(decKey)
     val nonce = noncePlusCiphertext.slice(1, 1 + IdentityService.NonceBytes)
     val ciphertext = noncePlusCiphertext.drop(1 + IdentityService.NonceBytes)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce)
+    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce, info)
     val cipher = ChaCha20Poly1305()
     cipher.init(false, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
     val out = Array.ofDim[Byte](cipher.getOutputSize(ciphertext.length))
@@ -184,14 +204,15 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
   private def deriveKey(
       sk: X25519PrivateKeyParameters,
       pk: X25519PublicKeyParameters,
-      nonce: Array[Byte]
+      nonce: Array[Byte],
+      info: Array[Byte]
   ): Array[Byte] =
     val agreement = X25519Agreement()
     agreement.init(sk)
     val sharedSecret = Array.ofDim[Byte](agreement.getAgreementSize)
     agreement.calculateAgreement(pk, sharedSecret, 0)
     val hkdf = HKDFBytesGenerator(SHA256Digest())
-    hkdf.init(HKDFParameters(sharedSecret, nonce, IdentityService.HkdfInfo))
+    hkdf.init(HKDFParameters(sharedSecret, nonce, info))
     val key = Array.ofDim[Byte](IdentityService.KeyBytes)
     hkdf.generateBytes(key, 0, IdentityService.KeyBytes)
     key
@@ -200,5 +221,7 @@ object IdentityService:
   private val NonceBytes = 12
   private val KeyBytes = 32
   private val TagBits = 128
-  private val HkdfInfo = "deposplit-share".getBytes("UTF-8")
+  private val ShareInfo = "deposplit-share".getBytes(StandardCharsets.UTF_8)
+  // A key derivation of its own, so a sealed label can never be mistaken for a sealed share.
+  private val LabelInfo = "deposplit-label".getBytes(StandardCharsets.UTF_8)
   private val secureRandom = SecureRandom()

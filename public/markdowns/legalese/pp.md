@@ -92,15 +92,15 @@ api.deposplit.com. With each request the relay receives:
   *Visiting the site* above for the hosting provider)
 - the phone's public key and a signature, with which the relay checks that a request comes from the
   holder of the matching private key, without an account
-- for a share: the public keys of sender and recipient, an identifier of the secret, its **label**,
-  its type (such as text or image), how many shares exist and how many are needed to reconstruct
-  it, timestamps, signatures, and for deposits and returns the encrypted share itself
+- for a share: the public keys of sender and recipient, an identifier of the secret, its label
+  encrypted for the recipient, its type (such as text or image), how many shares exist and how
+  many are needed to reconstruct it, timestamps, signatures, and for deposits and returns the
+  encrypted share itself
 - signed notices that the apps exchange to keep each other up to date, such as that a key has been
   replaced by a new one, or that a holder still keeps a share
 
-The share is end-to-end encrypted for the recipient's key, and the relay cannot decrypt it. **The
-label is not encrypted.** It is stored as written, so it should not reveal what the secret is or
-whom it concerns.
+The share and its label are end-to-end encrypted for the recipient's key, and the relay can read
+neither. What it can read is the type of the secret and how many shares there are.
 
 A public key is a random number generated on the phone. It contains no name, and Squeng AG keeps no
 record of which person a key belongs to. The contacts with whom keys were exchanged do of course

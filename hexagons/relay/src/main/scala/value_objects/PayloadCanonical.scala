@@ -58,6 +58,10 @@ object PayloadCanonical:
     * way to change this sequence; the one field ever removed went before launch, when no released client could be
     * broken by the shift.
     *
+    * The label is signed in its sealed form, as base64 like the ciphertext. Its position is the one the plaintext label
+    * held, so the field order is unchanged. Base64 has no newline in it, so a label with a line break cannot be read as
+    * a field separator.
+    *
     * A `None` and an empty-string `mimeType` produce identical bytes here, which is why `ShareRequestsService` refuses
     * to store an empty one: otherwise a row could claim a type the signature does not distinguish from claiming none.
     */
@@ -65,7 +69,7 @@ object PayloadCanonical:
       secretId: SecretId,
       transactionType: ShareTransactionType,
       recipientKey: PublicKey,
-      label: Label,
+      sealedLabel: SealedLabel,
       secretCreatedAt: Instant,
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
@@ -76,7 +80,7 @@ object PayloadCanonical:
       secretId.value.toString,
       transactionType.wireValue,
       recipientKey.toBase64Url,
-      label.value,
+      sealedLabel.toBase64,
       secretCreatedAt.toEpochMilli.toString,
       ciphertext.fold("")(base64Std.encodeToString),
       k.fold("")(_.toString),

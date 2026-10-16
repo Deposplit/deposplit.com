@@ -34,3 +34,13 @@ trait ShareEncryption:
     * X25519+HKDF-SHA-256+ChaCha20-Poly1305.
     */
   def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte]
+
+  /** Seals a secret's label to `recipientEncKey` with the same box as `encrypt`, under a key derivation of its own, so
+    * a label box and a share box never share a derived key. The relay stores the result without being able to read it.
+    */
+  def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte]
+
+  /** Opens a label sealed by `sealLabel` under the row sender's `senderEncKey`, with the same fallback to the previous
+    * decKey as `decrypt`.
+    */
+  def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String

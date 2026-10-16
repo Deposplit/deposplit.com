@@ -113,11 +113,25 @@ private object NoOpShareEncryption extends ShareEncryption:
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
     noncePlusCiphertext
+  override def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte] = label.getBytes("UTF-8")
+  override def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String = String(sealedLabel, "UTF-8")
 
-/** Stands in for the real failure at pickup: a share sealed to a key this device no longer holds. */
+/** Stands in for the real failure at pickup: a share, and its label, sealed to a key this device no longer holds. */
 private object FailingShareEncryption extends ShareEncryption:
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
   override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    throw RuntimeException("simulated decryption failure")
+  override def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte] = label.getBytes("UTF-8")
+  override def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String =
+    throw RuntimeException("simulated decryption failure")
+
+/** A share that opens beside a label that does not, so a test can tell the two failures apart. */
+private object UnopenableLabelEncryption extends ShareEncryption:
+  override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] = plaintext
+  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
+    noncePlusCiphertext
+  override def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte] = label.getBytes("UTF-8")
+  override def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String =
     throw RuntimeException("simulated decryption failure")
 
 /** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns whatever `pending` is
@@ -128,6 +142,7 @@ private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: Stri
   case class OpenedRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
+      sealedLabel: Array[Byte],
       transactionType: ShareTransactionType,
       k: Option[Int],
       n: Option[Int],
@@ -165,7 +180,7 @@ private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: Stri
   override def openShareRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
-      label: String,
+      sealedLabel: Array[Byte],
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
       ciphertext: Option[Array[Byte]],
@@ -174,7 +189,7 @@ private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: Stri
       mimeType: Option[MimeType],
       senderSignature: Array[Byte]
   ): ShareRequest =
-    openedRequests :+= OpenedRequest(secretId, recipientKey, transactionType, k, n, mimeType)
+    openedRequests :+= OpenedRequest(secretId, recipientKey, sealedLabel, transactionType, k, n, mimeType)
     val selfApproved = transactionType == ShareTransactionType.Inventory
     val now = Instant.now()
     ShareRequest(
@@ -182,7 +197,7 @@ private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: Stri
       secretId = secretId,
       senderKey = Array.emptyByteArray,
       recipientKey = recipientKey,
-      label = label,
+      sealedLabel = sealedLabel,
       secretCreatedAt = secretCreatedAt,
       transactionType = transactionType,
       state = if selfApproved then ShareRequestState.Approved else ShareRequestState.Pending,
@@ -331,14 +346,17 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       recipientKey: Array[Byte],
       senderSignature: Array[Byte],
       ciphertext: Array[Byte] = Array[Byte](1, 2, 3),
-      mimeType: MimeType = MimeType.Default
+      mimeType: MimeType = MimeType.Default,
+      // NoOpShareEncryption seals a label to its own UTF-8 bytes. A test using real encryption passes a genuinely sealed
+      // one instead.
+      sealedLabel: Array[Byte] = "test secret".getBytes("UTF-8")
   ): ShareRequest =
     ShareRequest(
       id = id,
       secretId = UUID.randomUUID(),
       senderKey = senderKey,
       recipientKey = recipientKey,
-      label = "test secret",
+      sealedLabel = sealedLabel,
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Deposit,
       state = ShareRequestState.Pending,
@@ -358,7 +376,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
         row.secretId,
         row.transactionType,
         row.recipientKey,
-        row.label,
+        row.sealedLabel,
         row.secretCreatedAt,
         row.ciphertext,
         row.k,
@@ -399,6 +417,97 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assert(relay.respondCalls.isEmpty)
     assert(shareRepo.getAll().isEmpty)
     assertEquals(relay.byId(id).state, ShareRequestState.Pending)
+  }
+
+  test("syncInbox leaves a Deposit pending when its label cannot be opened") {
+    val relay = FakeShareRelay()
+    val (svc, bob, shareRepo, _, _, _, _) = newService(relay, encryption = UnopenableLabelEncryption)
+    val id = UUID.randomUUID()
+    val unsigned = depositRow(id, aliceKeys.publicKey, bob.verifyKey().get, Array.empty)
+    val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
+    relay.pending = List(row)
+    relay.byId = Map(id -> row)
+
+    svc.syncInbox()
+
+    // A share stored without the label it came with is a share nobody could recognise, so the pickup waits for the
+    // next poll exactly as an undecryptable share does.
+    assert(relay.respondCalls.isEmpty)
+    assert(shareRepo.getAll().isEmpty)
+    assertEquals(relay.byId(id).state, ShareRequestState.Pending)
+  }
+
+  test("deposit seals the label to each holder so the relay never sees it in the clear") {
+    def registered(pseudonym: String) =
+      val identity = IdentityService(InMemoryForgettableIdentityStore())
+      identity.register(pseudonym)
+      identity
+    val sender = registered("sender")
+    val holderA = registered("a")
+    val holderB = registered("b")
+    val contactA =
+      aliceContact.copy(
+        id = UUID.randomUUID(),
+        verifyKey = TestKeyPair.generate().publicKey,
+        encKey = holderA.encKey().get
+      )
+    val contactB =
+      aliceContact.copy(
+        id = UUID.randomUUID(),
+        verifyKey = TestKeyPair.generate().publicKey,
+        encKey = holderB.encKey().get
+      )
+    val relay = FakeShareRelay()
+    val (svc, _, _, _, _, _, _) = newService(relay, contacts = List(contactA, contactB), encryption = sender)
+
+    svc.deposit(Array[Byte](1, 2, 3), "Bitcoin seed", List(contactA, contactB), threshold = 2)
+
+    val boxes = relay.openedRequests.map(_.sealedLabel)
+    assertEquals(boxes.size, 2)
+    assert(boxes.forall(box => box.indexOfSlice("Bitcoin seed".getBytes("UTF-8").toSeq) < 0))
+    assertEquals(holderA.openLabel(boxes(0), sender.encKey().get), "Bitcoin seed")
+    assertEquals(holderB.openLabel(boxes(1), sender.encKey().get), "Bitcoin seed")
+  }
+
+  test("labelOf opens the sealed label of a request from a known contact") {
+    val (svc, bob, _, _, _, _, _) = newService(FakeShareRelay())
+    val row = depositRow(
+      UUID.randomUUID(),
+      aliceKeys.publicKey,
+      bob.verifyKey().get,
+      Array.empty,
+      sealedLabel = "passport".getBytes("UTF-8")
+    )
+
+    assertEquals(svc.labelOf(row), Some("passport"))
+  }
+
+  test("labelOf falls back to the held share when the sealed label will not open") {
+    val (svc, bob, shareRepo, _, _, _, _) = newService(FakeShareRelay(), encryption = FailingShareEncryption)
+    val row = depositRow(UUID.randomUUID(), aliceKeys.publicKey, bob.verifyKey().get, Array.empty)
+    shareRepo.save(
+      HeldShare(
+        id = UUID.randomUUID(),
+        secretId = row.secretId,
+        label = "passport",
+        contactId = aliceContact.id,
+        createdAt = Instant.now(),
+        pickedUpAt = Instant.now(),
+        plaintextShare = Array[Byte](9),
+        k = 2,
+        n = 3,
+        mimeType = MimeType.Default
+      )
+    )
+
+    assertEquals(svc.labelOf(row), Some("passport"))
+  }
+
+  test("labelOf is None when the sealed label will not open and no share is held") {
+    val (svc, bob, _, _, _, _, _) = newService(FakeShareRelay(), encryption = FailingShareEncryption)
+    val row = depositRow(UUID.randomUUID(), aliceKeys.publicKey, bob.verifyKey().get, Array.empty)
+
+    assertEquals(svc.labelOf(row), None)
   }
 
   test("syncInbox skips a Deposit whose senderSignature doesn't verify against the claimed sender") {
@@ -504,7 +613,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretId,
       ShareTransactionType.Inventory,
       recipientKey,
-      label,
+      label.getBytes("UTF-8"),
       createdAt,
       None,
       Some(k),
@@ -518,7 +627,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = senderKey,
       recipientKey = recipientKey,
-      label = label,
+      sealedLabel = label.getBytes("UTF-8"),
       secretCreatedAt = createdAt,
       transactionType = ShareTransactionType.Inventory,
       state = ShareRequestState.Approved,
@@ -830,7 +939,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = Array.fill(32)(0x05.toByte),
       recipientKey = recipientKey,
-      label = "test secret",
+      sealedLabel = "test secret".getBytes("UTF-8"),
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Deposit,
       state = state,
@@ -1270,7 +1379,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = Array.emptyByteArray,
       recipientKey = holder.contact.verifyKey,
-      label = "s",
+      sealedLabel = "s".getBytes("UTF-8"),
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Retrieval,
       state = ShareRequestState.Approved,
@@ -1290,7 +1399,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = Array.emptyByteArray,
       recipientKey = recipientKey,
-      label = "s",
+      sealedLabel = "s".getBytes("UTF-8"),
       secretCreatedAt = Instant.now(),
       transactionType = ShareTransactionType.Retrieval,
       state = ShareRequestState.Pending,
@@ -1582,8 +1691,15 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     val id = UUID.randomUUID()
     val share = "bob's share".getBytes("UTF-8")
     val sealedToBobsOldKey = aliceIdentity.encrypt(share, bobIdentity.encKey().get)
-    val unsigned =
-      depositRow(id, aliceKeys.publicKey, bobIdentity.verifyKey().get, Array.emptyByteArray, sealedToBobsOldKey)
+    val labelSealedToBobsOldKey = aliceIdentity.sealLabel("passport", bobIdentity.encKey().get)
+    val unsigned = depositRow(
+      id,
+      aliceKeys.publicKey,
+      bobIdentity.verifyKey().get,
+      Array.emptyByteArray,
+      sealedToBobsOldKey,
+      sealedLabel = labelSealedToBobsOldKey
+    )
     val row = unsigned.copy(senderSignature = signOpenAs(aliceKeys, unsigned))
 
     bobIdentity.activateKeyPair(bobIdentity.generateNewKeyPair())
@@ -1594,6 +1710,7 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
     assertEquals(shareRepo.getAll().size, 1)
     assert(shareRepo.getAll().head.plaintextShare.sameElements(share))
+    assertEquals(shareRepo.getAll().head.label, "passport")
     assertEquals(relay.respondCalls, List(id))
   }
 

@@ -11,8 +11,8 @@ dargelegt.
 
 Deposplit teilt ein Geheimnis auf dem Telefon in *n* Teile auf und gibt je einen an *n* gewählte
 Kontakte, die Verwahrer. Beliebige *k* dieser Teile ergeben zusammen wieder das Geheimnis, weniger
-verraten nichts darüber. Die Teile gelangen Ende-zu-Ende-verschlüsselt über ein Relais zu den
-Verwahrern, und das Relais kann sie nicht lesen.
+verraten nichts darüber. Die Teile und ihre Bezeichnungen gelangen Ende-zu-Ende-verschlüsselt über
+ein Relais zu den Verwahrern, und das Relais kann sie nicht lesen.
 
 ## Was Deposplit nicht kann
 
@@ -52,9 +52,6 @@ Das Relais ist ausschliesslich für den Verkehr von Deposplit bestimmt. Nicht er
 Daten ohne Bezug zu Deposplit abzulegen, das Relais zu überlasten oder anzugreifen, seine Grenzen zu
 umgehen oder es für rechtswidrige Zwecke zu nutzen. Die Squeng AG kann Anfragen zurückweisen, die
 dies tun.
-
-Das Etikett eines Geheimnisses wird so, wie es geschrieben wurde, unverschlüsselt auf dem Relais
-gespeichert. Es sollte nicht verraten, was das Geheimnis ist oder wen es betrifft.
 
 **Eigene Relais:** Ein Kontakt kann über ein Relais erreicht werden, das jemand anderes betreibt.
 Für dieses Relais ist dessen Betreiberin oder Betreiber verantwortlich, nicht die Squeng AG.

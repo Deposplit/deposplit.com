@@ -63,7 +63,7 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 
 | Construction | Fields, in order |
 |---|---|
-| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `label`, `secretCreatedAt` (epoch ms), `ciphertext` (standard base64), `k`, `n`, `mimeType` |
+| `forOpen` | `secretId`, `transactionType`, `recipientKey`, `sealedLabel` (standard base64), `secretCreatedAt` (epoch ms), `ciphertext` (standard base64), `k`, `n`, `mimeType` |
 | `forRespond` | `requestId`, `"approved"` or `"denied"`, `ciphertext` |
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
 | `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut` |
@@ -98,10 +98,10 @@ life of a secret or a share is in [lifecycles.md](lifecycles.md).
 
 | Type | Direction | Carries | Purpose |
 |---|---|---|---|
-| `deposit` | sender → holder | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType`, `ciphertext` | Give a holder a share. Delivered once on approval, then cleared from the row. |
-| `retrieval` | sender → holder → sender | references `secretId` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
-| `removal` | sender → holder | references the deposit | Ask a holder to destroy a share. |
-| `inventory` | holder → owner | `secretId`, `label`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
+| `deposit` | sender → holder | `secretId`, `sealedLabel`, `secretCreatedAt`, `k`, `n`, `mimeType`, `ciphertext` | Give a holder a share. Delivered once on approval, then cleared from the row. |
+| `retrieval` | sender → holder → sender | references `secretId`, with its `sealedLabel` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
+| `removal` | sender → holder | references the deposit, with its `sealedLabel` | Ask a holder to destroy a share. |
+| `inventory` | holder → owner | `secretId`, `sealedLabel`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
 
 `inventory` is the odd one out: it is created already `Approved`, has no pending phase and
 no conflict check, and the recipient deletes it once consumed. It self-approves because
@@ -123,7 +123,7 @@ by silently eroding redundancy, never an authoritative signal.
 
 Three, none of them about people.
 
-**`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`, `label`,
+**`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`, `sealed_label`,
 `sender_key`, `recipient_key`, `state`, `ciphertext`, `k`, `n`, `mime_type`,
 `secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
 `recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
@@ -134,9 +134,16 @@ A `retrieval` or `removal` row carries no pointer to the `deposit` it follows. I
 that pair — so both parties match on it. A row that named a specific deposit would additionally
 be worthless to a holder whose sender has since recovered onto a fresh device.
 
+`sealed_label` is the secret's label, sealed by the sender to the recipient's encryption key with the
+same box as a share, under a key derivation of its own (see [security.md](security.md)). Every type
+carries one, because the recipient shows it: a holder sees it on a retrieval or removal request,
+and a recovering owner rebuilds her records from an inventory push. The relay checks only that it
+is non-empty, and cannot read it. Only the row's two parties can, because static-static key
+agreement gives sender and recipient the same key.
+
 `mime_type` is the sender's claim about what the secret is — `text/plain` for typed text,
 `image/png` or `image/jpeg` for a picked image — carried so the recipient can decide how to
-render it once reconstructed. Like `label`, it is plaintext the relay routes without
+render it once reconstructed. Unlike the label it is plaintext, which the relay routes without
 interpreting, and it is never checked against the payload, which the relay cannot read. It must
 be non-blank: `forOpen` renders an absent field and an empty one identically, so a blank value
 would be a claim the signature cannot tell apart from no claim at all.
@@ -246,10 +253,11 @@ code today.
 **One exception needs care.** A `deposit` row carries the only copy of an encrypted share
 in transit, so collection before pickup would appear to lose it — and the polynomial is not
 retained, so a single share cannot be cheaply re-minted. The sender therefore keeps each
-encrypted blob until that holder's pickup is confirmed, then discards it. This is safe
-precisely because the blob is encrypted to the *holder's* key: the sender cannot decrypt
-what she is retaining, so holding all *n* is *n* opaque forward-only blobs, not a
-reconstructable secret sitting on one device.
+encrypted blob until that holder's pickup is confirmed, then discards it. The blob is sealed to
+the *holder's* key, but the box is static-static X25519, so the sender can recompute its key
+and open it herself. Until every pickup is confirmed, the *n* retained blobs together are a
+reconstructable secret sitting on one device. That is a known gap, and [TODO.md](../TODO.md)
+carries the fix: an ephemeral sender key per deposit box.
 
 **The blob is the prerequisite, not yet the mechanism.** Nothing re-deposits from it today,
 and that path lands with collection itself. Nothing costs anything meanwhile, because no

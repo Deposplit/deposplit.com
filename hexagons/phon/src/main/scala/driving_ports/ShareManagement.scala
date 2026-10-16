@@ -86,6 +86,12 @@ trait ShareManagement:
   def syncInbox(): SyncReport
   def listHeld(): List[HeldShare]
   def listPendingRequests(): RelayFanOut[ShareRequest]
+
+  /** The label a pending request may show: opened from its `sealedLabel`, or else the label of the share this device
+    * holds for that secret. `None` when neither is available.
+    */
+  def labelOf(request: ShareRequest): Option[String]
+
   def respond(requestId: UUID, approved: Boolean): Unit
   def deleteHeldShare(shareId: UUID): Unit
   def deleteAllHeldFromSender(contactId: UUID): Unit

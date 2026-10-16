@@ -39,9 +39,13 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 -- mime_type follows the same rule: populated for deposit and inventory, NULL for retrieval/removal,
 -- and signed as part of sender_signature. It is the sender's claim about what the secret is, kept so
 -- the recipient can decide how to render it once reconstructed. The relay never interprets it and
--- could not check it if it wanted to, the payload being ciphertext -- it is metadata of exactly the
--- same trust level as label, which is likewise stored in the clear. ShareRequestsService refuses a
--- blank one, because PayloadCanonical renders NULL and the empty string as the same signed bytes.
+-- could not check it if it wanted to, the payload being ciphertext. Unlike the label it is stored in
+-- the clear. ShareRequestsService refuses a blank one, because PayloadCanonical renders NULL and the
+-- empty string as the same signed bytes.
+--
+-- sealed_label is the secret's label, sealed by the sender to the recipient's encryption key with
+-- the same box as a share, so the relay stores bytes it cannot read. Required on every type, because
+-- the recipient shows it. Signed as part of sender_signature.
 --
 -- sender_key and recipient_key are Ed25519 public keys (32 bytes).
 -- secret_created_at is the client-supplied secret creation timestamp.
@@ -68,7 +72,7 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 CREATE TABLE share_requests (
     id                UUID                     DEFAULT gen_random_uuid() PRIMARY KEY,
     secret_id         UUID                     NOT NULL,
-    label             TEXT                     NOT NULL,
+    sealed_label      BYTEA                    NOT NULL,
     sender_key        BYTEA                    NOT NULL,
     recipient_key     BYTEA                    NOT NULL,
     transaction_type  share_transaction_type   NOT NULL,

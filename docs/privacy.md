@@ -5,8 +5,8 @@ The other documents here ask what an attacker can take. This one asks what **Dep
 It covers everything that *observes* the running system — logs, metrics, traces, crash reports,
 analytics, and the libraries that would carry any of them — and there the answer is meant to stay
 "nothing". It is not a claim that nothing leaves a device: the relay receives public keys,
-ciphertext, *k*, *n*, a declared type and a plaintext label, because routing needs them, and
-[protocol.md](protocol.md) says exactly what. These rules are about what would be taken **in
+ciphertext, a sealed label, *k*, *n* and a declared type, because routing and recovery need them,
+and [protocol.md](protocol.md) says exactly what. These rules are about what would be taken **in
 addition**, for the project's benefit rather than the user's.
 
 They are written down before any tool is chosen, because this is the one area where the sensible
@@ -119,10 +119,9 @@ There is nothing to undo, which is the whole reason to write the rules now:
   tabulate exhaustively, and a public key needs no inverting at all, since everyone who matters —
   every contact, and the relay on every request — already holds the value to hash.
 - **An error log may name the failure, never the parties or the payload.** Codes, types and shapes
-  only — never a public key, never a `label`, never a request body. `label` in particular is
-  user-authored text the relay stores in the clear and routes without interpreting; a log line
-  that interpolates it turns a routed field into a retained one, in a file with a different
-  lifetime and different backups. The endpoint is not the payload: Play's default handler already
+  only — never a public key, never a `sealedLabel`, never a request body. A sealed label cannot be
+  read, but it is unique to its row, so a log line that interpolates it turns a routed field into a
+  retained one, in a file with a different lifetime and different backups. The endpoint is not the payload: Play's default handler already
   logs a failed request's method and URI, which names where the failure happened and, for a
   path-addressed row, which row. That is the ceiling, not a precedent to build on.
 - **Push notifications are out, on a stronger objection than rule 4.** FCM and APNs deliver to a
@@ -168,7 +167,7 @@ There is nothing to undo, which is the whole reason to write the rules now:
   limiter that persists its state is a visitor log with extra steps.
 - **The store listings stay honest, which is not the same as blank.** Play's Data Safety form and
   Apple's privacy label ask about everything that leaves the device, not only about analytics —
-  and public keys, ciphertext, *k*, *n*, `mime_type` and the plaintext `label` all reach the
+  and public keys, ciphertext, the sealed label, *k*, *n* and `mime_type` all reach the
   relay, over a connection with an address at the other end. The truthful declaration is therefore
   *collected, **not linked** to an identity, not shared, not used for tracking*, with nothing at
   all under analytics, diagnostics or advertising. "No data collected" would be a binding

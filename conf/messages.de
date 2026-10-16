@@ -114,7 +114,7 @@ phon.field.relay = Relais
 phon.field.relayOverride = Relais dieses Kontakts
 phon.field.relayOverrideHelp = Leer lassen, um das Standardrelais dieses Telefons zu verwenden.
 phon.field.verificationLevel = Wie sicher sind Sie, dass sie es sind?
-phon.field.label = Etikett
+phon.field.label = Bezeichnung
 phon.field.secret = Geheimen Text eingeben oder …
 phon.field.secretFile = … geheimes Foto auswählen
 
@@ -156,10 +156,11 @@ phon.freshness.silentOverdue = Still - möglicher Verlust
 phon.held.from = Von {0}
 phon.held.sortBy = Sortieren nach
 phon.held.sort.date = Datum
-phon.held.sort.label = Etikett
+phon.held.sort.label = Bezeichnung
 phon.held.sort.sender = Absender
 
 phon.requests.from = Von {0}
+phon.requests.labelUnavailable = Bezeichnung nicht verfügbar
 phon.requests.keyChanged = Dieser Schlüssel hat sich {0,choice,0#heute|1#gestern|1<vor {0} Tagen} geändert.
 phon.requests.notHeld = Dieser Anteil ist nicht auf diesem Gerät, es gibt also nichts zurückzugeben.
 

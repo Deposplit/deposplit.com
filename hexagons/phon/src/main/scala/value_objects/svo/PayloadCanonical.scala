@@ -47,12 +47,15 @@ object PayloadCanonical:
     * Pinned to the same fixed-seed byte vector as the relay's, Android's and iOS's implementations — see
     * `PayloadCanonicalVectorTests`. The signature round-trips in `ShareServiceSignatureTests` only check this
     * construction against itself, so they cannot catch all four implementations disagreeing; the vector can.
+    *
+    * The label is signed in its sealed form, as standard base64 like the ciphertext, in the position the plaintext
+    * label held. Base64 has no newline in it, so a label with a line break cannot be read as a field separator.
     */
   def forOpen(
       secretId: UUID,
       transactionType: ShareTransactionType,
       recipientKey: Array[Byte],
-      label: String,
+      sealedLabel: Array[Byte],
       secretCreatedAt: Instant,
       ciphertext: Option[Array[Byte]],
       k: Option[Int] = None,
@@ -63,7 +66,7 @@ object PayloadCanonical:
       secretId.toString,
       transactionType.wireValue,
       base64Url.encodeToString(recipientKey),
-      label,
+      base64Std.encodeToString(sealedLabel),
       secretCreatedAt.toEpochMilli.toString,
       ciphertext.fold("")(base64Std.encodeToString),
       k.fold("")(_.toString),

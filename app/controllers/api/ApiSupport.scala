@@ -92,7 +92,7 @@ trait ApiSupport { self: BaseController =>
       "secretId" -> req.secretId.value.toString,
       "senderKey" -> req.senderKey.toBase64Url,
       "recipientKey" -> req.recipientKey.toBase64Url,
-      "label" -> req.label.value,
+      "sealedLabel" -> req.sealedLabel.toBase64,
       "secretCreatedAt" -> req.secretCreatedAt.toString,
       "transactionType" -> req.transactionType.wireValue,
       "state" -> (req.state match

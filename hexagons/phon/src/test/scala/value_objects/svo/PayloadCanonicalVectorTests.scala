@@ -74,7 +74,8 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
 
   private val secretId = UUID.fromString("11111111-1111-1111-1111-111111111111")
   private val recipientKey: Array[Byte] = Array.fill(32)(0x02.toByte)
-  private val label = "cross-platform test vector"
+  // Any non-empty bytes will do: this vector checks the canonical construction, not the box that seals a label.
+  private val sealedLabel = Array[Byte](6, 7, 8, 9, 10)
   private val secretCreatedAt = Instant.parse("2026-01-01T00:00:00Z")
   private val ciphertext: Array[Byte] = Array[Byte](1, 2, 3, 4, 5)
   // k/n, then mimeType — each appended at the end of the field sequence in turn, so the fields
@@ -83,14 +84,14 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   private val n = Some(3)
   private val mimeType = Some(MimeType("text/plain"))
   private val expectedSignatureBase64Url =
-    "WFKVgN38zr_3fiLZ1UpxnrvUoW0KA-XjD1ml-VyfITDuCMv9D9uT0ryaHCiHYtWc9_rSpOKDw4kjbtqHMRPwBA"
+    "9E9otlaDVTPp1kcFbjfffN9ycBws7kuU1LaIMmBZQQ8ydtiLIJB8y_zptry8J1M9CN2OdoRiJazdY_nKFiJuBQ"
 
   private def openCanonical(): Array[Byte] =
     PayloadCanonical.forOpen(
       secretId,
       ShareTransactionType.Deposit,
       recipientKey,
-      label,
+      sealedLabel,
       secretCreatedAt,
       Some(ciphertext),
       k,
@@ -100,7 +101,7 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
 
   test("forOpen produces the fixed canonical bytes") {
     val expected =
-      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\ncross-platform test vector\n1767225600000\nAQIDBAU=\n2\n3\ntext/plain"
+      "11111111-1111-1111-1111-111111111111\ndeposit\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\nBgcICQo=\n1767225600000\nAQIDBAU=\n2\n3\ntext/plain"
     assertEquals(new String(openCanonical(), "UTF-8"), expected)
   }
 

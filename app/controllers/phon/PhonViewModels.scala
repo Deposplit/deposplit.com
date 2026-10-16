@@ -166,6 +166,8 @@ object HeldSortOrder:
 
 final case class RequestRow(
     request: ShareRequest,
+    /** Opened from the sealed label, or else the held share's. `None` shows a placeholder. */
+    label: Option[String],
     senderName: String,
     senderSubtitle: Option[String],
     /** Days since the requester's key last changed, and only on a retrieval — the attack signature this hardens against
@@ -267,7 +269,8 @@ object PhonViewModels:
       requests: List[ShareRequest],
       contacts: List[Contact],
       held: List[HeldShare],
-      now: Instant
+      now: Instant,
+      labelOf: ShareRequest => Option[String]
   ): List[RequestRow] =
     // Matched on secretId, as ShareService.respond matches: a holder keeps one share per secret per sender.
     val heldSecretIds = held.map(_.secretId).toSet
@@ -276,6 +279,7 @@ object PhonViewModels:
         val contact = contacts.find(_.verifyKey.sameElements(request.senderKey))
         RequestRow(
           request = request,
+          label = labelOf(request),
           senderName = displayName(contact),
           senderSubtitle = subtitle(contact),
           keyChangedDaysAgo = Option

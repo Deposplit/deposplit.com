@@ -46,7 +46,7 @@ trait ShareRelay:
   def openShareRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
-      label: String,
+      sealedLabel: Array[Byte],
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
       ciphertext: Option[Array[Byte]],

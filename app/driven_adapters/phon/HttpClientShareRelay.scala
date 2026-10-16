@@ -59,7 +59,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
   override def openShareRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
-      label: String,
+      sealedLabel: Array[Byte],
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
       ciphertext: Option[Array[Byte]],
@@ -72,7 +72,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       .obj(
         "secretId" -> secretId.toString,
         "recipientKey" -> encodeBase64Url(recipientKey),
-        "label" -> label,
+        "sealedLabel" -> encodeBase64(sealedLabel),
         "secretCreatedAt" -> secretCreatedAt.toString,
         "transactionType" -> transactionType.wireValue,
         "senderSignature" -> encodeBase64Url(senderSignature)
@@ -212,7 +212,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       secretId = UUID.fromString((json \ "secretId").as[String]),
       senderKey = decodeBase64Url((json \ "senderKey").as[String]),
       recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
-      label = (json \ "label").as[String],
+      sealedLabel = decodeBase64((json \ "sealedLabel").as[String]),
       secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
       transactionType = ShareTransactionType
         .fromWire((json \ "transactionType").as[String])

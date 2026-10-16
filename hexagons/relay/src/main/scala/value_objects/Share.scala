@@ -38,7 +38,7 @@ case class Share(
     secretId: SecretId,
     senderKey: PublicKey,
     recipientKey: PublicKey,
-    label: Label,
+    sealedLabel: SealedLabel,
     createdAt: Instant,
     ciphertext: Option[Array[Byte]],
     pickedUpAt: Option[Instant]

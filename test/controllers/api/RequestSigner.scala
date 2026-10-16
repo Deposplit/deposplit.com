@@ -74,14 +74,14 @@ class RequestSigner:
   // rationale (epoch-millis timestamps, lowercase UUIDs) behind this exact construction.
 
   /** Signs an `openShareRequest` payload. `secretCreatedAt` is the ISO-8601 wire string (e.g. "2026-01-01T00:00:00Z");
-    * `ciphertext` is the standard-base64 string as it appears on the wire. `k`/`n`/`mimeType` are appended at the end
-    * of the sequence, mirroring PayloadCanonical.
+    * `sealedLabel` and `ciphertext` are the standard-base64 strings as they appear on the wire. `k`/`n`/`mimeType` are
+    * appended at the end of the sequence, mirroring PayloadCanonical.
     */
   def signOpen(
       secretId: String,
       transactionType: String,
       recipientKey: String,
-      label: String,
+      sealedLabel: String,
       secretCreatedAt: String,
       ciphertext: Option[String] = None,
       k: Option[Int] = None,
@@ -93,7 +93,7 @@ class RequestSigner:
       secretId,
       transactionType,
       recipientKey,
-      label,
+      sealedLabel,
       epochMs.toString,
       ciphertext.getOrElse(""),
       k.fold("")(_.toString),

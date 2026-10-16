@@ -27,9 +27,9 @@ package value_objects
 /** The sender-declared media type of the secret a Deposit or Inventory row is about — `"text/plain"` for typed text,
   * `"image/png"` or `"image/jpeg"` for a picked image.
   *
-  * Sender-supplied and best-effort, exactly the trust level `label` already has: the relay routes it and never
-  * interprets it, never sniffs the bytes, and could not check the claim if it wanted to — the payload is ciphertext it
-  * cannot read. Only the recipient acts on it, when deciding how to render a reconstructed secret.
+  * Sender-supplied and best-effort: the relay routes it and never interprets it, never sniffs the bytes, and could not
+  * check the claim if it wanted to — the payload is ciphertext it cannot read. Only the recipient acts on it, when
+  * deciding how to render a reconstructed secret. Unlike the label, it travels in the clear.
   *
   * No classifiers here (`isText`/`isImage` and the like live on the clients' own MimeType) because nothing in the relay
   * ever needs to know what the string means.

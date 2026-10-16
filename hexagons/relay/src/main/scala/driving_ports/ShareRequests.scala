@@ -55,7 +55,7 @@ trait ShareRequests:
       senderKey: PublicKey,
       recipientKey: PublicKey,
       secretId: SecretId,
-      label: Label,
+      sealedLabel: SealedLabel,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
       ciphertext: Option[Array[Byte]],

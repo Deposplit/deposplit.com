@@ -77,7 +77,7 @@
                             <span class="badge text-bg-secondary">@messages("phon.transaction.inventory")</span>
                         }
                     }
-                    <span class="fw-semibold">@row.request.label</span>
+                    <span class="fw-semibold">@row.label.getOrElse(messages("phon.requests.labelUnavailable"))</span>
                 </div>
                 <div class="small text-body-secondary">
                     @messages("phon.requests.from", row.senderName)

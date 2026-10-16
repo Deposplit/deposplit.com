@@ -42,7 +42,7 @@ info:
     caller (who becomes `senderKey`) over:
 
     ```
-    secretId || "\n" || transactionType || "\n" || recipientKey(base64url) || "\n" || label || "\n"
+    secretId || "\n" || transactionType || "\n" || recipientKey(base64url) || "\n" || base64-standard(sealedLabel) || "\n"
       || epochMillis(secretCreatedAt) || "\n" || (base64-standard(ciphertext) or "")
       || "\n" || (k or "") || "\n" || (n or "") || "\n" || (mimeType or "")
     ```
@@ -203,7 +203,7 @@ components:
         removal, inventory) use the same flat structure. `ciphertext`, `k`, `n`, and `mimeType`
         semantics depend on `transactionType` — see field descriptions.
       type: object
-      required: [id, secretId, senderKey, recipientKey, label, secretCreatedAt, transactionType, state, requestedAt, senderSignature]
+      required: [id, secretId, senderKey, recipientKey, sealedLabel, secretCreatedAt, transactionType, state, requestedAt, senderSignature]
       properties:
         id:
           type: string
@@ -214,9 +214,13 @@ components:
           $ref: '#/components/schemas/PublicKey'
         recipientKey:
           $ref: '#/components/schemas/PublicKey'
-        label:
+        sealedLabel:
           type: string
-          description: Human-readable label for the secret (display only).
+          format: byte
+          description: >
+            Standard base64. The secret's label, sealed by the sender to the recipient's encryption
+            key with the same box as a share, so the relay cannot read it. Only the recipient opens it,
+            to show it.
         secretCreatedAt:
           type: string
           format: date-time
@@ -272,7 +276,7 @@ components:
             The sender's claim about what the secret is, so the recipient can decide how to render
             it once reconstructed. Populated for `deposit` and `inventory`; `null` for
             `retrieval`/`removal`. Sender-supplied and never verified against the payload — the
-            relay routes it opaquely, exactly as it does `label`.
+            relay routes it opaquely. Unlike `sealedLabel`, it travels in the clear.
         senderSignature:
           type: string
           description: >
@@ -287,15 +291,19 @@ components:
 
     OpenShareRequestBody:
       type: object
-      required: [transactionType, secretId, label, recipientKey, secretCreatedAt, senderSignature]
+      required: [transactionType, secretId, sealedLabel, recipientKey, secretCreatedAt, senderSignature]
       properties:
         transactionType:
           $ref: '#/components/schemas/ShareTransactionType'
         secretId:
           $ref: '#/components/schemas/SecretId'
-        label:
+        sealedLabel:
           type: string
+          format: byte
           minLength: 1
+          description: >
+            Standard base64 of the label sealed to the recipient's encryption key, as for `ciphertext`.
+            Required on every transaction type, because the recipient shows it.
         recipientKey:
           $ref: '#/components/schemas/PublicKey'
         secretCreatedAt:

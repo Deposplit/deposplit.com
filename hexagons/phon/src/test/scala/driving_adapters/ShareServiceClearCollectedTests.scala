@@ -68,7 +68,7 @@ class ShareServiceClearCollectedTests extends munit.FunSuite:
       secretId = forSecret,
       senderKey = Array.emptyByteArray,
       recipientKey = holderKey,
-      label = "clearing test",
+      sealedLabel = "clearing test".getBytes("UTF-8"),
       secretCreatedAt = secretCreatedAt,
       transactionType = ShareTransactionType.Retrieval,
       state = state,

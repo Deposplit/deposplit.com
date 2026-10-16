@@ -135,8 +135,9 @@ The mechanism, per holder:
 2. Their app **relinks** the re-presented identity to the existing contact ("this new key is
    my old contact Alice"), updating in place and preserving `contactId`, which re-associates
    the shares they hold.
-3. Their app pushes an `inventory` notice per share held: `secretId`, `label`,
-   `secretCreatedAt`, `k`, `n`, `mimeType` — **and no ciphertext**. That rebuilds your records.
+3. Their app pushes an `inventory` notice per share held: `secretId`, the label sealed to your
+   new key, `secretCreatedAt`, `k`, `n`, `mimeType` — **and no ciphertext**. That rebuilds your
+   records.
 
 **Why metadata only.** Returning the shares themselves would create a mass-reconstruction
 moment: every secret you own decrypted onto one fresh device at once, a fat single-point

@@ -63,11 +63,11 @@ für die deren eigene Datenschutzerklärungen gelten.
 
 ### Auf dem Telefon
 
-Die für andere verwahrten Teile, die Kontakte samt den ihnen gegebenen Namen und die Etiketten der
-eigenen Geheimnisse liegen im privaten Speicher der App auf dem Telefon. Das Geheimnis selbst wird
-nach dem Aufteilen nicht aufbewahrt. Die Squeng AG hat auf nichts davon Zugriff. Das Pseudonym auf
-einer Kontaktkarte geht direkt von Telefon zu Telefon, per QR-Code oder von Hand eingetippt, und
-erreicht das Relais nie.
+Die für andere verwahrten Teile, die Kontakte samt den ihnen gegebenen Namen und die
+Bezeichnungen der eigenen Geheimnisse liegen im privaten Speicher der App auf dem Telefon. Das
+Geheimnis selbst wird nach dem Aufteilen nicht aufbewahrt. Die Squeng AG hat auf nichts davon
+Zugriff. Das Pseudonym auf einer Kontaktkarte geht direkt von Telefon zu Telefon, per QR-Code oder
+von Hand eingetippt, und erreicht das Relais nie.
 
 Wie andere App-Daten ist all dies in der Datensicherung des Telefons und in der Übertragung auf ein
 neues Telefon enthalten, sofern diese eingeschaltet sind, damit ein Telefonwechsel nichts verliert.
@@ -96,15 +96,15 @@ Squeng AG unter api.deposplit.com. Mit jeder Anfrage erhält das Relais:
 - den öffentlichen Schlüssel des Telefons und eine Signatur, mit der das Relais ohne Konto prüft,
   dass eine Anfrage von der Inhaberin oder dem Inhaber des passenden privaten Schlüssels stammt
 - zu einem Teil: die öffentlichen Schlüssel von Absender und Empfänger, eine Kennung des
-  Geheimnisses, sein **Etikett**, seine Art (etwa Text oder Bild), wie viele Teile es gibt und wie
-  viele zum Wiederzusammensetzen nötig sind, Zeitstempel, Signaturen und bei Hinterlegungen und
-  Rückgaben den verschlüsselten Teil selbst
+  Geheimnisses, seine für den Empfänger verschlüsselte Bezeichnung, seine Art (etwa Text oder Bild),
+  wie viele Teile es gibt und wie viele zum Wiederzusammensetzen nötig sind, Zeitstempel, Signaturen
+  und bei Hinterlegungen und Rückgaben den verschlüsselten Teil selbst
 - signierte Meldungen, mit denen sich die Apps gegenseitig auf dem Laufenden halten, etwa dass ein
   Schlüssel durch einen neuen ersetzt wurde oder dass ein Teil weiterhin verwahrt wird
 
-Der Teil ist Ende-zu-Ende für den Schlüssel des Empfängers verschlüsselt, und das Relais kann ihn
-nicht entschlüsseln. **Das Etikett ist nicht verschlüsselt.** Es wird so gespeichert, wie es
-geschrieben wurde, und sollte darum nicht verraten, was das Geheimnis ist oder wen es betrifft.
+Der Teil und seine Bezeichnung sind Ende-zu-Ende für den Schlüssel des Empfängers verschlüsselt,
+und das Relais kann keines von beiden lesen. Lesen kann es die Art des Geheimnisses und wie viele
+Teile es gibt.
 
 Ein öffentlicher Schlüssel ist eine auf dem Telefon erzeugte Zufallszahl. Er enthält keinen Namen,
 und die Squeng AG führt kein Verzeichnis darüber, welcher Person ein Schlüssel gehört. Die Kontakte,

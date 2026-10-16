@@ -10,7 +10,8 @@ operates at api.deposplit.com. The provider is Squeng AG, at the address given i
 
 Deposplit splits a secret on the phone into *n* shares and gives one each to *n* chosen contacts,
 the holders. Any *k* of those shares together give the secret back, and fewer reveal nothing about
-it. The shares travel through a relay, end-to-end encrypted, and the relay cannot read them.
+it. The shares and their labels travel through a relay, end-to-end encrypted, and the relay cannot
+read them.
 
 ## What Deposplit cannot do
 
@@ -47,9 +48,6 @@ who bought it.
 The relay is for Deposplit traffic only. Storing data unrelated to Deposplit, overloading or
 attacking the relay, circumventing its limits, or using it for unlawful purposes is not allowed.
 Squeng AG may refuse requests that do any of these.
-
-A secret's label is stored on the relay as written, without encryption. It should not reveal what
-the secret is or whom it concerns.
 
 **Self-hosted relays:** a contact can be reached through a relay that somebody else operates. For
 that relay, its operator is responsible, not Squeng AG.

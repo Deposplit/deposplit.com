@@ -13,11 +13,11 @@ watches all traffic still learns nothing worth having.
 
 | Adversary | Outcome |
 |---|---|
-| Full relay breach: database, disk, traffic | Opaque ciphertext addressed between public keys. No plaintext, no identities, no social graph. |
+| Full relay breach: database, disk, traffic | Opaque ciphertext and sealed labels addressed between public keys, beside each secret's *k*, *n* and declared type in the clear. No secret or label in plaintext, no identities, no social graph. |
 | A single malicious or compromised holder | Holds one share. Fewer than *k* shares are information-theoretically independent of the secret — not merely hard to invert, but carrying no information about it. |
 | A malicious holder who lies at reconstruction | Detected, and with enough margin identified and excluded. See *Reconstruction integrity*. |
 | Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind device-owner authentication — the face or finger first, the device passcode otherwise. Biometrics alone would not raise that bar: whoever knows the passcode can enrol a new face with it. |
-| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). |
+| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). One exception, until it is fixed: a secret whose pickups are not all confirmed yet, because its retained deposits open with the owner's keys (see *Data at rest, and what a backup carries*). |
 | A stolen device backup or transfer image | One share per secret held, plus the contact graph and the secret labels. Below threshold on its own; the attacker's next step is *k* more backups. See *Data at rest, and what a backup carries*. |
 | Fewer than *k* holders colluding | Nothing. This is the guarantee Shamir actually provides. |
 | *k* holders colluding | Full reconstruction. This is by design and cannot be defended against — choosing *k* is choosing who you trust collectively. |
@@ -121,6 +121,13 @@ Every leg uses the same static-static Diffie-Hellman box:
 2. **Derivation** — HKDF-SHA-256(ikm = shared secret, salt = nonce, info = `"deposplit-share"`) → 32-byte key
 3. **Encryption** — ChaCha20-Poly1305(key, nonce, plaintext) → ciphertext + 16-byte tag
 
+A secret's label is sealed with the same box under info = `"deposplit-label"`, so a label box and a
+share box never share a derived key. The relay stores the sealed label and cannot read it.
+
+Static-static means the sender can recompute the very key the recipient opens with. That is
+harmless for a label, which the sender wrote, and not harmless for the deposits she retains — see
+*Data at rest, and what a backup carries*.
+
 Wire format:
 
 ```
@@ -177,7 +184,7 @@ directory on iOS, which is not exposed to the Files app:
 | `contacts.json` | pseudonyms, public keys, verification levels, relay overrides |
 | `distributed_shares.json` | which contact holds which secret's share |
 | `secrets.json` | your own secrets' labels, `k`, `n`, `mimeType` |
-| `retained_deposits.json` | ciphertext sealed to holders' keys, which even the sender cannot open |
+| `retained_deposits.json` | ciphertext sealed to holders' keys. The box is static-static, so this device can open it with its own keys until each pickup is confirmed, which the backup alone cannot, since the private keys never ride it |
 | `key_conflicts.json`, `contact_relinks.json` | unresolved key changes, and who has re-verified this device |
 
 Plus a small amount of preference state: pseudonym, entitlement, default relay, and on Android
@@ -224,7 +231,7 @@ state it in Settings, consequence included.
 
 Every secret carries a sender-declared `mimeType` — `text/plain` for typed text, `image/png` or
 `image/jpeg` for a picked image — which travels with the deposit payload and the `inventory`
-recovery push. It is a **claim**, at the same trust level as `label`: nothing on a receiving
+recovery push. It is a **claim**, at the same trust level as the label: nothing on a receiving
 device checks it against the bytes, and the relay could not check it if it wanted to, seeing
 only ciphertext.
 

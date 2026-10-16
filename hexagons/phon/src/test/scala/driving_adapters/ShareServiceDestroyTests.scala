@@ -109,7 +109,7 @@ class ShareServiceDestroyTests extends munit.FunSuite:
       secretId = secretId,
       senderKey = Array.emptyByteArray,
       recipientKey = holderKey,
-      label = "destroy test",
+      sealedLabel = "destroy test".getBytes("UTF-8"),
       secretCreatedAt = secretCreatedAt,
       transactionType = transactionType,
       state = state,

@@ -199,7 +199,8 @@ object Fixtures:
       )
 
   def freshSecretId(): SecretId = SecretId.random()
-  def freshLabel(): Label = Label("test secret")
+  def freshLabel(): SealedLabel = sealedLabel("test secret")
+  def sealedLabel(s: String): SealedLabel = SealedLabel.fromBytes(s.getBytes("UTF-8")).toOption.get
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -224,7 +225,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       sender: PublicKey,
       recipient: PublicKey,
       secretId: SecretId,
-      label: Label,
+      label: SealedLabel,
       secretCreatedAt: Instant,
       transactionType: ShareTransactionType,
       ciphertext: Option[Array[Byte]],
@@ -360,7 +361,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
         secretId,
         ShareTransactionType.Deposit,
         bob,
-        Label("other label"),
+        sealedLabel("other label"),
         createdAt,
         Some(ciphertext),
         Some(2),
@@ -1141,7 +1142,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       alice,
       bob,
       dep.secretId,
-      dep.label,
+      dep.sealedLabel,
       dep.secretCreatedAt,
       ShareTransactionType.Retrieval,
       None

@@ -220,6 +220,11 @@ Only inbound, and only pending: the things other people are waiting on this user
 carries the sender, the kind, and Approve and Deny given equal visual weight, because a denial is a
 legitimate answer rather than a failure path.
 
+The label heading each one is opened on this device from the sealed label the relay passed on. When
+it will not open, as for a label sealed to a key two rotations back, the label of the share held
+for that secret stands in. When there is none, the card says *Label unavailable* rather than
+leaving the heading blank, which would read as a request about nothing.
+
 A retrieval for a share this device no longer holds keeps its Approve button, disabled, with *This
 share is not on this device, so there is nothing to hand back* beneath it. Approving re-encrypts the
 share to the requester, so it needs the share in hand — and the ask can still arrive after a

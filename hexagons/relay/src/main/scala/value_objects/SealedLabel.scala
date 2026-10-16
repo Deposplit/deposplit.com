@@ -24,9 +24,27 @@
 
 package value_objects
 
-opaque type Label = String
+import java.util.Base64
 
-object Label:
-  def apply(s: String): Label = s
+/** A secret's label, sealed by the sender to the recipient's encryption key with the same box as a share. The relay
+  * stores and returns these bytes without being able to read them. Every request type carries one, because the
+  * recipient shows it.
+  *
+  * Only emptiness is refused. The relay cannot tell a well-formed box from any other bytes, and does not try to.
+  */
+opaque type SealedLabel = Array[Byte]
 
-  extension (l: Label) def value: String = l
+object SealedLabel:
+  private val decoder = Base64.getDecoder
+  private val encoder = Base64.getEncoder
+
+  def fromBase64(s: String): Either[String, SealedLabel] =
+    try fromBytes(decoder.decode(s))
+    catch case _: IllegalArgumentException => Left("sealedLabel must be standard base64")
+
+  def fromBytes(bytes: Array[Byte]): Either[String, SealedLabel] =
+    if bytes.isEmpty then Left("sealedLabel must not be empty") else Right(bytes)
+
+  extension (l: SealedLabel)
+    def toBytes: Array[Byte] = l
+    def toBase64: String = encoder.encodeToString(l)
