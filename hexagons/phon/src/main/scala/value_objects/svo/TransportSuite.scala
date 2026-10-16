@@ -24,17 +24,19 @@
 
 package value_objects.svo
 
-/** A ciphertext-only, 1-byte transport tag — deliberately lighter-weight than [[CipherSuite]] and not JSON-facing,
-  * since it never rides the wire except as the leading byte of a ciphertext blob: the ciphertext wire format becomes
-  * `suiteTag(1) || nonce(12) || ciphertext+tag`. Needs no persistent state or trust mechanism — each deposit and
-  * retrieval leg is re-derived fresh, so a device just always encrypts with its current preferred suite and a
-  * decrypting device dispatches on the tag it reads.
+/** A box-only, 1-byte transport tag — deliberately lighter-weight than [[CipherSuite]], which names the key types, and
+  * not JSON-facing, since it never rides the wire except as the leading byte of a box: `suiteTag(1) || enc(32) ||
+  * ciphertext+tag(16)`. Needs no persistent state or trust mechanism — each box is sealed fresh, so a device just
+  * always seals with its current preferred suite and an opening device dispatches on the tag it reads.
   */
 enum TransportSuite(val tag: Byte):
-  case X25519HkdfSha256ChaCha20Poly1305 extends TransportSuite(1)
+  // HPKE base mode (RFC 9180): DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305, with a fresh ephemeral
+  // sender key per box. Tag 1 was a static-static box the sender could reopen, and is gone rather than kept readable,
+  // so a leftover box from it fails loudly instead of misparsing.
+  case HpkeX25519Sha256ChaCha20Poly1305 extends TransportSuite(2)
 
 object TransportSuite:
   def fromTag(tag: Byte): Option[TransportSuite] = values.find(_.tag == tag)
 
   /** The only construction this codebase's encrypt/decrypt can produce today. */
-  val current: TransportSuite = X25519HkdfSha256ChaCha20Poly1305
+  val current: TransportSuite = HpkeX25519Sha256ChaCha20Poly1305

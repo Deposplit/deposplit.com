@@ -135,11 +135,10 @@ that pair — so both parties match on it. A row that named a specific deposit w
 be worthless to a holder whose sender has since recovered onto a fresh device.
 
 `sealed_label` is the secret's label, sealed by the sender to the recipient's encryption key with the
-same box as a share, under a key derivation of its own (see [security.md](security.md)). Every type
+same box as a share, under HPKE info of its own (see [security.md](security.md)). Every type
 carries one, because the recipient shows it: a holder sees it on a retrieval or removal request,
 and a recovering owner rebuilds her records from an inventory push. The relay checks only that it
-is non-empty, and cannot read it. Only the row's two parties can, because static-static key
-agreement gives sender and recipient the same key.
+is non-empty, and cannot read it. Only the recipient can open it.
 
 `mime_type` is the sender's claim about what the secret is — `text/plain` for typed text,
 `image/png` or `image/jpeg` for a picked image — carried so the recipient can decide how to
@@ -253,11 +252,10 @@ code today.
 **One exception needs care.** A `deposit` row carries the only copy of an encrypted share
 in transit, so collection before pickup would appear to lose it — and the polynomial is not
 retained, so a single share cannot be cheaply re-minted. The sender therefore keeps each
-encrypted blob until that holder's pickup is confirmed, then discards it. The blob is sealed to
-the *holder's* key, but the box is static-static X25519, so the sender can recompute its key
-and open it herself. Until every pickup is confirmed, the *n* retained blobs together are a
-reconstructable secret sitting on one device. That is a known gap, and [TODO.md](../TODO.md)
-carries the fix: an ephemeral sender key per deposit box.
+encrypted blob until that holder's pickup is confirmed, then discards it. This is safe
+precisely because the blob is sealed to the *holder's* key under an ephemeral key the sender
+discarded at sealing: she cannot open what she is retaining, so holding all *n* is *n* opaque
+forward-only blobs, not a reconstructable secret sitting on one device.
 
 **The blob is the prerequisite, not yet the mechanism.** Nothing re-deposits from it today,
 and that path lands with collection itself. Nothing costs anything meanwhile, because no

@@ -33,18 +33,12 @@ import value_objects.svo.IdentityStorageUnavailableException
 import value_objects.svo.KeyPairMaterial
 import value_objects.svo.TransportSuite
 import value_objects.svo.UnsupportedTransportSuiteException
-import org.bouncycastle.crypto.agreement.X25519Agreement
-import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
-import org.bouncycastle.crypto.generators.HKDFBytesGenerator
 import org.bouncycastle.crypto.generators.X25519KeyPairGenerator
-import org.bouncycastle.crypto.modes.ChaCha20Poly1305
-import org.bouncycastle.crypto.params.AEADParameters
+import org.bouncycastle.crypto.hpke.HPKE
 import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
-import org.bouncycastle.crypto.params.HKDFParameters
-import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.crypto.params.X25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
@@ -132,96 +126,71 @@ class IdentityService @Inject() (identityStore: ForgettableIdentityStore) extend
       verifier.verifySignature(signature)
     catch case _: Exception => false
 
-  // Wire format is suiteTag(1) || nonce(12) || ciphertext+tag. No persistent state
-  // needed: a device always encrypts with its current preferred TransportSuite, and a decrypting
-  // device dispatches on the tag it reads.
+  // Sealing involves no key of this device's own: HPKE draws a fresh ephemeral key for every box and discards it once
+  // the box is sealed, so not even this device can open what it sealed.
   override def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
-    seal(plaintext, recipientEncKey, IdentityService.ShareInfo)
+    IdentityService.seal(plaintext, recipientEncKey, IdentityService.ShareInfo)
 
   override def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte] =
-    seal(label.getBytes(StandardCharsets.UTF_8), recipientEncKey, IdentityService.LabelInfo)
+    IdentityService.seal(label.getBytes(StandardCharsets.UTF_8), recipientEncKey, IdentityService.LabelInfo)
 
   // Malformed UTF-8 decodes to replacement characters rather than failing, as on the other platforms. A label is only
-  // ever shown, and the box has already proved who sealed it.
-  override def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String =
-    String(unseal(sealedLabel, senderEncKey, IdentityService.LabelInfo), StandardCharsets.UTF_8)
-
-  private def seal(plaintext: Array[Byte], recipientEncKey: Array[Byte], info: Array[Byte]): Array[Byte] =
-    val sk = X25519PrivateKeyParameters(identityStore.decKey())
-    val nonce = Array.ofDim[Byte](IdentityService.NonceBytes)
-    IdentityService.secureRandom.nextBytes(nonce)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce, info)
-    val cipher = ChaCha20Poly1305()
-    cipher.init(true, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
-    val out = Array.ofDim[Byte](cipher.getOutputSize(plaintext.length))
-    var len = cipher.processBytes(plaintext, 0, plaintext.length, out, 0)
-    len += cipher.doFinal(out, len)
-    Array(TransportSuite.current.tag) ++ nonce ++ out.take(len)
+  // ever shown, and the signature over it has already proved who sealed it.
+  override def openLabel(sealedLabel: Array[Byte]): String =
+    String(unseal(sealedLabel, IdentityService.LabelInfo), StandardCharsets.UTF_8)
 
   /** Falls back to the decKey displaced by the last rotation when the current one cannot open the box. A share is
     * sealed to whichever encKey the holder advertised at deposit time, so a holder who rotates between a deposit and
     * their pickup would otherwise never be able to collect it: the row stays pending and every later poll fails
     * identically. One generation is enough to cover that window without keeping a keyring.
-    *
-    * Never used for encrypt — this device always seals under its current key.
     */
-  override def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte] =
-    unseal(noncePlusCiphertext, recipientEncKey, IdentityService.ShareInfo)
+  override def decrypt(box: Array[Byte]): Array[Byte] = unseal(box, IdentityService.ShareInfo)
 
-  private def unseal(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte], info: Array[Byte]): Array[Byte] =
-    val tag = noncePlusCiphertext.headOption.getOrElse(
+  private def unseal(box: Array[Byte], info: Array[Byte]): Array[Byte] =
+    val tag = box.headOption.getOrElse(
       throw UnsupportedTransportSuiteException("ciphertext is empty — no transport suite tag")
     )
     if TransportSuite.fromTag(tag).isEmpty then
       throw UnsupportedTransportSuiteException("this share used an encryption scheme this app version doesn't support")
-    try open(noncePlusCiphertext, recipientEncKey, identityStore.decKey(), info)
+    try IdentityService.open(box, identityStore.decKey(), info)
     catch
       case e: Exception =>
         // The current key's failure is the one worth reporting — the fallback missing or failing too just means there
         // was no earlier generation this box belongs to.
         identityStore
           .previousDecKey()
-          .flatMap(previous => Try(open(noncePlusCiphertext, recipientEncKey, previous, info)).toOption)
+          .flatMap(previous => Try(IdentityService.open(box, previous, info)).toOption)
           .getOrElse(throw e)
 
-  private def open(
-      noncePlusCiphertext: Array[Byte],
-      recipientEncKey: Array[Byte],
-      decKey: Array[Byte],
-      info: Array[Byte]
-  ): Array[Byte] =
-    val sk = X25519PrivateKeyParameters(decKey)
-    val nonce = noncePlusCiphertext.slice(1, 1 + IdentityService.NonceBytes)
-    val ciphertext = noncePlusCiphertext.drop(1 + IdentityService.NonceBytes)
-    val key = deriveKey(sk, X25519PublicKeyParameters(recipientEncKey), nonce, info)
-    val cipher = ChaCha20Poly1305()
-    cipher.init(false, AEADParameters(KeyParameter(key), IdentityService.TagBits, nonce))
-    val out = Array.ofDim[Byte](cipher.getOutputSize(ciphertext.length))
-    var len = cipher.processBytes(ciphertext, 0, ciphertext.length, out, 0)
-    len += cipher.doFinal(out, len)
-    out.take(len)
-
-  private def deriveKey(
-      sk: X25519PrivateKeyParameters,
-      pk: X25519PublicKeyParameters,
-      nonce: Array[Byte],
-      info: Array[Byte]
-  ): Array[Byte] =
-    val agreement = X25519Agreement()
-    agreement.init(sk)
-    val sharedSecret = Array.ofDim[Byte](agreement.getAgreementSize)
-    agreement.calculateAgreement(pk, sharedSecret, 0)
-    val hkdf = HKDFBytesGenerator(SHA256Digest())
-    hkdf.init(HKDFParameters(sharedSecret, nonce, info))
-    val key = Array.ofDim[Byte](IdentityService.KeyBytes)
-    hkdf.generateBytes(key, 0, IdentityService.KeyBytes)
-    key
-
 object IdentityService:
-  private val NonceBytes = 12
-  private val KeyBytes = 32
-  private val TagBits = 128
+  // DHKEM(X25519)'s encapsulated key: the ephemeral public key, 32 bytes.
+  private val EncapsulatedKeyBytes = 32
+  private val NoAad = Array.emptyByteArray
   private val ShareInfo = "deposplit-share".getBytes(StandardCharsets.UTF_8)
-  // A key derivation of its own, so a sealed label can never be mistaken for a sealed share.
+  // HPKE info of its own, so a sealed label can never be opened as a sealed share.
   private val LabelInfo = "deposplit-label".getBytes(StandardCharsets.UTF_8)
-  private val secureRandom = SecureRandom()
+
+  private def hpke() = HPKE(HPKE.mode_base, HPKE.kem_X25519_SHA256, HPKE.kdf_HKDF_SHA256, HPKE.aead_CHACHA20_POLY1305)
+
+  private def seal(plaintext: Array[Byte], recipientEncKey: Array[Byte], info: Array[Byte]): Array[Byte] =
+    val engine = hpke()
+    val parts = engine.seal(engine.deserializePublicKey(recipientEncKey), info, NoAad, plaintext, null, null, null)
+    val (ciphertext, encapsulatedKey) = (parts(0), parts(1))
+    Array(TransportSuite.current.tag) ++ encapsulatedKey ++ ciphertext
+
+  private def open(box: Array[Byte], decKey: Array[Byte], info: Array[Byte]): Array[Byte] =
+    require(box.length > 1 + EncapsulatedKeyBytes, "box too short to carry an encapsulated key")
+    val encapsulatedKey = box.slice(1, 1 + EncapsulatedKeyBytes)
+    val ciphertext = box.drop(1 + EncapsulatedKeyBytes)
+    val engine = hpke()
+    val publicKey = X25519PrivateKeyParameters(decKey, 0).generatePublicKey().getEncoded
+    engine.open(
+      encapsulatedKey,
+      engine.deserializePrivateKey(decKey, publicKey),
+      info,
+      NoAad,
+      ciphertext,
+      null,
+      null,
+      null
+    )

@@ -24,23 +24,24 @@
 
 package driving_adapters
 
+/** Every box is HPKE base mode under the current `TransportSuite`: a fresh ephemeral key per box, discarded once it is
+  * sealed, so only the recipient can open it — not even the device that sealed it. Wire format: suiteTag(1) || enc(32)
+  * || ciphertext+tag(16). The box proves nothing about who sealed it; the Ed25519 signature covering it does, and is
+  * checked before every open.
+  */
 trait ShareEncryption:
-  /** Encrypts plaintext to recipientEncKey via X25519+HKDF-SHA-256+ChaCha20-Poly1305. Returns nonce(12) ||
-    * ciphertext+tag.
-    */
+  /** Seals plaintext (a share, or a share being handed back) to recipientEncKey. */
   def encrypt(plaintext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte]
 
-  /** Decrypts noncePlusCiphertext (nonce(12) || ciphertext+tag) using recipientEncKey via
-    * X25519+HKDF-SHA-256+ChaCha20-Poly1305.
+  /** Opens a box sealed to this device, dispatching on the leading transport-suite tag. Throws
+    * `UnsupportedTransportSuiteException` for an unrecognized tag — never a silent misparse.
     */
-  def decrypt(noncePlusCiphertext: Array[Byte], recipientEncKey: Array[Byte]): Array[Byte]
+  def decrypt(box: Array[Byte]): Array[Byte]
 
-  /** Seals a secret's label to `recipientEncKey` with the same box as `encrypt`, under a key derivation of its own, so
-    * a label box and a share box never share a derived key. The relay stores the result without being able to read it.
+  /** Seals a secret's label to `recipientEncKey` with the same box as `encrypt`, under HPKE info of its own, so a label
+    * box and a share box never share a key. The relay stores the result without being able to read it.
     */
   def sealLabel(label: String, recipientEncKey: Array[Byte]): Array[Byte]
 
-  /** Opens a label sealed by `sealLabel` under the row sender's `senderEncKey`, with the same fallback to the previous
-    * decKey as `decrypt`.
-    */
-  def openLabel(sealedLabel: Array[Byte], senderEncKey: Array[Byte]): String
+  /** Opens a label sealed to this device by `sealLabel`, with the same fallback to the previous decKey as `decrypt`. */
+  def openLabel(sealedLabel: Array[Byte]): String

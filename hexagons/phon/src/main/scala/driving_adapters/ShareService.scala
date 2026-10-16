@@ -219,9 +219,8 @@ class ShareService @Inject() (
       )
       shareMetadataRepository.save(ShareMetadata(req.id, secretId, contact.id))
       // Retained until this holder's pickup is confirmed (relay-observed or
-      // heartbeat-attested), then discarded. The box is static-static X25519, so this device
-      // can recompute its key and open the blob itself until then: retaining all n keeps the
-      // secret recoverable here for that window.
+      // heartbeat-attested), then discarded. Safe to retain: the box was sealed under an
+      // ephemeral key discarded at sealing, so only the holder can open it, not this device.
       Try(
         retainedDepositRepository
           .save(
@@ -457,7 +456,7 @@ class ShareService @Inject() (
       val contact = contacts
         .find(_.verifyKey.sameElements(req.recipientKey))
         .getOrElse(throw IllegalStateException(s"Contact not found for recipient key"))
-      (encryption.decrypt(req.ciphertext.get, contact.encKey), contact.id)
+      (encryption.decrypt(req.ciphertext.get), contact.id)
     }
     val result = SecretSharing.combineWithIntegrity(decryptedWithContact.map(_._1), secret.k)
     val integrity =
@@ -532,8 +531,8 @@ class ShareService @Inject() (
                 val alreadyHeld = shareRepository.getPlaintextShare(req.secretId).isDefined
                 val stored =
                   alreadyHeld || req.ciphertext.fold(false) { ct =>
-                    val plaintext = encryption.decrypt(ct, senderContact.encKey)
-                    val label = encryption.openLabel(req.sealedLabel, senderContact.encKey)
+                    val plaintext = encryption.decrypt(ct)
+                    val label = encryption.openLabel(req.sealedLabel)
                     shareRepository.save(
                       HeldShare(
                         id = req.id,
@@ -762,7 +761,7 @@ class ShareService @Inject() (
               // A label that will not open leaves the row for the next poll, rather than rebuilding a secret nobody
               // could recognise.
               val label =
-                if known then None else Try(encryption.openLabel(req.sealedLabel, holderContact.encKey)).toOption
+                if known then None else Try(encryption.openLabel(req.sealedLabel)).toOption
               if known || label.isDefined then
                 label.foreach(l =>
                   Try(
@@ -825,9 +824,10 @@ class ShareService @Inject() (
     )
 
   override def labelOf(request: ShareRequest): Option[String] =
-    contactRepository
-      .getByVerifyKey(request.senderKey)
-      .flatMap(sender => Try(encryption.openLabel(request.sealedLabel, sender.encKey)).toOption)
+    // A box proves nothing about who sealed it, so a label is opened only for a request whose signature verifies.
+    Option
+      .when(verifyOpen(request))(request)
+      .flatMap(verified => Try(encryption.openLabel(verified.sealedLabel)).toOption)
       // A label sealed to a key two rotations back no longer opens. The share held for that secret still names it.
       .orElse(shareRepository.getAll().find(_.secretId == request.secretId).map(_.label))
 

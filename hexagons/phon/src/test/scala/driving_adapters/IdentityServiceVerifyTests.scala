@@ -25,6 +25,8 @@
 package driving_adapters
 
 import driven_ports.ForgettableIdentityStore
+import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
+import value_objects.svo.KeyPairMaterial
 import value_objects.svo.TransportSuite
 import value_objects.svo.UnsupportedTransportSuiteException
 
@@ -147,7 +149,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
     alice.activateKeyPair(alice.generateNewKeyPair())
 
-    assert(alice.decrypt(sealedToAlicesOldKey, bob.encKey().get).sameElements(share))
+    assert(alice.decrypt(sealedToAlicesOldKey).sameElements(share))
   }
 
   test("decrypt does not reach back past one generation") {
@@ -160,19 +162,38 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
     // Deliberate: one generation covers the deposit-to-pickup window, and no more key material than that lingers at
     // rest.
-    intercept[Exception](alice.decrypt(sealedToAlicesOldestKey, bob.encKey().get))
+    intercept[Exception](alice.decrypt(sealedToAlicesOldestKey))
   }
 
-  test("encrypt never seals under the displaced key") {
+  test("sealing involves no key of the sender's own") {
     val alice = newIdentity()
     val bob = newIdentity()
-    val alicesOldEncKey = alice.encKey().get
+    val sealedBeforeAlicesRotations = alice.encrypt("outgoing".getBytes("UTF-8"), bob.encKey().get)
+    alice.activateKeyPair(alice.generateNewKeyPair())
     alice.activateKeyPair(alice.generateNewKeyPair())
 
-    val sealed_ = alice.encrypt("outgoing".getBytes("UTF-8"), bob.encKey().get)
+    // Bob never needs Alice's key to open it, so however often she rotates, what she sealed opens.
+    assert(bob.decrypt(sealedBeforeAlicesRotations).sameElements("outgoing".getBytes("UTF-8")))
+  }
 
-    assert(bob.decrypt(sealed_, alice.encKey().get).sameElements("outgoing".getBytes("UTF-8")))
-    intercept[Exception](bob.decrypt(sealed_, alicesOldEncKey))
+  // The property the retained deposits rest on: a box sealed for a holder stays closed to the owner.
+  test("a sender cannot open a box she sealed for somebody else") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val box = alice.encrypt("Bob's share".getBytes("UTF-8"), bob.encKey().get)
+
+    intercept[Exception](alice.decrypt(box))
+  }
+
+  test("a box is the tag, the encapsulated key and the ciphertext, with a fresh ephemeral key each time") {
+    val alice = newIdentity()
+    val bob = newIdentity()
+    val plaintext = "shhh".getBytes("UTF-8")
+    val first = alice.encrypt(plaintext, bob.encKey().get)
+    val second = alice.encrypt(plaintext, bob.encKey().get)
+
+    assertEquals(first.length, 1 + 32 + plaintext.length + 16)
+    assert(!first.slice(1, 33).sameElements(second.slice(1, 33)))
   }
 
   test("registering a fresh identity drops the retained key") {
@@ -185,7 +206,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     // Registration is a new identity, not a continuation of the old one, so nothing carries over.
     alice.register("test")
 
-    intercept[Exception](alice.decrypt(sealedToAlicesOldKey, bob.encKey().get))
+    intercept[Exception](alice.decrypt(sealedToAlicesOldKey))
   }
 
   test("sign after activateKeyPair verifies against the new key not the old") {
@@ -213,7 +234,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val ciphertext = alice.encrypt(plaintext, bob.encKey().get)
 
     assertEquals(ciphertext.head, TransportSuite.current.tag)
-    val decrypted = bob.decrypt(ciphertext, alice.encKey().get)
+    val decrypted = bob.decrypt(ciphertext)
     assert(decrypted.sameElements(plaintext))
   }
 
@@ -224,7 +245,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val tampered = Array(0x7f.toByte) ++ ciphertext.drop(1)
 
     intercept[UnsupportedTransportSuiteException] {
-      bob.decrypt(tampered, alice.encKey().get)
+      bob.decrypt(tampered)
     }
   }
 
@@ -233,7 +254,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val bob = newIdentity()
 
     intercept[UnsupportedTransportSuiteException] {
-      bob.decrypt(Array.emptyByteArray, alice.encKey().get)
+      bob.decrypt(Array.emptyByteArray)
     }
   }
 
@@ -245,7 +266,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val box = alice.sealLabel("Bitcoin seed 🔑", bob.encKey().get)
 
     assertEquals(box.head, TransportSuite.current.tag)
-    assertEquals(bob.openLabel(box, alice.encKey().get), "Bitcoin seed 🔑")
+    assertEquals(bob.openLabel(box), "Bitcoin seed 🔑")
   }
 
   test("a sealed label does not carry its text in the clear") {
@@ -262,8 +283,8 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     val shareBox = alice.encrypt("one share".getBytes("UTF-8"), bob.encKey().get)
     val labelBox = alice.sealLabel("one label", bob.encKey().get)
 
-    intercept[Exception](bob.openLabel(shareBox, alice.encKey().get))
-    intercept[Exception](bob.decrypt(labelBox, alice.encKey().get))
+    intercept[Exception](bob.openLabel(shareBox))
+    intercept[Exception](bob.decrypt(labelBox))
   }
 
   test("openLabel falls back to the decKey displaced by the last rotation") {
@@ -273,5 +294,52 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
 
     alice.activateKeyPair(alice.generateNewKeyPair())
 
-    assertEquals(alice.openLabel(sealedToAlicesOldKey, bob.encKey().get), "passport")
+    assertEquals(alice.openLabel(sealedToAlicesOldKey), "passport")
+  }
+
+  // Cross-platform box vectors — the same four boxes, sealed once by CryptoKit and once by BouncyCastle to one fixed
+  // recipient key, are opened by iOS, Android and phon alike. HPKE draws a fresh ephemeral key per box, so a box cannot
+  // be reproduced byte for byte; what each platform proves is that it opens what the other library sealed. Identical
+  // fixtures are checked into iOS's IdentityServiceVerifyTests.swift and Android's IdentityServiceVerifyTest.kt.
+
+  private def hex(s: String): Array[Byte] = s.grouped(2).map(Integer.parseInt(_, 16).toByte).toArray
+
+  private val vectorRecipientDecKey = Array.tabulate[Byte](32)(i => (0x20 + i).toByte)
+  private val vectorRecipientEncKey = hex("358072d6365880d1aeea329adf9121383851ed21a28e3b75e965d0d2cd166254")
+  private val cryptoKitShareBox = hex(
+    "028645dabe9fc9135324fc4b60c60d562a5b91cbba3a4e7767363138c411154465cfaff103793c5427240d1c797a5c7f3019b453158117d32c409c073aa86d828ce754b2"
+  )
+  private val cryptoKitLabelBox = hex(
+    "02182112460138f7f6314a553918a4f46d85148ccd8a7ab322c0cb2eb34ac97f528f0673b03dac84898ee14fbc6cff3c2318acb1fe4ef3d036a797f294ce8cef4274"
+  )
+  private val bouncyCastleShareBox = hex(
+    "02b09f312abb31cbf78fc7c41f3912006d25d966d2be78a376bd388cdd30e685446a75dadf1450dade7e955dd6879fa1e9fd1aa7e62e721912fa5bcec7854e7397b80767"
+  )
+  private val bouncyCastleLabelBox = hex(
+    "02e859635cccd28e42b3f26bfacdf98db69242fd81c5faa67dec62de46714b270f48bdce7f66c707226e73396b84cb1d9fa4e5b9cf7b008df9fed2163a14f8be83fc"
+  )
+
+  private def vectorRecipient(): IdentityService =
+    val recipient = newIdentity()
+    val current = recipient.generateNewKeyPair()
+    recipient.activateKeyPair(
+      KeyPairMaterial(current.verifyKey, current.signKey, vectorRecipientEncKey, vectorRecipientDecKey)
+    )
+    recipient
+
+  test("the fixed recipient key derives the fixed public key") {
+    val derived = X25519PrivateKeyParameters(vectorRecipientDecKey, 0).generatePublicKey().getEncoded
+    assert(derived.sameElements(vectorRecipientEncKey))
+  }
+
+  test("the CryptoKit vector boxes open") {
+    val recipient = vectorRecipient()
+    assertEquals(String(recipient.decrypt(cryptoKitShareBox), "UTF-8"), "a share of a secret")
+    assertEquals(recipient.openLabel(cryptoKitLabelBox), "Bitcoin seed 🔑")
+  }
+
+  test("the BouncyCastle vector boxes open") {
+    val recipient = vectorRecipient()
+    assertEquals(String(recipient.decrypt(bouncyCastleShareBox), "UTF-8"), "a share of a secret")
+    assertEquals(recipient.openLabel(bouncyCastleLabelBox), "Bitcoin seed 🔑")
   }

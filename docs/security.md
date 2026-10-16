@@ -17,7 +17,7 @@ watches all traffic still learns nothing worth having.
 | A single malicious or compromised holder | Holds one share. Fewer than *k* shares are information-theoretically independent of the secret — not merely hard to invert, but carrying no information about it. |
 | A malicious holder who lies at reconstruction | Detected, and with enough margin identified and excluded. See *Reconstruction integrity*. |
 | Stolen device, locked | Private keys sit in Keystore/Secure Enclave; reconstruction is gated behind device-owner authentication — the face or finger first, the device passcode otherwise. Biometrics alone would not raise that bar: whoever knows the passcode can enrol a new face with it. |
-| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). One exception, until it is fixed: a secret whose pickups are not all confirmed yet, because its retained deposits open with the owner's keys (see *Data at rest, and what a backup carries*). |
+| Stolen device, unlocked, keys extracted | Serious — but the attacker still has to defeat *k* holders' out-of-band consent. The keypair is not the last line of defence; the humans are. Yields the current keys plus the one retained previous `decKey` (see *Key custody*). |
 | A stolen device backup or transfer image | One share per secret held, plus the contact graph and the secret labels. Below threshold on its own; the attacker's next step is *k* more backups. See *Data at rest, and what a backup carries*. |
 | Fewer than *k* holders colluding | Nothing. This is the guarantee Shamir actually provides. |
 | *k* holders colluding | Full reconstruction. This is by design and cannot be defended against — choosing *k* is choosing who you trust collectively. |
@@ -115,31 +115,43 @@ simpler and more faithful to the premise.
 
 ## Transport encryption
 
-Every leg uses the same static-static Diffie-Hellman box:
+Every box is HPKE (RFC 9180) in base mode, with one suite throughout: DHKEM(X25519, HKDF-SHA256),
+HKDF-SHA256 and ChaCha20-Poly1305.
 
-1. **Agreement** — X25519(my private key, their public key) → 32-byte shared secret
-2. **Derivation** — HKDF-SHA-256(ikm = shared secret, salt = nonce, info = `"deposplit-share"`) → 32-byte key
-3. **Encryption** — ChaCha20-Poly1305(key, nonce, plaintext) → ciphertext + 16-byte tag
+1. **Encapsulation** — the sender draws a fresh ephemeral X25519 key, agrees with the recipient's
+   public key and derives the box's key. The ephemeral public half travels with the box as `enc`;
+   the private half is discarded once the box is sealed.
+2. **Encryption** — ChaCha20-Poly1305 under that key and a nonce HPKE derives from it →
+   ciphertext + 16-byte tag.
 
-A secret's label is sealed with the same box under info = `"deposplit-label"`, so a label box and a
-share box never share a derived key. The relay stores the sealed label and cannot read it.
+The HPKE `info` separates the uses: `"deposplit-share"` for a share and for a share handed back,
+`"deposplit-label"` for a secret's label. A label box and a share box therefore never share a key,
+and the relay stores the sealed label without being able to read it.
 
-Static-static means the sender can recompute the very key the recipient opens with. That is
-harmless for a label, which the sender wrote, and not harmless for the deposits she retains — see
-*Data at rest, and what a backup carries*.
+**Only the recipient can open a box — not even the device that sealed it.** That is what makes
+the retained deposits safe (see *Data at rest, and what a backup carries*). It also means opening
+needs nothing but the recipient's own key, so a sender who rotates between deposit and pickup
+changes nothing for the holder.
+
+**The box proves nothing about who sealed it, and does not need to.** Every box rides inside a
+signed field — the ciphertext and the sealed label in `forOpen`, a returned share in `forRespond`
+— and every open is preceded by verifying that signature. HPKE's auth mode would bind the sender's
+static key into the box as well, at the price of the recipient needing that key to open it, which
+brings back exactly the coupling to the sender's rotations that base mode removes.
 
 Wire format:
 
 ```
-suiteTag(1 byte) || nonce(12 bytes) || ciphertext+tag
+suiteTag(1 byte) || enc(32 bytes) || ciphertext+tag
 ```
 
-No native crypto libraries anywhere. BouncyCastle (`X25519Agreement`, `HKDFBytesGenerator`,
-`ChaCha20Poly1305`) on Android and the relay; Swift Crypto (`Curve25519.KeyAgreement`,
-`HKDF`, `ChaChaPoly`) on iOS. libsodium was the original choice and was dropped: it needs a
-native `.so` plus JNA on Android and hand-porting on iOS, for primitives both platforms
-already ship. ChaCha20-Poly1305 was chosen over XSalsa20-Poly1305 specifically because it
-exists in all three stacks.
+No native crypto libraries anywhere. BouncyCastle (`HPKE`, `Ed25519Signer`) on Android and in
+phon; CryptoKit (`HPKE.Sender`, `HPKE.Recipient`, `Curve25519`) on iOS. Both ship HPKE with exactly
+this suite, and the cross-platform box vectors — boxes sealed by each library to one fixed key —
+prove that each opens what the other seals. libsodium was the original choice and was dropped: it
+needs a native `.so` plus JNA on Android and hand-porting on iOS, for primitives both platforms
+already ship. ChaCha20-Poly1305 was chosen over XSalsa20-Poly1305 specifically because it exists
+in all three stacks.
 
 ### The holder decrypts at pickup
 
@@ -184,7 +196,7 @@ directory on iOS, which is not exposed to the Files app:
 | `contacts.json` | pseudonyms, public keys, verification levels, relay overrides |
 | `distributed_shares.json` | which contact holds which secret's share |
 | `secrets.json` | your own secrets' labels, `k`, `n`, `mimeType` |
-| `retained_deposits.json` | ciphertext sealed to holders' keys. The box is static-static, so this device can open it with its own keys until each pickup is confirmed, which the backup alone cannot, since the private keys never ride it |
+| `retained_deposits.json` | ciphertext sealed to holders' keys under an ephemeral key discarded at sealing, which not even this device can open |
 | `key_conflicts.json`, `contact_relinks.json` | unresolved key changes, and who has re-verified this device |
 
 Plus a small amount of preference state: pseudonym, entitlement, default relay, and on Android
@@ -306,13 +318,13 @@ independently hand-ported enums cannot be trusted to agree on ordinals. Signing 
 agreement are bundled rather than tagged separately: both keypairs are generated together
 and rotate together, so splitting them would only create invalid combinations to reject.
 
-**`TransportSuite`** is a separate, lighter, per-message tag — one byte, `1` for
-X25519+HKDF-SHA-256+ChaCha20-Poly1305 — prefixed to every ciphertext. Only the KDF and AEAD
-need an in-band tag: the agreement algorithm is already known from the recipient's
-`CipherSuite` before encryption can even begin. Because the ciphertext is already covered by
+**`TransportSuite`** is a separate, lighter, per-message tag — one byte, `2` for HPKE base mode
+with DHKEM(X25519, HKDF-SHA256), HKDF-SHA256 and ChaCha20-Poly1305 — prefixed to every box. Only
+the construction needs an in-band tag: the key types are already known from the recipient's
+`CipherSuite` before a box can even be sealed. Because the ciphertext is already covered by
 the payload signature, the tag rides inside that signature for free — no extra column, no
-extra signed field. A device that reads a tag it does not recognise fails with a clear typed
-error rather than misparsing.
+extra signed field. A device that reads a tag it does not recognise — `1` included, the
+static-static box HPKE replaced — fails with a clear typed error rather than misparsing.
 
 **Key lengths are not fixed.** A future signing algorithm or KEM will not share Ed25519's
 sizes. The relay, which sees bare key bytes with no suite context at most call sites,

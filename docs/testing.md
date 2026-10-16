@@ -299,9 +299,9 @@ Run Alice on iOS and Bob on Android at the same time, against one relay. Alice d
 Bob; Bob sees it in Keeping safe; Bob opens a retrieval; Alice reconstructs.
 
 This is the highest-value flow in this document, because it is the only test that proves
-CryptoKit and BouncyCastle produce interoperable X25519 + HKDF-SHA-256 +
-ChaCha20-Poly1305 bytes on a live wire. The vector tests prove the canonical byte
-constructions agree; this proves the whole stack does.
+CryptoKit and BouncyCastle interoperate on a live wire. The vector tests prove that the
+canonical byte constructions agree and that each library opens the HPKE boxes the other
+seals; this proves the whole stack does.
 
 ## Flow 7 — Bring Your Own Relay
 
