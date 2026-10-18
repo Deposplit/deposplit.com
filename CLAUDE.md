@@ -102,13 +102,13 @@ The sibling repositories, for reference:
 
 ```bash
 # from Android/
-./gradlew test                    # JVM unit tests, no device needed (188 :hexagon, 20 :app)
+./gradlew test                    # JVM unit tests, no device needed (187 :hexagon, 20 :app)
 ./gradlew :app:lintDebug          # the four gated lint checks
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 
 # from iOS/hexagon/
-swift test                        # 185 tests
+swift test                        # 184 tests
 swift build
 ```
 
