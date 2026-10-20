@@ -35,8 +35,8 @@ import java.time.format.FormatStyle
   *
   * Every one of these used to be `instant.toString.take(10)`, which is the ISO prefix an `Instant` happens to start
   * with: the same nine characters to a German reader as to an English one, and a format neither app shows. Android
-  * reaches the same two shapes through `ofLocalizedDate(FormatStyle.MEDIUM)` and iOS through
-  * `formatted(date: .abbreviated)`.
+  * reaches the same two shapes through `ofLocalizedDate(FormatStyle.MEDIUM)`. iOS uses `formatted(date: .abbreviated)`,
+  * which abbreviates the month in German too (20. Okt. 2026).
   *
   * The locale comes from the request rather than the JVM, which is the one way this differs from Android: a phony phone
   * serves both languages at once, so there is no device setting to read. The zone is the JVM's own, because a phony

@@ -388,7 +388,9 @@ over and are exactly the sort of thing that drifts. Changing one means changing 
 
 German addresses the reader formally, with *Sie*, everywhere it addresses them at all — and wording
 that avoids addressing the reader is better still. `CLAUDE.md` carries the rule and the trap that
-comes with it. German dates are `dd.MM.yyyy`.
+comes with it. Dates take the platform's own medium format for the locale rather than a pattern
+of ours, so German reads `dd.MM.yyyy` on Android and in phon, and abbreviates the month on iOS
+(`20. Okt. 2026`).
 
 Empty states say what has not happened yet, in the user's terms — *You have not split anything
 yet*, *Nobody is waiting on you* — never *no rows*.

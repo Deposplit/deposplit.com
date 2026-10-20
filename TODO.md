@@ -24,10 +24,7 @@ place rather than growing this list into a second manual.
 
 ### The documented flows
 
-- [~] `I` **Flow 5 — offline and error states.** Distributed and Held render from local storage behind a soft banner; the Requests tab legitimately errors, because it has nothing local to fall back on.
-- [ ] `A` `I` **Flow 6 — cross-platform.** The highest-value flow in the document: the only test that proves CryptoKit and BouncyCastle agree on a live wire rather than only on the vectors.
 - [ ] `A` `I` **Flow 7 — BYOR.** Two relays, one contact overridden and one not; killing one degrades only that contact. Needs the Premium unlock first.
-- [~] `I` **Flow 8 — locale.** German throughout, dates in `dd.MM.yyyy`. Worth re-running now that several strings take format arguments.
 
 ### The documented edge cases
 
@@ -67,8 +64,6 @@ Written up in [docs/testing.md](docs/testing.md), which carries the `adb` and `l
 
 - [ ] `A` `I` **The cap counts active secrets, not lifetime deposits.** Three active secrets; the fourth is refused. Destroy one and the fourth succeeds immediately — before any holder has confirmed the removal, since a destroying secret gives its slot up at once.
 - [ ] `A` `I` **A repair at the cap is not blocked.** With three active secrets, run a repair through to the re-deposit. It must go through: the replacement supersedes an active secret rather than adding a fourth.
-- [ ] `I` **Buying unlocks the default-relay editor without a relaunch.** Buy in the Simulator against the scheme's StoreKit configuration, then check Settings — the field becomes editable, because it observes the store. Delete the transaction under Debug → StoreKit → Manage Transactions and confirm it locks again. Add Contact's relay field is not part of this: it is free, and must stay editable throughout.
-- [ ] `A` `I` **A free device can still share with a self-hoster.** On a device without Premium, add a contact whose relay is not the default — once by scanning their QR, once by typing the same three fields by hand. Both must keep the override, and deposits must route to that relay either way. This is the free half of BYOR, and the one gate whose mis-scoping would break interop rather than merely annoy.
 
 ### Identity and trust (not written up)
 

@@ -348,8 +348,9 @@ requests cannot be shown right now.
 
 ## Flow 8 — Locale
 
-Switch the device to German and relaunch. All strings should appear in German, with dates
-in `dd.MM.yyyy`. On Android: **Settings → General management → Language**.
+Switch the device to German and relaunch. All strings should appear in German, with dates as
+each platform writes them: `dd.MM.yyyy` on Android, an abbreviated month (`20. Okt. 2026`) on
+iOS. On Android: **Settings → General management → Language**.
 
 ## Edge cases worth checking
 
