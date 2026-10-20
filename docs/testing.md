@@ -119,7 +119,10 @@ Personal Team is enough; the differences are in the housekeeping:
    on most Macs — to `play.filters.hosts.allowed` in `conf/localhost.conf`, then start the relay
    as described above. That edit is for running, not committing, too. If the macOS firewall is
    on, allow `java` to accept incoming connections when asked, or under *System Settings →
-   Network → Firewall → Options*.
+   Network → Firewall → Options*. *Block all incoming connections*, in the same place, overrides
+   that allow, so it has to be off. `curl http://<the Mac's LAN IP>:9000/` on the Mac itself
+   shows whether the firewall is still in the way: it gets an empty reply, or none at all, while
+   `http://localhost:9000/` answers.
 5. **Run.** Choose the device as the run destination and press Run. With a Personal Team, the
    first launch fails until you trust the developer as above; then press Run again.
 6. **Point the app at the relay.** Register. *Settings → Default relay* sits behind Premium, so
@@ -141,6 +144,16 @@ is why none of this shows up there. If it was denied, the relay simply looks unr
 back on under *Settings → Privacy & Security → Local Network*. A background pass that finds the
 permission still undecided is denied without an alert, so grant it in the foreground before
 relying on [Background refresh](#background-refresh).
+
+**When the app says the relay is not reachable.** Nothing came back. Safari narrows it down:
+open `http://<the Mac's LAN IP>:9000/` on the device. If the landing page does not load, the
+network or the Mac's firewall is in the way. If it does, both are fine, and the cause is on the
+device — most likely the Local Network permission. A relay that did answer, but with an error,
+gets a warning of its own that names the HTTP status. A `401` there almost always means the
+device's clock: the relay refuses a nonce that is more than five minutes old or dated in the
+future at all, so a clock running even slightly ahead fails every request. Either warning stays
+up until the next sync, which runs at launch, on a return from the background, on a tab switch
+and from the ↻ button — there is no pull-to-refresh.
 
 **A relay on a Windows PC.** The relay need not run on the Mac, which still builds and installs
 the app. On a PC, the PC's IP — from `ipconfig` — takes the Mac's place in
@@ -292,6 +305,10 @@ Kill the relay, then open or refresh both apps.
 
 Restart the relay, navigate away and back — the warning clears and data refreshes. Flow 7 covers
 the case with two relays, where only one goes dark.
+
+Then set a device's clock a few minutes ahead, with automatic time off, and refresh. The relay
+now refuses every request, and the same places say so instead: *Relay … answered with an error
+(HTTP 401). Showing the last known state.* Set the clock back to automatic afterwards.
 
 ## Flow 6 — Cross-platform
 

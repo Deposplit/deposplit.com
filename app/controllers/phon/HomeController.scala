@@ -34,6 +34,7 @@ import play.api.Logging
 import play.api.mvc.AnyContent
 import play.api.mvc.ControllerComponents
 import play.api.mvc.Request
+import value_objects.svo.SyncReport
 
 import scala.util.Try
 
@@ -61,17 +62,16 @@ class HomeController @Inject() (
   // ── Distributed ───────────────────────────────────────────────────────────────────────────
 
   def distributed() = Action { implicit request: Request[AnyContent] =>
-    registered(renderDistributed(syncPending = true, unreachable = Set.empty))
+    registered(renderDistributed(syncPending = true, report = None))
   }
 
   def syncDistributed() = Action { implicit request: Request[AnyContent] =>
     registered {
-      val report = Try(shareManagement.syncDistributed()).toOption
-      renderDistributed(syncPending = false, unreachable = report.fold(Set.empty)(_.unreachableRelays))
+      renderDistributed(syncPending = false, report = Try(shareManagement.syncDistributed()).toOption)
     }
   }
 
-  private def renderDistributed(syncPending: Boolean, unreachable: Set[String])(using
+  private def renderDistributed(syncPending: Boolean, report: Option[SyncReport])(using
       request: Request[AnyContent]
   ) =
     // Requests are a relay read, so the first pass groups without them: the cards render with their
@@ -87,7 +87,9 @@ class HomeController @Inject() (
       shellFor(
         "phon.title.distributed",
         tab = Some(PhonTab.Distributed),
-        unreachableRelays = unreachable ++ sent.fold(Set.empty)(_.unreachableRelays)
+        unreachableRelays = report.fold(Set.empty)(_.unreachableRelays) ++ sent.fold(Set.empty)(_.unreachableRelays),
+        // Map's ++ keeps the right-hand status, so the sync pass goes last to keep the first one any relay gave.
+        refusingRelays = sent.fold(Map.empty)(_.refusingRelays) ++ report.fold(Map.empty)(_.refusingRelays)
       ),
       views.html.Phon.distributed(groups, syncPending)
     )
@@ -95,26 +97,26 @@ class HomeController @Inject() (
   // ── Held ──────────────────────────────────────────────────────────────────────────────────
 
   def held(sort: String) = Action { implicit request: Request[AnyContent] =>
-    registered(renderHeld(HeldSortOrder.fromWire(sort), syncPending = true, unreachable = Set.empty))
+    registered(renderHeld(HeldSortOrder.fromWire(sort), syncPending = true, report = None))
   }
 
   def syncHeld(sort: String) = Action { implicit request: Request[AnyContent] =>
     registered {
-      val report = Try(shareManagement.syncInbox()).toOption
-      renderHeld(
-        HeldSortOrder.fromWire(sort),
-        syncPending = false,
-        unreachable = report.fold(Set.empty)(_.unreachableRelays)
-      )
+      renderHeld(HeldSortOrder.fromWire(sort), syncPending = false, report = Try(shareManagement.syncInbox()).toOption)
     }
   }
 
-  private def renderHeld(order: HeldSortOrder, syncPending: Boolean, unreachable: Set[String])(using
+  private def renderHeld(order: HeldSortOrder, syncPending: Boolean, report: Option[SyncReport])(using
       request: Request[AnyContent]
   ) =
     val rows = PhonViewModels.heldRows(shareManagement.listHeld(), contactManagement.listContacts(), order)
     render(
-      shellFor("phon.title.held", tab = Some(PhonTab.Held), unreachableRelays = unreachable),
+      shellFor(
+        "phon.title.held",
+        tab = Some(PhonTab.Held),
+        unreachableRelays = report.fold(Set.empty)(_.unreachableRelays),
+        refusingRelays = report.fold(Map.empty)(_.refusingRelays)
+      ),
       views.html.Phon.held(rows, order, syncPending)
     )
 
@@ -151,7 +153,9 @@ class HomeController @Inject() (
         "phon.title.requests",
         tab = Some(PhonTab.Requests),
         unreachableRelays = pending.fold(Set.empty)(_.unreachableRelays),
-        relayWarningKey = "phon.advisory.relayUnreachableRequests"
+        relayWarningKey = "phon.advisory.relayUnreachableRequests",
+        refusingRelays = pending.fold(Map.empty)(_.refusingRelays),
+        relayRefusedKey = "phon.advisory.relayRefusedRequests"
       ),
       views.html.Phon.requests(conflicts, rows, syncPending)
     )

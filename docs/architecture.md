@@ -105,8 +105,9 @@ federation and no relay-to-relay traffic — the client simply talks to whicheve
 given contact names. Operations spanning several contacts fan out across every distinct
 relay involved, each independently soft-failed so one unreachable host cannot blank out
 the rest. A soft failure is reported, not discarded: the sync passes return a `SyncReport` and
-the fan-out reads a `RelayFanOut`, each naming the relays that did not answer, so the interface
-can say whose data is stale and identity rotation can say its drain was incomplete.
+the fan-out reads a `RelayFanOut`, each naming the relays that did not answer and, apart from
+them, with its status, each one that answered with an error. The interface can then say whose
+data is stale and why, and identity rotation can say its drain was incomplete.
 
 **"Every distinct relay" is decided on the rows, not on the URLs.** One relay answers to more
 than one name — a contact's QR code advertising `http://127.0.0.1:9000` while this device spells

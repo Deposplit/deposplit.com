@@ -275,8 +275,41 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
   test("both sync passes report nothing when every relay answers") {
     val (svc, _) = newTwoRelayService(FakeShareRelay(baseUrl = defaultUrl), FakeShareRelay(baseUrl = byorUrl))
 
-    assertEquals(svc.syncInbox().unreachableRelays, Set.empty[String])
-    assertEquals(svc.syncDistributed().unreachableRelays, Set.empty[String])
+    assert(svc.syncInbox().everyRelayAnswered)
+    assert(svc.syncDistributed().everyRelayAnswered)
+  }
+
+  /** A relay that answers with an error is there, which is not what "not reachable" says. It is reported apart, with
+    * its status, so the warning can say which of the two happened.
+    */
+  test("both sync passes name a refusing relay with its status, and not as unreachable") {
+    val (svc, _) = newTwoRelayService(
+      FakeShareRelay(baseUrl = defaultUrl),
+      FakeShareRelay(baseUrl = byorUrl, refusing = Some(401))
+    )
+
+    val inbox = svc.syncInbox()
+    val distributed = svc.syncDistributed()
+
+    assertEquals(inbox.refusingRelays, Map(byorUrl -> 401))
+    assertEquals(inbox.unreachableRelays, Set.empty[String])
+    assertEquals(distributed.refusingRelays, Map(byorUrl -> 401))
+    assertEquals(distributed.unreachableRelays, Set.empty[String])
+  }
+
+  /** One warning per relay, and the refusal is the one worth having: it proves the relay is there, and its status says
+    * why the pass came back empty.
+    */
+  test("a relay that refuses one listing and goes silent on another is named once, as refusing") {
+    val (svc, _) = newTwoRelayService(
+      FakeShareRelay(baseUrl = defaultUrl),
+      FakeShareRelay(unreachable = true, baseUrl = byorUrl, refusing = Some(503))
+    )
+
+    val report = svc.syncInbox()
+
+    assertEquals(report.refusingRelays, Map(byorUrl -> 503))
+    assertEquals(report.unreachableRelays, Set.empty[String])
   }
 
   test("listPendingRequests keeps the rows from the relay that answered and names the one that did not") {
@@ -305,5 +338,36 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
     assert(fanOut.items.isEmpty)
     assertEquals(fanOut.unreachableRelays, Set(defaultUrl, byorUrl))
+    assert(!fanOut.anyAnswered)
+  }
+
+  test("listPendingRequests keeps the rows from the relay that answered and names the one that refused") {
+    val defaultRelay = FakeShareRelay(baseUrl = defaultUrl)
+    val (svc, bob) = newTwoRelayService(defaultRelay, FakeShareRelay(baseUrl = byorUrl, refusing = Some(500)))
+    val askedOfBob = retrievalRow(aliceKeys, bob.verifyKey().get)
+    defaultRelay.pending = List(askedOfBob)
+
+    val fanOut = svc.listPendingRequests()
+
+    assertEquals(fanOut.items.map(_.id), List(askedOfBob.id))
+    assertEquals(fanOut.refusingRelays, Map(byorUrl -> 500))
+    assertEquals(fanOut.unreachableRelays, Set.empty[String])
+    assert(fanOut.anyAnswered)
+  }
+
+  /** A refusing relay returned no rows either, so with the other one silent nobody can say whether anything is waiting
+    * — the Requests page must not claim there is nothing.
+    */
+  test("listPendingRequests says no relay answered when one refused and the other was silent") {
+    val (svc, _) = newTwoRelayService(
+      FakeShareRelay(baseUrl = defaultUrl, refusing = Some(401)),
+      FakeShareRelay(unreachable = true, baseUrl = byorUrl)
+    )
+
+    val fanOut = svc.listPendingRequests()
+
+    assert(fanOut.items.isEmpty)
+    assertEquals(fanOut.refusingRelays, Map(defaultUrl -> 401))
+    assertEquals(fanOut.unreachableRelays, Set(byorUrl))
     assert(!fanOut.anyAnswered)
   }

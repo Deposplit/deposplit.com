@@ -32,6 +32,7 @@ import value_objects.svo.CipherSuite
 import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.MimeType
+import value_objects.svo.RelayRefusedException
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
 import value_objects.svo.ShareRequestState
@@ -192,7 +193,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
 
     val response = httpClient.send(request, BodyHandlers.ofString())
     val status = response.statusCode()
-    if status >= 400 then throw RuntimeException(s"HTTP $status: ${response.body()}")
+    if status >= 400 then throw RelayRefusedException(status, response.body())
     if status == 204 || response.body().isEmpty then JsNull
     else Json.parse(response.body())
 

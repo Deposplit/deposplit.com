@@ -36,6 +36,9 @@ import value_objects.svo.ShareTransactionType
 import java.time.Instant
 import java.util.UUID
 
+/** An answer with an error status is thrown as [[value_objects.svo.RelayRefusedException]], carrying the status.
+  * Anything else thrown means the relay did not answer, and the two are reported differently.
+  */
 trait ShareRelay:
   /** The URL this relay answers at — what a warning names when it does not. */
   def baseUrl: String

@@ -135,8 +135,13 @@ private object UnopenableLabelEncryption extends ShareEncryption:
 /** In-memory ShareRelay test double — `listShareRequests` ignores its filters and just returns whatever `pending` is
   * configured to, which is all these tests need.
   */
-private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: String = "http://relay.example:9000")
-    extends ShareRelay:
+private class FakeShareRelay(
+    var unreachable: Boolean = false,
+    val baseUrl: String = "http://relay.example:9000",
+    // The status this relay answers its share-request listing with, when set. Only that listing refuses, so a test can
+    // pair it with unreachable to have one relay refuse one listing and go silent on the others.
+    var refusing: Option[Int] = None
+) extends ShareRelay:
   case class OpenedRequest(
       secretId: UUID,
       recipientKey: Array[Byte],
@@ -214,6 +219,7 @@ private class FakeShareRelay(var unreachable: Boolean = false, val baseUrl: Stri
       transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): List[ShareRequest] =
+    refusing.foreach(status => throw RelayRefusedException(status, ""))
     if unreachable then throw RuntimeException("simulated relay outage")
     else pending.filter(r => transactionType.forall(_ == r.transactionType) && state.forall(_ == r.state))
 
@@ -1788,6 +1794,18 @@ class ShareServiceSignatureTests extends munit.FunSuite:
 
     // Reported, not dropped — but the rotation still completes: an unreachable relay must not be able to block someone
     // rotating precisely because they think the old key is compromised.
+    assert(!result.drainSucceeded)
+    assert(!bob.verifyKey().get.sameElements(oldVerifyKey))
+  }
+
+  test("regenerateIdentity reports a drain that a relay refused") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, _, _, _, _) = newService(relay)
+    val oldVerifyKey = bob.verifyKey().get
+    relay.refusing = Some(401)
+
+    val result = svc.regenerateIdentity()
+
     assert(!result.drainSucceeded)
     assert(!bob.verifyKey().get.sameElements(oldVerifyKey))
   }

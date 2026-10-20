@@ -28,4 +28,9 @@ package value_objects.svo
 // cannot blank out the others — which also means a pass never throws for a relay that did not
 // answer. This is where that silence is reported instead, by each relay's base URL, so the UI can
 // say whose data is only the last known state.
-case class SyncReport(unreachableRelays: Set[String])
+//
+// A relay that answered with an error is reported apart from one that did not answer, with the
+// status it gave: the two send whoever reads the warning to different places. A relay appears in
+// at most one of the two.
+case class SyncReport(unreachableRelays: Set[String], refusingRelays: Map[String, Int]):
+  def everyRelayAnswered: Boolean = unreachableRelays.isEmpty && refusingRelays.isEmpty

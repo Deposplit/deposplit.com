@@ -81,6 +81,11 @@
             <i class="bi bi-exclamation-triangle"></i> @messages(shell.relayWarningKey, relay)
         </div>
     }
+    @for((relay, status) <- shell.refusingRelays) {
+        <div class="phon-advisory border-bottom px-3 py-2 text-danger-emphasis bg-danger-subtle">
+            <i class="bi bi-exclamation-triangle"></i> @messages(shell.relayRefusedKey, relay, status.toString)
+        </div>
+    }
 
     <main class="phon-content" id="phonContent">
         @body

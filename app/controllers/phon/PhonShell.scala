@@ -63,7 +63,14 @@ final case class Shell(
     /** What each of those warnings says: the Requests tab has no local state to fall back on, so it says what it cannot
       * show instead.
       */
-    relayWarningKey: String = "phon.advisory.relayUnreachable"
+    relayWarningKey: String = "phon.advisory.relayUnreachable",
+    /** Every relay that answered the last refresh with an error, as a person would name it, with the status it gave.
+      * Named apart from the unreachable ones, because the two send whoever reads them to different places, and never in
+      * both lists.
+      */
+    refusingRelays: List[(String, Int)] = Nil,
+    /** What each of those warnings says, for the same reason as `relayWarningKey`. */
+    relayRefusedKey: String = "phon.advisory.relayRefused"
 ):
   def isTab: Boolean = tab.isDefined
 
