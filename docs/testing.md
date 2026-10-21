@@ -303,6 +303,13 @@ Kill the relay, then open or refresh both apps.
   its only relay down it has nothing to show but a warning naming that relay — and no *No
   pending requests*, which it cannot know. That is correct behaviour.
 
+How soon a warning appears depends on how the relay goes dark. An Android emulator reaches the
+Mac through its loopback, is refused at once, and warns at once. An iPhone reaching the Mac over
+the network, with the Mac's firewall in stealth mode, is not refused but ignored, so each request
+waits out its 10-second timeout. The Requests tab asks each relay once and warns after about ten
+seconds. The other two tabs run three sync steps, each of which asks a silent relay once, so they
+warn after about thirty.
+
 Restart the relay, navigate away and back — the warning clears and data refreshes. Flow 7 covers
 the case with two relays, where only one goes dark.
 

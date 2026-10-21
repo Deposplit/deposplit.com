@@ -129,16 +129,22 @@ class ShareService @Inject() (
   /** One listing against one relay. A relay that fails contributes nothing and is noted in `failures` by its base URL,
     * which is how a sync pass or a fan-out read reports it. Only listings go through here: whether a relay answers is a
     * question about the relay, whereas a failure acting on one row is about that row.
+    *
+    * A relay that has already gone silent in this pass is not asked again. Every further ask would wait out the same
+    * timeout and learn nothing new, and a pass makes several, so a relay that is down would otherwise hold the whole
+    * pass up for one timeout per listing. One that refused is still asked: it answers at once, and it is there.
     */
   private def fromRelay[T](relay: ShareRelay, failures: RelayFailures)(listing: => List[T]): List[T] =
-    Try(listing).recover {
-      case RelayRefusedException(statusCode, _) =>
-        failures.noteRefused(relay.baseUrl, statusCode)
-        Nil
-      case _ =>
-        failures.noteSilent(relay.baseUrl)
-        Nil
-    }.get
+    if failures.unreachable.contains(relay.baseUrl) then Nil
+    else
+      Try(listing).recover {
+        case RelayRefusedException(statusCode, _) =>
+          failures.noteRefused(relay.baseUrl, statusCode)
+          Nil
+        case _ =>
+          failures.noteSilent(relay.baseUrl)
+          Nil
+      }.get
 
   /** Every row this device is a party to, from every relay it knows, listed once — each paired with the relay it was
     * found on, so a caller can act on it through that same one.
@@ -150,14 +156,19 @@ class ShareService @Inject() (
     *
     * This is not only about a list showing an entry twice. Reconstruct would collect each approved share twice, decrypt
     * both copies, and hand the combiner duplicate x-coordinates, which it rightly refuses.
+    *
+    * `silent` names the relays a calling sync pass has already heard nothing from. They are not asked again, and are
+    * reported unreachable all the same.
     */
   private def rowsAcrossRelays(
       role: Role,
       transactionType: Option[ShareTransactionType] = None,
-      state: Option[ShareRequestState] = None
+      state: Option[ShareRequestState] = None,
+      silent: Set[String] = Set.empty
   ): RelayFanOut[(ShareRelay, ShareRequest)] =
     val relays = allRelays()
     val failures = RelayFailures()
+    silent.foreach(failures.noteSilent)
     val rows = relays
       .flatMap(relay =>
         fromRelay(relay, failures)(relay.listShareRequests(role, transactionType, state)).map(relay -> _)
@@ -332,7 +343,7 @@ class ShareService @Inject() (
     val metas = shareMetadataRepository.getAll()
     if metas.nonEmpty then
       val secretIds = metas.map(_.secretId).toSet
-      val fanOut = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Removal))
+      val fanOut = rowsAcrossRelays(Role.Sender, Some(ShareTransactionType.Removal), silent = failures.unreachable)
       failures.merge(fanOut)
       val removalRequests = fanOut.items
         .filter((_, request) => secretIds.contains(request.secretId))
@@ -592,7 +603,7 @@ class ShareService @Inject() (
     }
     processRecoveryMetadata(failures)
     processRotations(failures)
-    emitHeartbeats()
+    emitHeartbeats(failures)
     failures.report
 
   // Holder side — opportunistically piggybacks this same inbox poll: for each distinct
@@ -600,8 +611,10 @@ class ShareService @Inject() (
   // (or opt-out notice) once the per-sender emission interval has elapsed. Each push is
   // independently best-effort so one unreachable BYOR relay doesn't block heartbeating other
   // senders. lastHeartbeatSentAt only advances on a *successful* push, so a transient failure
-  // retries on the very next poll rather than waiting out the full interval again.
-  private def emitHeartbeats(): Unit =
+  // retries on the very next poll rather than waiting out the full interval again. A sender
+  // whose relay has gone silent in this pass is not pushed to at all, for the reason fromRelay
+  // gives, and is retried on the next poll the same way.
+  private def emitHeartbeats(failures: RelayFailures): Unit =
     val held = shareRepository.getAll()
     val senderIds = held.map(_.contactId).toSet
     val now = Instant.now()
@@ -610,7 +623,7 @@ class ShareService @Inject() (
         val isDue = contact.lastHeartbeatSentAt.forall { sent =>
           Duration.between(sent, now).compareTo(CustodyHeartbeatTuning.emissionInterval) >= 0
         }
-        if isDue then
+        if isDue && !failures.unreachable.contains(relayForContact(contact).baseUrl) then
           val secretIds =
             if contact.heartbeatEmissionOptedOut then Nil else held.filter(_.contactId == contactId).map(_.secretId)
           val canon = PayloadCanonical.forHeartbeat(contact.verifyKey, secretIds, contact.heartbeatEmissionOptedOut)

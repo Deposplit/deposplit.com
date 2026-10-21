@@ -157,6 +157,8 @@ private class FakeShareRelay(
   var respondCalls: List[UUID] = Nil
   var deletedRequestIds: List[UUID] = Nil
   var openedRequests: List[OpenedRequest] = Nil
+  // How many times a sync pass has asked this relay for something: every listing and every heartbeat push.
+  var asked = 0
 
   // Rotation push and withdraw tombstone
   case class WithdrawCall(senderKey: Option[Array[Byte]], secretId: Option[UUID])
@@ -219,6 +221,7 @@ private class FakeShareRelay(
       transactionType: Option[ShareTransactionType],
       state: Option[ShareRequestState]
   ): List[ShareRequest] =
+    asked += 1
     refusing.foreach(status => throw RelayRefusedException(status, ""))
     if unreachable then throw RuntimeException("simulated relay outage")
     else pending.filter(r => transactionType.forall(_ == r.transactionType) && state.forall(_ == r.state))
@@ -256,6 +259,7 @@ private class FakeShareRelay(
     pushedRotations :+= PushedRotation(recipientKey, newVerifyKey, newEncKey, newCipherSuite, signature)
 
   override def listRotations(): List[KeyRotation] =
+    asked += 1
     if unreachable then throw RuntimeException("simulated relay outage")
     else rotationsToReturn
 
@@ -267,10 +271,12 @@ private class FakeShareRelay(
       optedOut: Boolean,
       signature: Array[Byte]
   ): Unit =
+    asked += 1
     pushedHeartbeats :+= PushedHeartbeat(ownerKey, secretIds, optedOut, signature)
     if throwOnPushHeartbeat then throw RuntimeException("simulated push-heartbeat failure")
 
   override def listHeartbeats(): List[CustodyHeartbeat] =
+    asked += 1
     if unreachable then throw RuntimeException("simulated relay outage")
     else heartbeatsToReturn
 

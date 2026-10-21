@@ -234,19 +234,37 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
   // ── Reporting a relay that did not answer ──────────────────────────────────
 
-  // Bob, with alice on this device's default relay and charlie pinned to a second one.
+  // Bob, with alice on this device's default relay and charlie pinned to a second one. Keeping a share for charlie
+  // means a sync pass owes charlie a heartbeat.
   private def newTwoRelayService(
       defaultRelay: FakeShareRelay,
-      byorRelay: FakeShareRelay
+      byorRelay: FakeShareRelay,
+      keepingForCharlie: Boolean = false
   ): (ShareService, IdentityService) =
     val identityStore = InMemoryForgettableIdentityStore()
     val bobIdentity = IdentityService(identityStore)
     bobIdentity.register("bob")
     val contactRepo = FakeContactRepository(List(aliceContact, charlieContact))
+    val shareRepo = FakeShareRepository()
+    if keepingForCharlie then
+      shareRepo.save(
+        HeldShare(
+          id = UUID.randomUUID(),
+          secretId = UUID.randomUUID(),
+          label = "x",
+          contactId = charlieContact.id,
+          createdAt = Instant.now(),
+          pickedUpAt = Instant.now(),
+          plaintextShare = Array[Byte](1),
+          k = 2,
+          n = 3,
+          mimeType = MimeType.Default
+        )
+      )
     val svc = ShareService(
       relayResolver = TwoRelayResolver(defaultRelay, defaultUrl, byorUrl, byorRelay),
       encryption = NoOpShareEncryption,
-      shareRepository = FakeShareRepository(),
+      shareRepository = shareRepo,
       shareMetadataRepository = FakeShareMetadataRepository(),
       secretRepository = FakeSecretRepository(),
       contactRepository = contactRepo,
@@ -270,6 +288,35 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
 
     assertEquals(svc.syncInbox().unreachableRelays, Set(byorUrl))
     assertEquals(svc.syncDistributed().unreachableRelays, Set(byorUrl))
+  }
+
+  /** A relay that has gone silent is asked nothing more in the same pass, not even for the heartbeat it is owed. Each
+    * ask would wait out the same timeout, so a pass that kept asking would hold the screen up once per listing before
+    * it could say the relay is down. The next pass asks again.
+    */
+  test("each sync pass asks a silent relay once, and still names it") {
+    val byorRelay = FakeShareRelay(unreachable = true, baseUrl = byorUrl)
+    val (svc, _) = newTwoRelayService(FakeShareRelay(baseUrl = defaultUrl), byorRelay, keepingForCharlie = true)
+
+    assertEquals(svc.syncInbox().unreachableRelays, Set(byorUrl))
+    assertEquals(byorRelay.asked, 1)
+    assertEquals(svc.syncDistributed().unreachableRelays, Set(byorUrl))
+    assertEquals(byorRelay.asked, 2)
+  }
+
+  /** Only the silent relay is passed over: the one that answers is asked everything it always was. */
+  test("a silent relay costs the other relay none of its listings") {
+    def askedOfDefault(whileByorIsUnreachable: Boolean): Int =
+      val defaultRelay = FakeShareRelay(baseUrl = defaultUrl)
+      val (svc, _) =
+        newTwoRelayService(defaultRelay, FakeShareRelay(unreachable = whileByorIsUnreachable, baseUrl = byorUrl))
+      svc.syncInbox()
+      svc.syncDistributed()
+      defaultRelay.asked
+
+    val whileSilent = askedOfDefault(whileByorIsUnreachable = true)
+    assert(whileSilent > 0)
+    assertEquals(whileSilent, askedOfDefault(whileByorIsUnreachable = false))
   }
 
   test("both sync passes report nothing when every relay answers") {
