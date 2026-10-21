@@ -1,6 +1,6 @@
 # Nutzungsbedingungen
 
-Stand: {TODO: Datum der Veröffentlichung}
+Stand: 1. November 2026
 
 Diese Bedingungen regeln die Nutzung von Deposplit: der Apps für Android und iOS sowie des Relais,
 das die Squeng AG unter api.deposplit.com betreibt. Anbieterin ist die Squeng AG, Adresse siehe
@@ -62,7 +62,7 @@ Die Squeng AG betreibt das Relais sorgfältig, aber ohne zugesicherte Verfügbar
 Ausfälle kommen vor, und die Apps sind dafür gebaut, damit umzugehen.
 
 Die Squeng AG kann die Apps und das Relais ändern. Stellt sie ihr Relais ein, kündigt sie dies
-mindestens {TODO: Frist} im Voraus auf dieser Website an.
+mindestens 90 Tage im Voraus auf dieser Website an.
 
 ## Quellcode
 
@@ -89,5 +89,5 @@ nimmt nichts weg, was bereits gekauft wurde.
 
 Diese Bedingungen unterstehen schweizerischem Recht unter Ausschluss des Kollisionsrechts und des
 Übereinkommens der Vereinten Nationen über Verträge über den internationalen Warenkauf.
-Gerichtsstand ist {TODO: Sitz der Squeng AG}. Konsumentinnen und Konsumenten behalten den Schutz
+Gerichtsstand ist St.Gallen. Konsumentinnen und Konsumenten behalten den Schutz
 des zwingenden Rechts ihres Wohnsitzstaates und können auch dort klagen.

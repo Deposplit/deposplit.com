@@ -233,7 +233,14 @@ limits*, and nothing is added to the page to get them.
 
 The privacy policy behind `/legalese/pp` is required whatever the site does, because the relay
 processes addresses and keys and both stores demand one. So anything added here is a change to
-the policy as well.
+the policy as well. The two are different artefacts: this document is the engineering rule and is
+written for developers, while the policy (`public/markdowns/legalese/pp.md` and its German
+counterpart) is a legal one addressed to users. It is derived from this one and must claim nothing
+this one does not permit.
+
+Squeng AG appoints no representative in the EU under GDPR Art. 27. The relay is built so that
+nothing it keeps identifies a person: an IP address is used to answer a request and never written
+down, and a key carries no name. So the policy has no representative paragraph.
 
 ## What is still open
 
@@ -242,15 +249,6 @@ the policy as well.
 - Whether an operational error log exists above `WARN` in production, where it is written, and who
   can read it.
 - The rate-limiting mechanism, within the constraint above.
-- **The public privacy policy.** This document is the engineering rule and is written for
-  developers. The policy at `/legalese/pp` (`public/markdowns/legalese/pp.md` and its German
-  counterpart) is a separate, legal artefact addressed to users. It is derived from this one and
-  must claim nothing this one does not permit. Before it can go live it still needs:
-  - the facts only Squeng AG can supply, marked `{TODO: …}` in the policy and the imprint: the
-    contact address, the hosting provider and its country, and a maximum retention period
-  - a decision on whether a representative in the EU is needed under DSGVO Art. 27 (the
-    exemption covers only occasional processing, and the relay's is continuous)
-  - a legal review of the wording
 
 ## Honest limits
 

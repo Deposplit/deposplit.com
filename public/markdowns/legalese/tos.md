@@ -1,6 +1,6 @@
 # Terms of Service
 
-As of {TODO: date of publication}
+As of November 1, 2026
 
 These terms govern the use of Deposplit: the apps for Android and iOS, and the relay that Squeng AG
 operates at api.deposplit.com. The provider is Squeng AG, at the address given in the
@@ -58,7 +58,7 @@ Squeng AG operates the relay with care, but without any guaranteed availability.
 outages happen, and the apps are built to cope with them.
 
 Squeng AG may change the apps and the relay. If it discontinues its relay, it announces this on
-this website at least {TODO: notice period} in advance.
+this website at least 90 days in advance.
 
 ## Source code
 
@@ -84,5 +84,5 @@ anything already bought.
 
 These terms are governed by Swiss law, excluding its conflict-of-law rules and the United Nations
 Convention on Contracts for the International Sale of Goods. The place of jurisdiction is
-{TODO: seat of Squeng AG}. Consumers keep the protection of the mandatory law of the country where
+St.Gallen. Consumers keep the protection of the mandatory law of the country where
 they live, and may also sue there.

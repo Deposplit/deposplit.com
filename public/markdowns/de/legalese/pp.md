@@ -1,6 +1,6 @@
 # Datenschutzerklärung
 
-Stand: {TODO: Datum der Veröffentlichung}
+Stand: 1. November 2026
 
 Diese Erklärung gilt für die Website deposplit.com und für die Deposplit-Apps für Android und iOS.
 Sie legt dar, welche Personendaten die Squeng AG bearbeitet, wozu und wie lange. Sie richtet sich
@@ -19,10 +19,7 @@ Datenschutz-Grundverordnung (DSGVO).
 ## Verantwortliche
 
 Squeng AG, Adresse siehe [Impressum](imprint).
-E-Mail: {TODO: Kontaktadresse}
-
-{TODO: Vertretung in der EU nach Art. 27 DSGVO mit Name und Adresse, oder diesen Absatz löschen,
-falls keine bestellt ist}
+E-Mail: deposplit@squeng.com
 
 ## Die Website
 
@@ -34,8 +31,10 @@ auszuliefern, und für nichts anderes verwendet. Deposplit zeichnet sie nicht au
 Zugriffsprotokoll, keine Analyse und kein Zählpixel. Scheitert eine Anfrage an einem Serverfehler,
 hält das Fehlerprotokoll fest, welche Adresse der Website angefragt wurde, aber nicht, von wem.
 
-Die Server betreibt {TODO: Hosting-Anbieter, Land}. Der Anbieter führt unter Umständen eigene
-Verbindungsprotokolle, {TODO: was er aufbewahrt und wie lange, gemäss seinen Bedingungen}.
+Die Server betreibt Clever Cloud SAS, Frankreich. Der Anbieter führt eigene Zugriffsprotokolle,
+die zu jeder Anfrage unter anderem die IP-Adresse, den Zeitpunkt und die angefragte Adresse
+festhalten. Die Squeng AG kann sie sieben Tage lang einsehen, und der Anbieter bewahrt sie bis zu
+einem Jahr auf, um seine gesetzlichen Pflichten in Frankreich zu erfüllen.
 
 Rechtsgrundlage nach DSGVO: Art. 6 Abs. 1 lit. f, das berechtigte Interesse, die Website
 auszuliefern und sicher zu betreiben.
@@ -113,8 +112,7 @@ mit denen Schlüssel ausgetauscht wurden, kennen sie natürlich.
 **Wie lange:** Einträge auf dem Relais existieren nur, um zugestellt zu werden. Ein verschlüsselter
 Teil wird vom Relais gelöscht, sobald ihn sein Empfänger abgeholt hat, und die meisten übrigen
 Einträge löschen die Apps, sobald sie darauf reagiert haben. Ein Eintrag, der nie abgeholt wird,
-kann vom Relais jederzeit gelöscht werden. {TODO: Höchstdauer der Aufbewahrung, sobald eine
-festgelegt ist}
+kann vom Relais jederzeit gelöscht werden.
 
 Rechtsgrundlage nach DSGVO: Art. 6 Abs. 1 lit. b, weil die Bearbeitung für die Erbringung des
 Dienstes nötig ist.
@@ -133,9 +131,9 @@ die diese in den Einstellungen ihres Telefons erlaubt haben. Daraus lässt sich 
 
 ## Bekanntgabe und Übermittlung ins Ausland
 
-Personendaten werden weder verkauft noch für Werbung weitergegeben. Einzig der Hosting-Anbieter
-{TODO: Name} bearbeitet sie im Auftrag der Squeng AG, mit Speicherort in {TODO: Land}.
-{TODO: falls ausserhalb der Schweiz und der EU/des EWR, die herangezogenen Garantien}
+Personendaten werden weder verkauft noch für Werbung weitergegeben. Für die Website, die Apps und
+das Relais bearbeitet sie einzig der Hosting-Anbieter Clever Cloud SAS im Auftrag der Squeng AG,
+mit Speicherort in Frankreich.
 
 Niemand wird profiliert, und über niemanden wird automatisiert entschieden.
 
@@ -143,7 +141,7 @@ Niemand wird profiliert, und über niemanden wird automatisiert entschieden.
 
 DSG und DSGVO gewähren ein Recht auf Auskunft über die eigenen Personendaten sowie auf deren
 Berichtigung oder Löschung. Die DSGVO ergänzt die Rechte auf Einschränkung der Bearbeitung, auf
-Widerspruch und auf Datenübertragbarkeit. Anfragen gehen an {TODO: Kontaktadresse}.
+Widerspruch und auf Datenübertragbarkeit. Anfragen gehen an deposplit@squeng.com.
 
 Weil das Relais nicht weiss, wer hinter einem Schlüssel steht, muss eine Anfrage zu Einträgen auf
 dem Relais den betreffenden *Verifizierungsschlüssel* nennen, einen der beiden Schlüssel, die die

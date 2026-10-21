@@ -3,16 +3,19 @@
 Deposplit is a product of
 
 - **Squeng AG**
-- {TODO: street and number}
-- {TODO: postcode and town}
+- c/o Switzerland Innovation Park Ost
+- Lerchenfeldstrasse 3
+- 9014 St.Gallen
 - Switzerland
 
-Email: {TODO: contact address}
+Email: deposplit@squeng.com
 
-Commercial register: {TODO: canton}, UID {TODO: CHE-xxx.xxx.xxx}
+Commercial register: SG, UID CHE-383.211.903
 
-VAT number: {TODO: CHE-xxx.xxx.xxx MWST, or delete this line if not registered}
+VAT number: CHE-383.211.903 MWST
 
-Authorised representative: {TODO: name, function}
+Authorised representative: Paul E. Sevinç, member of the board of directors
 
 Squeng® is a registered trademark of Squeng AG.
+
+Deposplit® is a registered trademark of Squeng AG.

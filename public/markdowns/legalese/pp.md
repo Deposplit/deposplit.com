@@ -1,6 +1,6 @@
 # Privacy Policy
 
-As of {TODO: date of publication}
+As of November 1, 2026
 
 This policy covers the website deposplit.com and the Deposplit apps for Android and iOS. It says
 what personal data Squeng AG processes, why, and for how long. It follows the Swiss Federal Act on
@@ -19,10 +19,7 @@ Data Protection (FADP) and, for people in the EU and the EEA, the General Data P
 ## Controller
 
 Squeng AG, at the address given in the [imprint](imprint).
-Email: {TODO: contact address}
-
-{TODO: representative in the EU under GDPR Art. 27, with name and address, or delete this paragraph
-if none is appointed}
+Email: deposplit@squeng.com
 
 ## The website
 
@@ -34,8 +31,10 @@ used for nothing else. Deposplit does not write them down: there is no access lo
 no tracking pixel. If a request fails with a server error, the error log records which address on
 the site was requested, but not who requested it.
 
-The servers are operated by {TODO: hosting provider, country}. The provider may keep connection logs
-of its own, {TODO: what it keeps and for how long, according to its terms}.
+The servers are operated by Clever Cloud SAS, France. The provider keeps access logs of its own,
+which record for each request, among other things, the IP address, the time and the address
+requested. Squeng AG can see them for seven days, and the provider keeps them for up to a year to
+meet its legal obligations in France.
 
 Legal basis under the GDPR: Art. 6(1)(f), the legitimate interest in delivering the website and
 keeping it secure.
@@ -109,7 +108,7 @@ know them.
 **How long:** entries on the relay exist only to be delivered. An encrypted share is deleted from
 the relay as soon as its recipient has picked it up, and most other entries are deleted by the apps
 once they have acted on them. An entry that is never picked up may be deleted by the relay at any
-time. {TODO: maximum retention period, once one is set}
+time.
 
 Legal basis under the GDPR: Art. 6(1)(b), because the processing is necessary to provide the service.
 
@@ -126,9 +125,9 @@ phone's settings. These do not identify anybody.
 
 ## Disclosure and transfers abroad
 
-Personal data is neither sold nor shared for advertising. The only party processing it on behalf of
-Squeng AG is the hosting provider {TODO: name}, with data stored in {TODO: country}.
-{TODO: if outside Switzerland and the EU/EEA, the safeguards relied upon}
+Personal data is neither sold nor shared for advertising. For the website, the apps and the relay,
+the only party processing it on behalf of Squeng AG is the hosting provider Clever Cloud SAS, with
+data stored in France.
 
 Nobody is profiled, and no decision is made automatically about anybody.
 
@@ -136,7 +135,7 @@ Nobody is profiled, and no decision is made automatically about anybody.
 
 The FADP and the GDPR grant a right of access to one's personal data, and the right to have it
 corrected or deleted. The GDPR adds the rights to restrict processing, to object to it and to data
-portability. Requests go to {TODO: contact address}.
+portability. Requests go to deposplit@squeng.com.
 
 Because the relay does not know who is behind a key, a request about entries on the relay has to
 name the *verification key* concerned, one of the two keys the app shows for sharing a contact.
