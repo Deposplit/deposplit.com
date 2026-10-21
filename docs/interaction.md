@@ -79,7 +79,7 @@ state is
 | Tabs | Split & shared · Keeping safe · Requests | same | same |
 | One secret | `secret_detail/{secretId}` | `SecretDetailView` | `GET /secrets/:secretId` |
 | One holder | `share_detail/{shareId}` | `ShareDetailView` | `GET /shares/:shareId` |
-| Always reachable | My QR code · New secret · Contacts · Settings | same | My QR code · Contacts · Settings |
+| Always reachable | Contacts · My QR code · Settings | same | same |
 
 **A tab is as fresh as the moment it was looked at.** Switching to a tab reads it from the relay,
 and so does bringing the app back to the foreground — Android on `ON_RESUME`, iOS on a return from
@@ -103,6 +103,12 @@ people is one thing the user owns, not four rows to reconcile.
 **The card summarises and does nothing else.** Every action belongs to the screen behind it. A list
 that unfolds actions in place turns ten secrets into ten places where buttons appear and disappear,
 which is the first rule's failure case repeated once per row.
+
+**A new secret starts here, and only here.** The tab ends in one button, *Split & share a secret*,
+pinned below the list and shown whether the list is empty, full or still loading, so the way in
+never moves. On Android and iOS it is a full-width button, on phon a floating one. The top bar
+carries only what every tab shares, and it carries no title: the tabs already say where somebody
+is, and the app's name would not.
 
 **Health is a graduated alarm about redundancy**, computed from *n_live* — holders with recent
 proof of custody — against the threshold *k*:

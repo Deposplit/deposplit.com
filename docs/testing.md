@@ -249,7 +249,7 @@ and stops one level short on purpose. A real handset can still scan the QR code 
 | 5 | B | Contacts → add contact → enter Alice's keys manually (or scan); then show Bob's QR |
 | 6 | C | Same — add Alice, then show Carol's QR |
 | 7 | A | Add Bob and Carol as contacts |
-| 8 | A | ＋ → label ("test secret"), secret text, select Bob and Carol, threshold 2-of-2 → **Deposit** |
+| 8 | A | **Split & share a secret** → label ("test secret"), secret text, select Bob and Carol, threshold 2-of-2 → **Deposit** |
 | 9 | A | Split & shared view shows one card for the secret; tap it to open the secret's own screen with both holders |
 | 10 | B | Keeping safe view shows Alice's deposit → the app auto-approves, decrypts, and stores the **plaintext** share; the relay clears the ciphertext |
 | 11 | C | Same |
