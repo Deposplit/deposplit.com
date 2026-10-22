@@ -17,3 +17,5 @@ metals.sbt
 
 # macOS
 .DS_Store
+
+conf/localhostMac.conf
