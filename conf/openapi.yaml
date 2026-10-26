@@ -80,15 +80,16 @@ info:
     digital signature by the caller (who becomes `holderKey`) over:
 
     ```
-    ownerKey(base64url) || "\n" || sortedSecretIds(comma-joined, lowercase) || "\n" || optedOut("true"|"false")
+    ownerKey(base64url) || "\n" || sortedSecretIds(comma-joined, lowercase) || "\n" || optedOut("true"|"false") || "\n" || emittedAt(epoch ms)
     ```
 
-    A heartbeat is a standing "still guarding {secretIds} for you" status, not a one-shot
-    delivery: the relay keeps only the *latest* push per `(holderKey, ownerKey)` pair (upserted,
-    never accumulated or deleted on read). The same construction covers the signed opt-out notice
-    (`optedOut: true`, `secretIds` typically empty) — mechanically the same push, different meaning
-    to the reader. The owner's own device is what durably remembers a holder's opted-out status;
-    the relay row itself may be GC'd at any time without consequence.
+    `emittedAt` is the holder's own clock at signing; it travels as an ISO-8601 instant with its
+    milliseconds intact, and the owner dates custody from it. A heartbeat is a message like any
+    other: the owner deletes it once read (`DELETE /custody-heartbeats/{id}`), keeping what it
+    told her on her own device, and the holder re-emits every interval. Until it is read, a newer
+    push from the same holder to the same owner replaces it, under a fresh `id`. The same
+    construction covers the signed opt-out notice (`optedOut: true`, `secretIds` typically empty)
+    — mechanically the same push, different meaning to the reader.
 
     ## Key exchange
 
@@ -106,7 +107,7 @@ info:
 
     ## Unified consent model
 
-    Three of the four share operations are modelled as consent requests:
+    Three of the five share operations are modelled as consent requests:
 
     | Type | Direction | Initiator | Consent required from |
     |---|---|---|---|
@@ -117,8 +118,13 @@ info:
     Every request of these three types starts in state `pending`; the recipient approves or
     denies via `PATCH`.
 
-    The fourth type, `inventory`, is **not** consent-gated — see its description under
-    `ShareTransactionType` below. It self-approves at creation; there is no `PATCH` phase for it.
+    The other two, `inventory` and `withdrawal`, are **not** consent-gated — see their descriptions
+    under `ShareTransactionType` below. They self-approve at creation; there is no `PATCH` phase for
+    them.
+
+    Every row is a message, deleted by the party it is addressed to once acted on: an approved
+    `deposit` by its sender as soon as she has seen the pickup, an answered `retrieval` or
+    `removal` by its sender, a push by its recipient. Deleting a row deletes that row alone.
 
     ## Binary encoding
 
@@ -175,7 +181,7 @@ components:
 
     ShareTransactionType:
       type: string
-      enum: [deposit, retrieval, removal, inventory]
+      enum: [deposit, retrieval, removal, inventory, withdrawal]
       description: >
         `deposit`   — sender deposits an encrypted share for the recipient to approve and collect.
         `retrieval` — sender wants the share bytes back from the recipient (requires approval + ciphertext).
@@ -183,24 +189,22 @@ components:
         `inventory` — a holder pushes a metadata-only report about a share of theirs back
         to its owner, so a recovering owner (fresh device, empty local state) can rebuild their
         records after losing their old identity's key.
-        Unlike the other three, this is **not** consent-gated: it self-approves at
+        Unlike the three above, this is **not** consent-gated: it self-approves at
         creation (no `pending` phase), never carries `ciphertext`, and requires `k`/`n`/`mimeType`.
         The recipient polls for it and deletes the row once consumed.
+        `withdrawal` — a holder tells the owner, signed, that they have stopped holding a share.
+        Self-approved like `inventory`, but carries no `ciphertext`, `k`, `n` or `mimeType`. The
+        recipient polls for it, drops that holder for that secret, and deletes the row once
+        consumed.
 
     ShareRequestState:
       type: string
-      enum: [pending, approved, denied, withdrawn]
-      description: >
-        `withdrawn` applies only to `deposit` rows: set via `POST /share-requests/withdraw`
-        when a holder unilaterally stops holding a share, instead of the row being hard-deleted, so
-        the sender's next poll can observe the tombstone. Best-effort and fire-and-forget — the
-        relay may still garbage-collect the row at any time, so its absence must never be read as a
-        signal; only an *observed* `withdrawn` row counts.
+      enum: [pending, approved, denied]
 
     ShareRequest:
       description: >
-        A self-describing share request row. All four transaction types (deposit, retrieval,
-        removal, inventory) use the same flat structure. `ciphertext`, `k`, `n`, and `mimeType`
+        A self-describing share request row. All five transaction types (deposit, retrieval,
+        removal, inventory, withdrawal) use the same flat structure. `ciphertext`, `k`, `n`, and `mimeType`
         semantics depend on `transactionType` — see field descriptions.
       type: object
       required: [id, secretId, senderKey, recipientKey, sealedLabel, secretCreatedAt, transactionType, state, requestedAt, senderSignature]
@@ -237,7 +241,7 @@ components:
           format: date-time
           nullable: true
           description: >
-            Set when the recipient responds via PATCH. For `inventory` this is set
+            Set when the recipient responds via PATCH. For `inventory` and `withdrawal` this is set
             immediately at creation (self-approved, no PATCH phase).
         ciphertext:
           type: string
@@ -249,7 +253,8 @@ components:
 
             `deposit`: populated by the sender at creation (opaque encrypted share bytes);
             delivered to the recipient in the PATCH response on approval and cleared from the relay.
-            Not returned on GET after delivery.
+            Not returned on GET after delivery. The sender deletes the approved row once she has
+            seen it.
 
             `retrieval`: absent at creation; supplied by the recipient in the PATCH body on approval;
             stored temporarily until the sender collects it via GET.
@@ -257,25 +262,27 @@ components:
             `removal`: always null.
 
             `inventory`: always null — this type never carries share bytes.
+
+            `withdrawal`: always null.
         k:
           type: integer
           nullable: true
           description: >
             SSS threshold. Populated for `deposit` and `inventory` (required, `2 <= k <= n
-            <= 255`); `null` for `retrieval`/`removal`.
+            <= 255`); `null` for `retrieval`/`removal`/`withdrawal`.
         n:
           type: integer
           nullable: true
           description: >
             SSS share count. Populated for `deposit` and `inventory` (required, `2 <= k <=
-            n <= 255`); `null` for `retrieval`/`removal`.
+            n <= 255`); `null` for `retrieval`/`removal`/`withdrawal`.
         mimeType:
           type: string
           nullable: true
           description: >
             The sender's claim about what the secret is, so the recipient can decide how to render
             it once reconstructed. Populated for `deposit` and `inventory`; `null` for
-            `retrieval`/`removal`. Sender-supplied and never verified against the payload — the
+            `retrieval`/`removal`/`withdrawal`. Sender-supplied and never verified against the payload — the
             relay routes it opaquely. Unlike `sealedLabel`, it travels in the clear.
         senderSignature:
           type: string
@@ -318,23 +325,23 @@ components:
           format: byte
           description: >
             Required for `deposit` requests: the encrypted share bytes.
-            Must be omitted for `retrieval`, `removal`, and `inventory` requests.
+            Must be omitted for `retrieval`, `removal`, `inventory` and `withdrawal` requests.
         k:
           type: integer
           description: >
             Required for `deposit` and `inventory` requests (`2 <= k <= n <= 255`,
-            `400` otherwise). Must be omitted for `retrieval`/`removal`.
+            `400` otherwise). Must be omitted for `retrieval`/`removal`/`withdrawal`.
         n:
           type: integer
           description: >
             Required for `deposit` and `inventory` requests (`2 <= k <= n <= 255`,
-            `400` otherwise). Must be omitted for `retrieval`/`removal`.
+            `400` otherwise). Must be omitted for `retrieval`/`removal`/`withdrawal`.
         mimeType:
           type: string
           minLength: 1
           description: >
             Required for `deposit` and `inventory` requests; must be non-blank and free of control
-            characters (`400` otherwise). Must be omitted for `retrieval`/`removal`. Not validated
+            characters (`400` otherwise). Must be omitted for `retrieval`/`removal`/`withdrawal`. Not validated
             against the payload — see `ShareRequest.mimeType`.
         senderSignature:
           type: string
@@ -406,11 +413,11 @@ components:
         The signed custodial-heartbeat push — a holder's proactive "still guarding
         {secretIds} for you" notice (or, when optedOut is true, a signed "my silence from here on
         is not a loss signal" notice), addressed to one owner at a time. Deliberately not a
-        `ShareRequest`/`KeyRotation`: no singular `secretId`, no consent phase, and — unlike
-        `KeyRotation`/inventory — never consumed-and-deleted; the Web app/service keeps only the
-        *latest* heartbeat per `(holderKey, ownerKey)` pair, upserted on every push.
+        `ShareRequest`/`KeyRotation`: no singular `secretId`, no consent phase. Like `KeyRotation`
+        it is consumed and deleted once read; until then a newer push from the same holder to the
+        same owner replaces it, under a fresh `id`.
       type: object
-      required: [id, holderKey, ownerKey, secretIds, optedOut, signature, createdAt]
+      required: [id, holderKey, ownerKey, secretIds, optedOut, emittedAt, signature, createdAt]
       properties:
         id:
           type: string
@@ -430,6 +437,12 @@ components:
           description: >
             When true, this holder has signalled it will no longer heartbeat this owner — the
             owner's app should stop treating subsequent silence from this holder as a loss signal.
+        emittedAt:
+          type: string
+          format: date-time
+          description: >
+            The holder's own clock when it signed this heartbeat, covered by `signature`. The time
+            the owner dates custody from.
         signature:
           type: string
           description: >
@@ -437,10 +450,12 @@ components:
         createdAt:
           type: string
           format: date-time
+          description: >
+            This relay's receipt time. Unsigned, for operators only — clients date nothing by it.
 
     PushHeartbeatBody:
       type: object
-      required: [ownerKey, secretIds, optedOut, signature]
+      required: [ownerKey, secretIds, optedOut, emittedAt, signature]
       properties:
         ownerKey:
           $ref: '#/components/schemas/PublicKey'
@@ -451,6 +466,14 @@ components:
             format: uuid
         optedOut:
           type: boolean
+        emittedAt:
+          type: string
+          format: date-time
+          description: >
+            Must include milliseconds — `signature` covers this instant as epoch milliseconds,
+            and verification re-derives them from this string. Refused with `400` if it lies in
+            this relay's future.
+          example: '2026-01-02T03:04:05.678Z'
         signature:
           type: string
           description: >
@@ -471,7 +494,7 @@ paths:
   /share-requests:
     post:
       operationId: openShareRequest
-      summary: Open a share request (deposit, retrieval, removal, or inventory)
+      summary: Open a share request (deposit, retrieval, removal, inventory, or withdrawal)
       description: >
         Opens any share request type. The authenticated caller becomes `senderKey`.
 
@@ -486,6 +509,10 @@ paths:
         owner. `k`/`n` are required and `ciphertext` must be omitted. Not consent-gated
         — the row is created directly in state `approved`, and there is no conflict check (a
         holder may push repeatedly; the relay stays a dumb, idempotent mailbox).
+
+        **withdrawal**: A holder tells the owner, signed, that they have stopped holding a share.
+        `ciphertext`, `k`, `n` and `mimeType` must be omitted. Created directly in state
+        `approved`, with no conflict check, like inventory.
       tags: [ShareRequests]
       requestBody:
         required: true
@@ -560,34 +587,6 @@ paths:
                 items:
                   $ref: '#/components/schemas/ShareRequest'
 
-  /share-requests/withdraw:
-    post:
-      operationId: withdrawShareRequests
-      summary: Recipient-initiated unilateral withdrawal
-      description: >
-        Flips matching `approved` `deposit` rows where the authenticated caller is the recipient
-        to `withdrawn`, instead of deleting them — a best-effort, fire-and-forget tombstone so the
-        sender's next poll can observe that the holder stopped holding the share. Optionally
-        scoped to a specific sender and/or secret. Rows in any other state (e.g. still `pending`,
-        or already `denied`) are left untouched. No request body.
-      tags: [ShareRequests]
-      parameters:
-        - name: senderKey
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/PublicKey'
-          description: Limit withdrawal to deposit rows from this sender.
-        - name: secretId
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/SecretId'
-          description: Limit withdrawal to the deposit row for this secret.
-      responses:
-        '204':
-          description: Matching rows withdrawn (or nothing matched — idempotent).
-
   /share-requests/{requestId}:
     get:
       operationId: getShareRequest
@@ -634,7 +633,7 @@ paths:
           and clears it from the relay (one-time delivery). No `ciphertext` needed in the request body.
         - Approving a `retrieval`: the recipient must supply `ciphertext` (the share bytes from their
           local storage) in the request body. Returns `400` if absent.
-        - Approving a `removal`: the relay cascades a delete of all *other* rows for the same
+        - Approving a `removal`: the relay sweeps all *other* rows for the same
           (secretId, senderKey, recipientKey) triple — the `deposit` above all, which may still hold
           ciphertext for a share that no longer exists. The answered `removal` row itself is kept,
           signed, because it is the only way the sender learns the destruction happened; a row that
@@ -714,9 +713,9 @@ paths:
       operationId: deleteShareRequest
       summary: Delete a single share request
       description: >
-        Accessible by both the sender and the recipient.
-        When deleting a `deposit` row, the relay also cascades deletion of all associated
-        `retrieval` and `removal` rows for the same (secretId, senderKey, recipientKey) triple.
+        Accessible by both the sender and the recipient. Deletes that row and nothing else: a
+        sender deletes an approved `deposit` as soon as she has seen the pickup, and a `retrieval`
+        or `removal` she opened in the meantime must not go with it.
       tags: [ShareRequests]
       parameters:
         - name: requestId
@@ -821,9 +820,11 @@ paths:
       summary: Push (upsert) a signed custodial-heartbeat for one owner
       description: >
         The authenticated caller becomes `holderKey`. Not consent-gated and no conflict check —
-        a fire-and-forget push, the same shape as `inventory`/`key-rotations`. Unlike those,
-        never consumed-and-deleted: this upserts by `(holderKey, ownerKey)`, replacing any
-        previous heartbeat from the same holder to the same owner rather than accumulating.
+        a fire-and-forget push, the same shape as `inventory`/`key-rotations`, consumed and
+        deleted by the owner once read. Until then this upserts by `(holderKey, ownerKey)`,
+        replacing an unread heartbeat from the same holder to the same owner rather than
+        accumulating, under a fresh `id`. `emittedAt` must be signed and must not lie in this
+        relay's future.
       tags: [CustodyHeartbeats]
       requestBody:
         required: true
@@ -847,7 +848,7 @@ paths:
 
     get:
       operationId: listHeartbeats
-      summary: List the latest heartbeat from each holder addressed to the caller
+      summary: List the unread heartbeat from each holder addressed to the caller
       tags: [CustodyHeartbeats]
       responses:
         '200':
@@ -858,3 +859,35 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CustodyHeartbeat'
+
+  /custody-heartbeats/{id}:
+    delete:
+      operationId: deleteHeartbeat
+      summary: Delete a heartbeat once read
+      description: >
+        Only the owner it is addressed to may delete it. A newer push from the same holder
+        replaces an unread heartbeat under a fresh `id`, so deleting the `id` that was read never
+        reaches one that was not.
+      tags: [CustodyHeartbeats]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Heartbeat deleted.
+        '403':
+          description: Caller is not the owner this heartbeat is addressed to.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Heartbeat not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

@@ -102,16 +102,20 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         if !validMimeType(mimeType) then return Left(Error.BadRequest)
         if repository.hasActiveDeposit(secretId, recipientKey) then return Left(Error.Conflict)
       case ShareTransactionType.Inventory =>
+        // Fire-and-forget push (see ShareRequest's doc) — no conflict check, self-approved below.
         if ciphertext.isDefined then return Left(Error.BadRequest)
         if !validKN(k, n) then return Left(Error.BadRequest)
         if !validMimeType(mimeType) then return Left(Error.BadRequest)
-      // Fire-and-forget push (see ShareRequest's doc) — no conflict check, self-approved below.
+      case ShareTransactionType.Withdrawal =>
+        // Also a push, and as unconditional: a holder needs nobody's permission to stop holding.
+        if ciphertext.isDefined || k.isDefined || n.isDefined || mimeType.isDefined then return Left(Error.BadRequest)
       case _ =>
         if ciphertext.isDefined || k.isDefined || n.isDefined || mimeType.isDefined then return Left(Error.BadRequest)
         if repository.hasPendingRequest(secretId, senderKey, recipientKey, transactionType) then
           return Left(Error.Conflict)
     val now = Instant.now()
-    val selfApproved = transactionType == ShareTransactionType.Inventory
+    val selfApproved =
+      transactionType == ShareTransactionType.Inventory || transactionType == ShareTransactionType.Withdrawal
     val request = ShareRequest(
       id = UUID.randomUUID(),
       secretId = secretId,
@@ -200,16 +204,6 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       case None => Left(Error.NotFound)
       case Some(req) if !sameKey(req.senderKey, callerKey) && !sameKey(req.recipientKey, callerKey) =>
         Left(Error.Forbidden)
-      case Some(req) =>
+      case Some(_) =>
         repository.deleteShareRequestById(requestId)
-        if req.transactionType == ShareTransactionType.Deposit then
-          repository.deleteShareRequests(req.recipientKey, req.senderKey, req.secretId)
         Right(())
-
-  override def withdrawShareRequests(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Either[Error, Unit] =
-    repository.withdrawDeposits(recipientKey, senderKey, secretId)
-    Right(())

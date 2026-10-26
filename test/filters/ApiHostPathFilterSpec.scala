@@ -93,9 +93,10 @@ class ApiHostPathFilterSpec extends PlaySpec with GuiceOneAppPerSuite {
 
     "classify each API surface" in {
       ApiHostPathFilter.isApiPath("/share-requests") mustBe true
-      ApiHostPathFilter.isApiPath("/share-requests/withdraw") mustBe true
+      ApiHostPathFilter.isApiPath("/share-requests/1f0e2c8a-6d4b-4f3e-9a7c-2b5d8e1f4a6c") mustBe true
       ApiHostPathFilter.isApiPath("/key-rotations") mustBe true
       ApiHostPathFilter.isApiPath("/custody-heartbeats") mustBe true
+      ApiHostPathFilter.isApiPath("/custody-heartbeats/1f0e2c8a-6d4b-4f3e-9a7c-2b5d8e1f4a6c") mustBe true
     }
 
     "not classify the landing page or assets as API" in {

@@ -110,9 +110,10 @@ und die Squeng AG führt kein Verzeichnis darüber, welcher Person ein Schlüsse
 mit denen Schlüssel ausgetauscht wurden, kennen sie natürlich.
 
 **Wie lange:** Einträge auf dem Relais existieren nur, um zugestellt zu werden. Ein verschlüsselter
-Teil wird vom Relais gelöscht, sobald ihn sein Empfänger abgeholt hat, und die meisten übrigen
-Einträge löschen die Apps, sobald sie darauf reagiert haben. Ein Eintrag, der nie abgeholt wird,
-kann vom Relais jederzeit gelöscht werden.
+Teil wird vom Relais gelöscht, sobald er abgeholt worden ist, und ein zurückgegebener Teil, sobald
+die gesammelten Kopien in der App freigegeben werden. Jeden anderen Eintrag löscht die App, für die
+er bestimmt ist, sobald sie darauf reagiert hat. Einen Eintrag, den keine App mehr abholt, etwa weil
+ein Telefon verloren ging oder ein Kontakt gelöscht wurde, kann die Squeng AG jederzeit löschen.
 
 Rechtsgrundlage nach DSGVO: Art. 6 Abs. 1 lit. b, weil die Bearbeitung für die Erbringung des
 Dienstes nötig ist.

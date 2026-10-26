@@ -43,9 +43,13 @@ trait ShareRequests:
     *     `Conflict` if a pending Removal for (secretId, senderKey, recipientKey) exists.
     *   - Inventory: A holder (Bob) pushes a metadata-only report about a share of his back to its owner (Alice), during
     *     identity recovery. `ciphertext` must be None; `k`/`n`/`mimeType` are required (same rules as Deposit). Unlike
-    *     the other three types this is **not consent-gated** — it's a fire-and-forget push, so the row is created
+    *     the three types above this is **not consent-gated** — it's a fire-and-forget push, so the row is created
     *     directly in `Approved` state with no conflict check; the recipient (Alice) polls for it and deletes it once
     *     consumed.
+    *   - Withdrawal: A holder (Bob) tells the owner (Alice) he has stopped holding a share, unilaterally. `ciphertext`,
+    *     `k`, `n`, and `mimeType` must be None. A push like Inventory: created `Approved`, no conflict check, deleted
+    *     by Alice once consumed. It is signed by Bob, so a relay cannot invent one to make Alice forget a holder who
+    *     still has the share.
     *
     * `senderSignature` must verify against `senderKey` over `PayloadCanonical.forOpen` of the other arguments —
     * defense-in-depth alongside the transport-auth signature already checked by the caller (`AuthHelper`). Returns
@@ -100,21 +104,8 @@ trait ShareRequests:
       recipientSignature: Signature
   ): Either[Error, ShareRequest]
 
-  /** Deletes a request from the relay. Sender or recipient may delete any request they are party to. Deleting a Deposit
-    * cascades to all Retrieval/Removal rows for the same (secretId, senderKey, recipientKey).
+  /** Deletes a request from the relay. Sender or recipient may delete any request they are party to. Exactly one row
+    * goes: a sender deletes an approved Deposit as soon as she has seen the pickup, and a Retrieval or Removal she
+    * opened in the meantime must survive that.
     */
   def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit]
-
-  /** Recipient-initiated unilateral withdrawal — Bob stops holding secretId (or all secrets from a given sender). This
-    * does not hard-delete the matching Deposit rows; it flips matching `Approved` Deposit rows to `Withdrawn` so the
-    * sender's next poll can observe the tombstone. Retrieval/Removal rows for the same grouping are untouched — those
-    * are separate, already-resolving consent flows.
-    *
-    * Best-effort and fire-and-forget: the relay may still garbage-collect a `Withdrawn` row at any time, so its absence
-    * must never be read as a signal — only an *observed* `Withdrawn` row counts.
-    */
-  def withdrawShareRequests(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Either[Error, Unit]

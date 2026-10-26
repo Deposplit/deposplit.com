@@ -81,8 +81,7 @@ class InMemoryShareRepository extends ShareRepository:
       r.secretId == secretId &&
         sameKey(r.recipientKey, recipientKey) &&
         r.transactionType == ShareTransactionType.Deposit &&
-        r.state != ShareRequestState.Denied &&
-        r.state != ShareRequestState.Withdrawn
+        r.state != ShareRequestState.Denied
     )
 
   override def hasPendingRequest(
@@ -120,17 +119,6 @@ class InMemoryShareRepository extends ShareRepository:
   override def deleteShareRequestById(id: UUID): Unit =
     requests = requests.filterNot(_.id == id)
 
-  override def deleteShareRequests(
-      recipientKey: PublicKey,
-      senderKey: PublicKey,
-      secretId: SecretId
-  ): Unit =
-    requests = requests.filterNot(r =>
-      sameKey(r.recipientKey, recipientKey) &&
-        sameKey(r.senderKey, senderKey) &&
-        r.secretId == secretId
-    )
-
   override def deleteShareRequestsExcept(
       recipientKey: PublicKey,
       senderKey: PublicKey,
@@ -142,21 +130,6 @@ class InMemoryShareRepository extends ShareRepository:
         sameKey(r.senderKey, senderKey) &&
         r.secretId == secretId &&
         r.id != keeping
-    )
-
-  override def withdrawDeposits(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Unit =
-    requests = requests.map(r =>
-      if sameKey(r.recipientKey, recipientKey) &&
-        senderKey.forall(sk => sameKey(r.senderKey, sk)) &&
-        secretId.forall(sid => r.secretId == sid) &&
-        r.transactionType == ShareTransactionType.Deposit &&
-        r.state == ShareRequestState.Approved
-      then r.copy(state = ShareRequestState.Withdrawn)
-      else r
     )
 
 // ---------------------------------------------------------------------------
@@ -829,7 +802,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assertEquals(repo.getShareRequestById(req.id), None)
   }
 
-  test("deleteShareRequestById cascades Retrieval/Removal rows when deleting a Deposit") {
+  test("deleting an approved Deposit leaves a Retrieval and a Removal opened meanwhile in place") {
     val (repo, service) = newService()
     val secretId = freshSecretId()
     val pickUp = open(
@@ -854,9 +827,22 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       None
     )
       .getOrElse(fail("retrieve request failed"))
+    val remove = open(
+      service,
+      alice,
+      bob,
+      secretId,
+      freshLabel(),
+      Instant.now(),
+      ShareTransactionType.Removal,
+      None
+    )
+      .getOrElse(fail("removal request failed"))
+    respond(service, bob, pickUp.id, approved = true)
     service.deleteShareRequestById(alice, pickUp.id)
     assertEquals(repo.getShareRequestById(pickUp.id), None)
-    assertEquals(repo.getShareRequestById(retrieve.id), None)
+    assertEquals(repo.getShareRequestById(retrieve.id).map(_.state), Some(ShareRequestState.Pending))
+    assertEquals(repo.getShareRequestById(remove.id).map(_.state), Some(ShareRequestState.Pending))
   }
 
   test("deleteShareRequestById returns Forbidden when caller is not sender or recipient") {
@@ -870,67 +856,82 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     assertEquals(service.deleteShareRequestById(bob, UUID.randomUUID()), Left(Error.NotFound))
   }
 
-  // --- withdrawShareRequests (recipient-initiated tombstone) ---
+  // --- Withdrawal (holder → owner push) ---
 
-  test("withdrawShareRequests flips an approved deposit to Withdrawn instead of deleting it") {
-    val (repo, service) = newService()
-    val req = deposit(service)
-    respond(service, bob, req.id, approved = true)
-    service.withdrawShareRequests(bob, None, None)
-    val stored = repo.getShareRequestById(req.id).getOrElse(fail("row disappeared"))
-    assertEquals(stored.state, ShareRequestState.Withdrawn)
+  private def withdrawal(service: ShareRequestsService, secretId: SecretId): Either[Error, ShareRequest] =
+    open(service, bob, alice, secretId, freshLabel(), Instant.now(), ShareTransactionType.Withdrawal, None)
+
+  test("Withdrawal is created Approved, with no response phase, and reaches the owner as recipient") {
+    val (_, service) = newService()
+    val created = withdrawal(service, freshSecretId()).getOrElse(fail("withdrawal failed"))
+    assertEquals(created.state, ShareRequestState.Approved)
+    assert(created.respondedAt.isDefined)
+    assertEquals(created.recipientSignature, None)
+    val inbox = service
+      .listShareRequests(alice, asSender = false, Some(ShareTransactionType.Withdrawal), None)
+      .getOrElse(fail("not right"))
+    assertEquals(inbox.map(_.id), Seq(created.id))
   }
 
-  test("withdrawShareRequests filtered by sender and secretId only affects the matching row") {
-    val (repo, service) = newService()
-    val req1 = deposit(service, sender = alice, recipient = bob)
-    val req2 = deposit(service, sender = charlie, recipient = bob)
-    respond(service, bob, req1.id, approved = true)
-    respond(service, bob, req2.id, approved = true)
-    service.withdrawShareRequests(bob, Some(alice), Some(req1.secretId))
-    assertEquals(repo.getShareRequestById(req1.id).map(_.state), Some(ShareRequestState.Withdrawn))
-    assertEquals(repo.getShareRequestById(req2.id).map(_.state), Some(ShareRequestState.Approved))
-  }
-
-  test("withdrawShareRequests leaves a Pending deposit untouched (no consent yet, nothing to withdraw)") {
-    val (repo, service) = newService()
-    val req = deposit(service)
-    service.withdrawShareRequests(bob, None, None)
-    assertEquals(repo.getShareRequestById(req.id).map(_.state), Some(ShareRequestState.Pending))
-  }
-
-  test("withdrawShareRequests leaves Retrieval/Removal rows for the same grouping untouched") {
-    val (repo, service) = newService()
+  test("Withdrawal has no conflict check — a second one for the same share is accepted") {
+    val (_, service) = newService()
     val secretId = freshSecretId()
-    val dep = open(
-      service,
-      alice,
-      bob,
-      secretId,
-      freshLabel(),
-      Instant.now(),
-      ShareTransactionType.Deposit,
-      Some(ciphertext)
-    )
-      .getOrElse(fail("deposit failed"))
-    respond(service, bob, dep.id, approved = true)
-    val ret = open(
-      service,
-      alice,
-      bob,
-      secretId,
-      freshLabel(),
-      Instant.now(),
-      ShareTransactionType.Retrieval,
-      None
-    )
-      .getOrElse(fail("retrieval failed"))
-    service.withdrawShareRequests(bob, None, None)
-    assertEquals(repo.getShareRequestById(dep.id).map(_.state), Some(ShareRequestState.Withdrawn))
-    assertEquals(repo.getShareRequestById(ret.id).map(_.state), Some(ShareRequestState.Pending))
+    assert(withdrawal(service, secretId).isRight)
+    assert(withdrawal(service, secretId).isRight)
   }
 
-  test("a withdrawn deposit no longer blocks a fresh deposit for the same (secretId, recipient)") {
+  test("Withdrawal returns BadRequest when it carries ciphertext") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    val label = freshLabel()
+    val createdAt = Instant.now()
+    val sig = bobKeys.sign(
+      PayloadCanonical
+        .forOpen(secretId, ShareTransactionType.Withdrawal, alice, label, createdAt, Some(ciphertext))
+    )
+    val result = service.openShareRequest(
+      bob,
+      alice,
+      secretId,
+      label,
+      createdAt,
+      ShareTransactionType.Withdrawal,
+      Some(ciphertext),
+      None,
+      None,
+      None,
+      sig
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("Withdrawal returns BadRequest when it carries k/n/mimeType") {
+    val (_, service) = newService()
+    val secretId = freshSecretId()
+    val label = freshLabel()
+    val createdAt = Instant.now()
+    val mt = Some(MimeType("text/plain"))
+    val sig = bobKeys.sign(
+      PayloadCanonical
+        .forOpen(secretId, ShareTransactionType.Withdrawal, alice, label, createdAt, None, Some(2), Some(3), mt)
+    )
+    val result = service.openShareRequest(
+      bob,
+      alice,
+      secretId,
+      label,
+      createdAt,
+      ShareTransactionType.Withdrawal,
+      None,
+      Some(2),
+      Some(3),
+      mt,
+      sig
+    )
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("a picked-up deposit its sender has deleted no longer blocks a fresh deposit for the same pair") {
     val (_, service) = newService()
     val secretId = freshSecretId()
     val req = open(
@@ -945,7 +946,7 @@ class ShareRequestsServiceTests extends munit.FunSuite:
     )
       .getOrElse(fail("deposit failed"))
     respond(service, bob, req.id, approved = true)
-    service.withdrawShareRequests(bob, Some(alice), Some(secretId))
+    service.deleteShareRequestById(alice, req.id)
     val redeposit = open(
       service,
       alice,

@@ -115,12 +115,6 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
     send("DELETE", s"/share-requests/$requestId")
     ()
 
-  override def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit =
-    val q = senderKey.fold("")(k => s"?senderKey=${encodeBase64Url(k)}") +
-      secretId.fold("")(id => s"${if senderKey.isDefined then "&" else "?"}secretId=$id")
-    send("POST", s"/share-requests/withdraw$q")
-    ()
-
   override def pushRotation(
       recipientKey: Array[Byte],
       newVerifyKey: Array[Byte],
@@ -149,12 +143,14 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       ownerKey: Array[Byte],
       secretIds: Seq[UUID],
       optedOut: Boolean,
+      emittedAt: Instant,
       signature: Array[Byte]
   ): Unit =
     val body = Json.obj(
       "ownerKey" -> encodeBase64Url(ownerKey),
       "secretIds" -> secretIds.map(_.toString),
       "optedOut" -> optedOut,
+      "emittedAt" -> emittedAt.toString,
       "signature" -> encodeBase64Url(signature)
     )
     send("POST", "/custody-heartbeats", Some(body))
@@ -162,6 +158,10 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
 
   override def listHeartbeats(): List[CustodyHeartbeat] =
     send("GET", "/custody-heartbeats").as[JsArray].value.map(parseCustodyHeartbeat).toList
+
+  override def deleteHeartbeat(id: UUID): Unit =
+    send("DELETE", s"/custody-heartbeats/$id")
+    ()
 
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
@@ -221,11 +221,10 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
           throw IllegalArgumentException(s"Unknown transactionType: ${(json \ "transactionType").as[String]}")
         ),
       state = (json \ "state").as[String] match
-        case "pending"   => ShareRequestState.Pending
-        case "approved"  => ShareRequestState.Approved
-        case "denied"    => ShareRequestState.Denied
-        case "withdrawn" => ShareRequestState.Withdrawn
-        case other       => throw IllegalArgumentException(s"Unknown state: $other"),
+        case "pending"  => ShareRequestState.Pending
+        case "approved" => ShareRequestState.Approved
+        case "denied"   => ShareRequestState.Denied
+        case other      => throw IllegalArgumentException(s"Unknown state: $other"),
       requestedAt = Instant.parse((json \ "requestedAt").as[String]),
       respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
       ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64),
@@ -257,8 +256,8 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       ownerKey = decodeBase64Url((json \ "ownerKey").as[String]),
       secretIds = (json \ "secretIds").as[Seq[String]].map(UUID.fromString),
       optedOut = (json \ "optedOut").as[Boolean],
-      signature = decodeBase64Url((json \ "signature").as[String]),
-      createdAt = Instant.parse((json \ "createdAt").as[String])
+      emittedAt = Instant.parse((json \ "emittedAt").as[String]),
+      signature = decodeBase64Url((json \ "signature").as[String])
     )
 
   // ── Base64 ────────────────────────────────────────────────────────────────

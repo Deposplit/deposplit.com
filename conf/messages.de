@@ -171,12 +171,12 @@ phon.requests.notHeld = Dieser Anteil ist nicht auf diesem Gerät, es gibt also 
 phon.requestState.pending = Wartet
 phon.requestState.approved = Zugestimmt
 phon.requestState.denied = Abgelehnt
-phon.requestState.withdrawn = Zurückgezogen
 
 phon.transaction.deposit = Hinterlegung
 phon.transaction.retrieval = Abruf
 phon.transaction.removal = Löschung
 phon.transaction.inventory = Bestand
+phon.transaction.withdrawal = Rückzug
 
 phon.conflict.title = Möglicher Identitätsdiebstahl
 phon.conflict.body = Jemand, der sich als {0} ausgibt, hat neue Schlüssel vorgelegt, unterschrieben mit einem Schlüssel, den Sie als kompromittiert gemeldet haben. Das wurde abgelehnt. Nur ein persönliches Treffen mit Neuverknüpfung bringt sie weiter.

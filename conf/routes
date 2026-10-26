@@ -10,7 +10,6 @@ GET     /share-requests                  controllers.api.ShareRequestsController
 GET     /share-requests/:requestId       controllers.api.ShareRequestsController.getShareRequest(requestId: String)
 PATCH   /share-requests/:requestId       controllers.api.ShareRequestsController.respondToShareRequest(requestId: String)
 DELETE  /share-requests/:requestId       controllers.api.ShareRequestsController.deleteShareRequest(requestId: String)
-POST    /share-requests/withdraw         controllers.api.ShareRequestsController.withdrawShareRequests()
 
 # Signed rotate(K_old -> K_new) push — not a share request, see KeyRotationsController
 POST    /key-rotations                   controllers.api.KeyRotationsController.pushRotation()
@@ -20,6 +19,7 @@ DELETE  /key-rotations/:id               controllers.api.KeyRotationsController.
 # Signed custodial-heartbeat push — see CustodyHeartbeatsController
 POST    /custody-heartbeats              controllers.api.CustodyHeartbeatsController.pushHeartbeat()
 GET     /custody-heartbeats              controllers.api.CustodyHeartbeatsController.listHeartbeats()
+DELETE  /custody-heartbeats/:id          controllers.api.CustodyHeartbeatsController.deleteHeartbeat(id: String)
 
 # Static assets
 GET     /assets/*file                    controllers.Assets.versioned(path="/public", file: Asset)

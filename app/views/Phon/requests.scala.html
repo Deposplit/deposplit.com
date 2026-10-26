@@ -76,6 +76,9 @@
                         case ShareTransactionType.Inventory => {
                             <span class="badge text-bg-secondary">@messages("phon.transaction.inventory")</span>
                         }
+                        case ShareTransactionType.Withdrawal => {
+                            <span class="badge text-bg-secondary">@messages("phon.transaction.withdrawal")</span>
+                        }
                     }
                     <span class="fw-semibold">@row.label.getOrElse(messages("phon.requests.labelUnavailable"))</span>
                 </div>

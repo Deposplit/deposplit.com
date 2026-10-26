@@ -108,10 +108,14 @@ object PayloadCanonical:
     * are independent of list-construction order on either side. The same construction covers the opt-out notice
     * (`optedOut = true`, `secretIds` typically empty) — mechanically it is the same signed row, just a different
     * meaning to the reader.
+    *
+    * `emittedAt` is appended at the end, as epoch milliseconds like `secretCreatedAt`. Without it the signature said
+    * *what* a holder guards but not *when*, so a relay could re-serve an old heartbeat as a new one.
     */
-  def forHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean): Array[Byte] =
+  def forHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, emittedAt: Instant): Array[Byte] =
     Seq(
       base64Url.encodeToString(ownerKey),
       secretIds.map(_.toString).sorted.mkString(","),
-      optedOut.toString
+      optedOut.toString,
+      emittedAt.toEpochMilli.toString
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)

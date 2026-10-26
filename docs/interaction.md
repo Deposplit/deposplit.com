@@ -36,8 +36,8 @@ deliberate action. Wiring one into the other would make reading a secret mean di
 
 **Absence is never a signal.** A row vanishing from the relay means "collected, or never sent" —
 never "done", never "lost". No screen may render a missing row as an outcome. This is why a holder
-who stops holding a share leaves a *withdrawn* tombstone the owner can observe, rather than
-disappearing quietly — and why the first rule above will not let a control go missing either.
+who stops holding a share sends the owner a signed withdrawal, rather than disappearing quietly —
+and why the first rule above will not let a control go missing either.
 
 **A claim about a person is never made on their behalf.** The verification level is the user's own
 assertion about how well they know who they are talking to, so the app asks rather than infers.

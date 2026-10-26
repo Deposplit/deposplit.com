@@ -255,6 +255,36 @@ class ShareServiceDestroyTests extends munit.FunSuite:
     assert(relay.deletedRequestIds.contains(removalId), "the answered removal was left on the relay")
   }
 
+  // A holder may stop holding instead of answering. Their signed withdrawal drops them all the same, takes their
+  // unanswered removal with it, and lets the destruction finish once the other holder has answered.
+  test("A holder who withdraws instead of answering is dropped, and the secret ends with the last answer") {
+    val relay = CascadingFakeShareRelay()
+    val (svc, metaRepo, secretRepo, rows) = destroyingService(relay)
+    val unsigned = rowFor(Array.fill(32)(0x07.toByte), ShareTransactionType.Withdrawal, ShareRequestState.Approved)
+      .copy(senderKey = aliceKeys.publicKey)
+    val canon = PayloadCanonical.forOpen(
+      unsigned.secretId,
+      unsigned.transactionType,
+      unsigned.recipientKey,
+      unsigned.sealedLabel,
+      unsigned.secretCreatedAt,
+      None
+    )
+    val withdrawal = unsigned.copy(senderSignature = aliceKeys.sign(canon))
+    relay.pending = withdrawal :: relay.pending
+
+    svc.syncDistributed()
+
+    assertEquals(metaRepo.getAll().map(_.contactId), List(charlieContact.id))
+    assert(relay.deletedRequestIds.contains(rows("alice.removal").id), "a removal nobody can answer was left")
+    assert(relay.deletedRequestIds.contains(withdrawal.id), "the withdrawal was left on the relay")
+
+    relay.approveRemoval(rows("charlie.removal"), charlieKeys)
+    svc.syncDistributed()
+
+    assertEquals(secretRepo.getAll(), Nil)
+  }
+
   test("destroySecret flips the secret and asks every holder, before any of them has answered") {
     val relay = CascadingFakeShareRelay()
     val identityStore = InMemoryForgettableIdentityStore()

@@ -68,9 +68,10 @@ to avoid: it lets the operator answer *who is this?*, the one capability the rel
 to gain. No schema change is needed for that to happen. A configuration default is enough, in
 software nobody thinks of as part of the product.
 
-Retention makes it worse rather than better. The relay's rows are deliberately short-lived — a
-deposit's ciphertext is cleared the moment its holder picks it up, a rotation is deleted once
-consumed, and any row may be collected without consequence, because
+Retention makes it worse rather than better. Every row on the relay is a message, deleted by the
+app it is addressed to once that app has acted on it — a deposit's ciphertext the moment its holder
+picks it up, the rest of the deposit once its sender has seen the pickup — so nothing there records
+who keeps what for whom. And no client ever reads a row's absence as evidence, because
 [absence is never a signal](protocol.md). Logs are the opposite: appended, rotated, archived,
 shipped elsewhere. An access log outlives the data it describes, inverting the property the
 protocol works to hold.

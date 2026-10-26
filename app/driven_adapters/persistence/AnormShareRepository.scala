@@ -94,11 +94,10 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
             secretCreatedAt = sca,
             transactionType = ShareTransactionType.fromWire(tt).getOrElse(sys.error(s"unknown transaction_type: $tt")),
             state = st match
-              case "pending"   => ShareRequestState.Pending
-              case "approved"  => ShareRequestState.Approved
-              case "denied"    => ShareRequestState.Denied
-              case "withdrawn" => ShareRequestState.Withdrawn
-              case other       => sys.error(s"unknown state: $other"),
+              case "pending"  => ShareRequestState.Pending
+              case "approved" => ShareRequestState.Approved
+              case "denied"   => ShareRequestState.Denied
+              case other      => sys.error(s"unknown state: $other"),
             requestedAt = reqAt,
             respondedAt = resAt,
             ciphertext = ct,
@@ -115,10 +114,9 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
   // ---------------------------------------------------------------------------
 
   private def stateStr(st: ShareRequestState): String = st match
-    case ShareRequestState.Pending   => "pending"
-    case ShareRequestState.Approved  => "approved"
-    case ShareRequestState.Denied    => "denied"
-    case ShareRequestState.Withdrawn => "withdrawn"
+    case ShareRequestState.Pending  => "pending"
+    case ShareRequestState.Approved => "approved"
+    case ShareRequestState.Denied   => "denied"
 
   // ---------------------------------------------------------------------------
   // ShareRepository
@@ -219,7 +217,7 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
       val count = SQL("""
         SELECT COUNT(*) FROM share_requests
         WHERE secret_id = {sid}::uuid AND recipient_key = {rk}
-          AND transaction_type = 'deposit' AND state NOT IN ('denied', 'withdrawn')
+          AND transaction_type = 'deposit' AND state <> 'denied'
       """)
         .on("sid" -> secretId.value.toString, "rk" -> recipientKey.toBytes)
         .as(scalar[Long].single)
@@ -279,20 +277,6 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
         .executeUpdate()
     }
 
-  override def deleteShareRequests(
-      recipientKey: PublicKey,
-      senderKey: PublicKey,
-      secretId: SecretId
-  ): Unit =
-    db.withConnection { implicit conn =>
-      SQL("""
-        DELETE FROM share_requests
-        WHERE recipient_key = {rk} AND sender_key = {sk} AND secret_id = {sid}::uuid
-      """)
-        .on("rk" -> recipientKey.toBytes, "sk" -> senderKey.toBytes, "sid" -> secretId.value.toString)
-        .executeUpdate()
-    }
-
   override def deleteShareRequestsExcept(
       recipientKey: PublicKey,
       senderKey: PublicKey,
@@ -312,44 +296,4 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
           "keeping" -> keeping.toString
         )
         .executeUpdate()
-    }
-
-  override def withdrawDeposits(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
-  ): Unit =
-    db.withConnection { implicit conn =>
-      (senderKey, secretId) match
-        case (None, None) =>
-          SQL("""
-            UPDATE share_requests SET state = 'withdrawn'
-            WHERE recipient_key = {rk} AND transaction_type = 'deposit' AND state = 'approved'
-          """)
-            .on("rk" -> recipientKey.toBytes)
-            .executeUpdate()
-        case (Some(sk), None) =>
-          SQL("""
-            UPDATE share_requests SET state = 'withdrawn'
-            WHERE recipient_key = {rk} AND sender_key = {sk}
-              AND transaction_type = 'deposit' AND state = 'approved'
-          """)
-            .on("rk" -> recipientKey.toBytes, "sk" -> sk.toBytes)
-            .executeUpdate()
-        case (None, Some(sid)) =>
-          SQL("""
-            UPDATE share_requests SET state = 'withdrawn'
-            WHERE recipient_key = {rk} AND secret_id = {sid}::uuid
-              AND transaction_type = 'deposit' AND state = 'approved'
-          """)
-            .on("rk" -> recipientKey.toBytes, "sid" -> sid.value.toString)
-            .executeUpdate()
-        case (Some(sk), Some(sid)) =>
-          SQL("""
-            UPDATE share_requests SET state = 'withdrawn'
-            WHERE recipient_key = {rk} AND sender_key = {sk} AND secret_id = {sid}::uuid
-              AND transaction_type = 'deposit' AND state = 'approved'
-          """)
-            .on("rk" -> recipientKey.toBytes, "sk" -> sk.toBytes, "sid" -> sid.value.toString)
-            .executeUpdate()
     }

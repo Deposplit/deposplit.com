@@ -27,11 +27,14 @@ package driving_adapters
 import driven_ports.persistence.CustodyHeartbeatRepository
 import value_objects.*
 
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
 // In-memory test double — upserts by (holderKey, ownerKey), same latest-wins semantics as the
-// real Anorm repository.
+// real Anorm repository, the replacement taking its own id with it.
 // ---------------------------------------------------------------------------
 class InMemoryCustodyHeartbeatRepository extends CustodyHeartbeatRepository:
 
@@ -47,6 +50,12 @@ class InMemoryCustodyHeartbeatRepository extends CustodyHeartbeatRepository:
 
   override def getHeartbeatsForOwner(ownerKey: PublicKey): Seq[CustodyHeartbeat] =
     heartbeats.filter(h => sameKey(h.ownerKey, ownerKey))
+
+  override def getHeartbeatById(id: UUID): Option[CustodyHeartbeat] =
+    heartbeats.find(_.id == id)
+
+  override def deleteHeartbeatById(id: UUID): Unit =
+    heartbeats = heartbeats.filterNot(_.id == id)
 
 // ---------------------------------------------------------------------------
 // Tests — reuses ShareRequestsServiceTests's Fixtures (same package) for keypairs.
@@ -65,30 +74,49 @@ class CustodyHeartbeatsServiceTests extends munit.FunSuite:
       holder: PublicKey,
       owner: PublicKey,
       secretIds: Seq[UUID] = Seq.empty,
-      optedOut: Boolean = false
+      optedOut: Boolean = false,
+      emittedAt: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   ): Either[Error, CustodyHeartbeat] =
-    val sig = signerFor(holder).sign(PayloadCanonical.forHeartbeat(owner, secretIds, optedOut))
-    service.pushHeartbeat(holder, owner, secretIds, optedOut, sig)
+    val sig = signerFor(holder).sign(PayloadCanonical.forHeartbeat(owner, secretIds, optedOut, emittedAt))
+    service.pushHeartbeat(holder, owner, secretIds, optedOut, emittedAt, sig)
 
   test("pushHeartbeat with a valid signature succeeds and stores the row") {
     val (repo, service) = newService()
     val secretIds = Seq(UUID.randomUUID(), UUID.randomUUID())
-    val result = push(service, bob, alice, secretIds)
+    val emittedAt = Instant.now().minusSeconds(5).truncatedTo(ChronoUnit.MILLIS)
+    val result = push(service, bob, alice, secretIds, emittedAt = emittedAt)
     assert(result.isRight)
     val heartbeat = result.getOrElse(fail("not right"))
     assertEquals(heartbeat.holderKey.toBase64Url, bob.toBase64Url)
     assertEquals(heartbeat.ownerKey.toBase64Url, alice.toBase64Url)
     assertEquals(heartbeat.secretIds.toSet, secretIds.toSet)
     assertEquals(heartbeat.optedOut, false)
+    assertEquals(heartbeat.emittedAt, emittedAt)
     assertEquals(repo.getHeartbeatsForOwner(alice).size, 1)
   }
 
   test("pushHeartbeat returns BadRequest when the signature doesn't verify against holderKey") {
     val (_, service) = newService()
+    val emittedAt = Instant.now()
     // Signed by alice but claiming to be bob's heartbeat — signature won't verify against bob.
-    val badSig = signerFor(alice).sign(PayloadCanonical.forHeartbeat(alice, Seq.empty, false))
-    val result = service.pushHeartbeat(bob, alice, Seq.empty, false, badSig)
+    val badSig = signerFor(alice).sign(PayloadCanonical.forHeartbeat(alice, Seq.empty, false, emittedAt))
+    val result = service.pushHeartbeat(bob, alice, Seq.empty, false, emittedAt, badSig)
     assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("pushHeartbeat returns BadRequest when emittedAt is not the time that was signed") {
+    val (_, service) = newService()
+    val signedAt = Instant.now().minus(Duration.ofDays(30))
+    val sig = signerFor(bob).sign(PayloadCanonical.forHeartbeat(alice, Seq.empty, false, signedAt))
+    val result = service.pushHeartbeat(bob, alice, Seq.empty, false, Instant.now(), sig)
+    assertEquals(result, Left(Error.BadRequest))
+  }
+
+  test("pushHeartbeat returns BadRequest when emittedAt lies in the relay's future") {
+    val (repo, service) = newService()
+    val result = push(service, bob, alice, emittedAt = Instant.now().plus(Duration.ofMinutes(10)))
+    assertEquals(result, Left(Error.BadRequest))
+    assertEquals(repo.getHeartbeatsForOwner(alice), Seq.empty)
   }
 
   test("pushHeartbeat upserts — a second push from the same holder to the same owner replaces the first") {
@@ -126,4 +154,35 @@ class CustodyHeartbeatsServiceTests extends munit.FunSuite:
   test("listHeartbeats returns an empty list for an owner with no heartbeats") {
     val (_, service) = newService()
     assertEquals(service.listHeartbeats(alice), Right(Seq.empty))
+  }
+
+  // --- deleteHeartbeat ---
+
+  test("deleteHeartbeat lets the owner delete a heartbeat she has read") {
+    val (repo, service) = newService()
+    val pushed = push(service, bob, alice).getOrElse(fail("push failed"))
+    assertEquals(service.deleteHeartbeat(alice, pushed.id), Right(()))
+    assertEquals(repo.getHeartbeatsForOwner(alice), Seq.empty)
+  }
+
+  test("deleteHeartbeat returns Forbidden to anyone but the owner, the holder included") {
+    val (repo, service) = newService()
+    val pushed = push(service, bob, alice).getOrElse(fail("push failed"))
+    assertEquals(service.deleteHeartbeat(bob, pushed.id), Left(Error.Forbidden))
+    assertEquals(service.deleteHeartbeat(charlie, pushed.id), Left(Error.Forbidden))
+    assertEquals(repo.getHeartbeatsForOwner(alice).size, 1)
+  }
+
+  test("deleteHeartbeat returns NotFound for an unknown id") {
+    val (_, service) = newService()
+    assertEquals(service.deleteHeartbeat(alice, UUID.randomUUID()), Left(Error.NotFound))
+  }
+
+  test("deleting a heartbeat by the id that was read leaves a newer one pushed in between") {
+    val (repo, service) = newService()
+    val read = push(service, bob, alice).getOrElse(fail("push failed"))
+    val newer = push(service, bob, alice, Seq(UUID.randomUUID())).getOrElse(fail("push failed"))
+    assertNotEquals(newer.id, read.id)
+    assertEquals(service.deleteHeartbeat(alice, read.id), Left(Error.NotFound))
+    assertEquals(repo.getHeartbeatsForOwner(alice).map(_.id), Seq(newer.id))
   }

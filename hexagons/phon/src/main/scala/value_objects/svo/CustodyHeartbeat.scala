@@ -29,9 +29,12 @@ import java.util.UUID
 
 /** A signed custodial-heartbeat push addressed to this device — a holder's proactive "still guarding {secretIds} for
   * you" notice (or, when `optedOut` is true, a signed "my silence from here on is not a loss signal" notice).
-  * Deliberately not a `ShareRequest`: no singular `secretId`, no consent phase — and unlike `KeyRotation`, never
-  * consumed-and-deleted: the relay keeps only the latest heartbeat per (holder, owner) pair, so this is read
-  * repeatedly, not drained. See `PayloadCanonical.forHeartbeat` for the exact bytes signed.
+  * Deliberately not a `ShareRequest`: no singular `secretId`, no consent phase. Like `KeyRotation` it is consumed and
+  * deleted once read: what it says is kept on this device, and the holder re-emits every interval.
+  *
+  * `emittedAt` is the holder's own clock at signing, covered by the signature — the time custody is dated from. The
+  * relay's receipt time is deliberately not carried: it is unsigned, and a relay that could set it could keep a lost
+  * holder looking fresh. See `PayloadCanonical.forHeartbeat` for the exact bytes signed.
   */
 case class CustodyHeartbeat(
     id: UUID,
@@ -39,8 +42,8 @@ case class CustodyHeartbeat(
     ownerKey: Array[Byte],
     secretIds: Seq[UUID],
     optedOut: Boolean,
-    signature: Array[Byte],
-    createdAt: Instant
+    emittedAt: Instant,
+    signature: Array[Byte]
 ):
   override def equals(other: Any): Boolean = other match
     case h: CustodyHeartbeat => id == h.id

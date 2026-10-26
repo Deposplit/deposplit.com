@@ -106,7 +106,7 @@ class ShareRequestsController @Inject() (
   }
 
   /** GET
-    * /share-requests?role=sender|recipient[&type=deposit|retrieval|removal|inventory][&state=pending|approved|denied|withdrawn]
+    * /share-requests?role=sender|recipient[&type=deposit|retrieval|removal|inventory|withdrawal][&state=pending|approved|denied]
     */
   def listShareRequests() = Action { (request: Request[AnyContent]) =>
     val result = for
@@ -120,11 +120,10 @@ class ShareRequestsController @Inject() (
         case _           => Left(BadRequest(errorJson("invalid_param", "role must be 'sender' or 'recipient'")))
       transactionType = request.getQueryString("type").flatMap(ShareTransactionType.fromWire)
       stateFilter = request.getQueryString("state").flatMap {
-        case "pending"   => Some(ShareRequestState.Pending)
-        case "approved"  => Some(ShareRequestState.Approved)
-        case "denied"    => Some(ShareRequestState.Denied)
-        case "withdrawn" => Some(ShareRequestState.Withdrawn)
-        case _           => None
+        case "pending"  => Some(ShareRequestState.Pending)
+        case "approved" => Some(ShareRequestState.Approved)
+        case "denied"   => Some(ShareRequestState.Denied)
+        case _          => None
       }
       reqs <- shares.listShareRequests(callerKey, asSender, transactionType, stateFilter).left.map(domainErrorToResult)
     yield Ok(JsArray(reqs.map(shareRequestJson).toSeq))
@@ -178,20 +177,6 @@ class ShareRequestsController @Inject() (
       callerKey <- AuthHelper.verify(request, Array.empty)
       id <- parseUuid(requestId).toRight(BadRequest(errorJson("invalid_param", "requestId must be a UUID")))
       _ <- shares.deleteShareRequestById(callerKey, id).left.map(domainErrorToResult)
-    yield NoContent
-    result.merge
-  }
-
-  /** POST /share-requests/withdraw?senderKey=...&secretId=... — recipient-initiated unilateral withdrawal. Flips
-    * matching approved Deposit rows to `withdrawn` instead of deleting them, so the sender's next poll can observe the
-    * tombstone. Best-effort and fire-and-forget.
-    */
-  def withdrawShareRequests() = Action { (request: Request[AnyContent]) =>
-    val result = for
-      callerKey <- AuthHelper.verify(request, Array.empty)
-      senderKey = request.getQueryString("senderKey").flatMap(s => PublicKey.fromBase64Url(s).toOption)
-      secretId = request.getQueryString("secretId").flatMap(parseUuid).map(SecretId(_))
-      _ <- shares.withdrawShareRequests(callerKey, senderKey, secretId).left.map(domainErrorToResult)
     yield NoContent
     result.merge
   }

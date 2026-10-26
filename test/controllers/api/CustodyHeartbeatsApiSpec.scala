@@ -30,10 +30,12 @@ import play.api.libs.json.*
 import play.api.test.*
 import play.api.test.Helpers.*
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-/** Integration tests for POST/GET /custody-heartbeats, the signed custodial-heartbeat push. Runs in declaration order
-  * and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
+/** Integration tests for POST/GET/DELETE /custody-heartbeats, the signed custodial-heartbeat push. Runs in declaration
+  * order and shares a single in-memory H2 database via GuiceOneAppPerSuite, same pattern as `KeyRotationsApiSpec`.
   */
 class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
@@ -41,18 +43,22 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
   private val bob = new RequestSigner()
   private val charlie = new RequestSigner()
 
+  private def now(): String = Instant.now().truncatedTo(ChronoUnit.MILLIS).toString
+
   private def pushBody(
       holder: RequestSigner,
       owner: RequestSigner,
       secretIds: Seq[String] = Seq(UUID.randomUUID().toString),
-      optedOut: Boolean = false
+      optedOut: Boolean = false,
+      emittedAt: String = now()
   ): Array[Byte] =
-    val sig = holder.signHeartbeat(owner.publicKeyHeader, secretIds, optedOut)
+    val sig = holder.signHeartbeat(owner.publicKeyHeader, secretIds, optedOut, emittedAt)
     val secretIdsJson = secretIds.map(id => s"\"$id\"").mkString("[", ",", "]")
     s"""{
        |  "ownerKey":  "${owner.publicKeyHeader}",
        |  "secretIds": $secretIdsJson,
        |  "optedOut":  $optedOut,
+       |  "emittedAt": "$emittedAt",
        |  "signature": "$sig"
        |}""".stripMargin.getBytes("UTF-8")
 
@@ -60,7 +66,9 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
     "push a heartbeat and return it with all fields" in {
       val secretId = UUID.randomUUID().toString
-      val result = route(app, bob.post("/custody-heartbeats", pushBody(bob, alice, Seq(secretId)))).get
+      val emittedAt = "2026-01-02T03:04:05.678Z"
+      val result =
+        route(app, bob.post("/custody-heartbeats", pushBody(bob, alice, Seq(secretId), emittedAt = emittedAt))).get
       status(result) mustBe CREATED
       val json = contentAsJson(result)
       (json \ "id").as[String] must not be empty
@@ -68,6 +76,7 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       (json \ "ownerKey").as[String] mustBe alice.publicKeyHeader
       (json \ "secretIds").as[Seq[String]] mustBe Seq(secretId)
       (json \ "optedOut").as[Boolean] mustBe false
+      (json \ "emittedAt").as[String] mustBe emittedAt
       (json \ "signature").as[String] must not be empty
       (json \ "createdAt").asOpt[String] must not be empty
     }
@@ -75,12 +84,31 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     "reject a heartbeat whose signature doesn't verify against the caller" in {
       // Signed as if by alice, but posted (and transport-authenticated) as bob.
       val secretId = UUID.randomUUID().toString
-      val sig = alice.signHeartbeat(alice.publicKeyHeader, Seq(secretId), false)
+      val emittedAt = now()
+      val sig = alice.signHeartbeat(alice.publicKeyHeader, Seq(secretId), false, emittedAt)
       val body =
-        s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"signature":"$sig"}"""
+        s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"emittedAt":"$emittedAt","signature":"$sig"}"""
           .getBytes("UTF-8")
       val result = route(app, bob.post("/custody-heartbeats", body)).get
       status(result) mustBe BAD_REQUEST
+    }
+
+    "reject a heartbeat whose emittedAt is not the time that was signed" in {
+      val secretId = UUID.randomUUID().toString
+      val sig = bob.signHeartbeat(alice.publicKeyHeader, Seq(secretId), false, "2026-01-01T00:00:00Z")
+      val body =
+        s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"emittedAt":"${now()}","signature":"$sig"}"""
+          .getBytes("UTF-8")
+      status(route(app, bob.post("/custody-heartbeats", body)).get) mustBe BAD_REQUEST
+    }
+
+    "reject a heartbeat without emittedAt" in {
+      val secretId = UUID.randomUUID().toString
+      val sig = bob.signHeartbeat(alice.publicKeyHeader, Seq(secretId), false, now())
+      val body =
+        s"""{"ownerKey":"${alice.publicKeyHeader}","secretIds":["$secretId"],"optedOut":false,"signature":"$sig"}"""
+          .getBytes("UTF-8")
+      status(route(app, bob.post("/custody-heartbeats", body)).get) mustBe BAD_REQUEST
     }
 
     "reject a heartbeat with a missing field" in {
@@ -129,5 +157,35 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       val result = route(app, stranger.get("/custody-heartbeats")).get
       status(result) mustBe OK
       contentAsJson(result).as[JsArray].value mustBe empty
+    }
+  }
+
+  "DELETE /custody-heartbeats/:id" should {
+
+    "let the owner delete a heartbeat she has read" in {
+      val dave = new RequestSigner()
+      val pushed = route(app, bob.post("/custody-heartbeats", pushBody(bob, dave))).get
+      val id = (contentAsJson(pushed) \ "id").as[String]
+
+      status(route(app, bob.delete(s"/custody-heartbeats/$id")).get) mustBe FORBIDDEN
+      status(route(app, dave.delete(s"/custody-heartbeats/$id")).get) mustBe NO_CONTENT
+      contentAsJson(route(app, dave.get("/custody-heartbeats")).get).as[JsArray].value mustBe empty
+    }
+
+    "not reach a newer heartbeat pushed after the one that was read" in {
+      val erin = new RequestSigner()
+      val read = route(app, bob.post("/custody-heartbeats", pushBody(bob, erin))).get
+      val readId = (contentAsJson(read) \ "id").as[String]
+      val newer = route(app, bob.post("/custody-heartbeats", pushBody(bob, erin))).get
+      val newerId = (contentAsJson(newer) \ "id").as[String]
+      newerId must not be readId
+
+      status(route(app, erin.delete(s"/custody-heartbeats/$readId")).get) mustBe NOT_FOUND
+      val remaining = contentAsJson(route(app, erin.get("/custody-heartbeats")).get).as[JsArray].value
+      remaining.map(j => (j \ "id").as[String]) mustBe Seq(newerId)
+    }
+
+    "return 400 for an id that is not a UUID" in {
+      status(route(app, alice.delete("/custody-heartbeats/not-a-uuid")).get) mustBe BAD_REQUEST
     }
   }

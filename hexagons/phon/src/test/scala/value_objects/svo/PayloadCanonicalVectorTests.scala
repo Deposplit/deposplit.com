@@ -110,6 +110,33 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
   }
 
   // ---------------------------------------------------------------------------
+  // forOpen for a withdrawal — every optional field absent, so four trailing empty lines.
+  // ---------------------------------------------------------------------------
+
+  private val expectedWithdrawalSignatureBase64Url =
+    "1WwboKOifAfmm5c851r1hX3CGjjPWidRM5yox7K5MgGx1_XKgMV23TXDBTJIud4Ob2fMLziTrqih3hsEMDyKAQ"
+
+  private def withdrawalCanonical(): Array[Byte] =
+    PayloadCanonical.forOpen(
+      secretId,
+      ShareTransactionType.Withdrawal,
+      recipientKey,
+      sealedLabel,
+      secretCreatedAt,
+      None
+    )
+
+  test("forOpen for a withdrawal produces the fixed canonical bytes") {
+    val expected =
+      "11111111-1111-1111-1111-111111111111\nwithdrawal\nAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\nBgcICQo=\n1767225600000\n\n\n\n"
+    assertEquals(new String(withdrawalCanonical(), "UTF-8"), expected)
+  }
+
+  test("signing the withdrawal canonical bytes with the fixed seed reproduces the fixed signature") {
+    assertEquals(sign(withdrawalCanonical()), expectedWithdrawalSignatureBase64Url)
+  }
+
+  // ---------------------------------------------------------------------------
   // forRotation — uses the same fixed private key seed as forOpen so both vectors are anchored to
   // one known keypair.
   // ---------------------------------------------------------------------------
@@ -147,15 +174,17 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
     UUID.fromString("11111111-1111-1111-1111-111111111111"),
     UUID.fromString("22222222-2222-2222-2222-222222222222")
   )
+  // Appended as a 4th line, with milliseconds that are not zero.
+  private val heartbeatEmittedAt = Instant.parse("2026-01-02T03:04:05.678Z")
   private val expectedHeartbeatSignatureBase64Url =
-    "w6fmGn4t7y2RSNakPBzi57H40u5kJI6CZAhEGdzLBOwZd__jabsge2tEmIpczMqEd3ODpNUJ72Ww2KEe8LYQCw"
+    "KP2laDBXpS-Bp_3MzghlBsGjKKxWetsdDnzgbygTNu-A7-g9Dl4vvrsy3hnuOccsGHMTdxJtbGWKwDWuJweXBw"
 
   private def heartbeatCanonical(): Array[Byte] =
-    PayloadCanonical.forHeartbeat(heartbeatOwnerKey, heartbeatSecretIds, optedOut = false)
+    PayloadCanonical.forHeartbeat(heartbeatOwnerKey, heartbeatSecretIds, optedOut = false, heartbeatEmittedAt)
 
   test("forHeartbeat produces the fixed canonical bytes, sorted regardless of input order") {
     val expected =
-      "BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY\n11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222,33333333-3333-3333-3333-333333333333\nfalse"
+      "BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY\n11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222,33333333-3333-3333-3333-333333333333\nfalse\n1767323045678"
     assertEquals(new String(heartbeatCanonical(), "UTF-8"), expected)
   }
 

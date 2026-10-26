@@ -121,10 +121,13 @@ class RequestSigner:
     b64url.encodeToString(rawSign(canon))
 
   /** Signs a `pushHeartbeat` payload — mirrors `PayloadCanonical.forHeartbeat`. `secretIds` is sorted before joining,
-    * same as the relay's own construction.
+    * same as the relay's own construction. `emittedAt` is the ISO-8601 wire string, signed as epoch milliseconds.
     */
-  def signHeartbeat(ownerKey: String, secretIds: Seq[String], optedOut: Boolean): String =
-    val canon = Seq(ownerKey, secretIds.sorted.mkString(","), optedOut.toString).mkString("\n").getBytes("UTF-8")
+  def signHeartbeat(ownerKey: String, secretIds: Seq[String], optedOut: Boolean, emittedAt: String): String =
+    val epochMs = java.time.Instant.parse(emittedAt).toEpochMilli
+    val canon = Seq(ownerKey, secretIds.sorted.mkString(","), optedOut.toString, epochMs.toString)
+      .mkString("\n")
+      .getBytes("UTF-8")
     b64url.encodeToString(rawSign(canon))
 
   def get(path: String) =

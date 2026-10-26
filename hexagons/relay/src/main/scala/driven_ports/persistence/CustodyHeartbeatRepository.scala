@@ -28,10 +28,16 @@ import value_objects.*
 
 trait CustodyHeartbeatRepository:
 
-  /** Upserts by `(holderKey, ownerKey)` — a fresh push from the same holder to the same owner replaces the previous one
-    * rather than accumulating. Returns the row as actually persisted.
+  /** Upserts by `(holderKey, ownerKey)` — a fresh push from the same holder to the same owner replaces an unread one
+    * rather than accumulating, and takes `heartbeat.id` with it, so a delete by the replaced row's id cannot reach the
+    * replacement. Returns the row as actually persisted.
     */
   def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat
 
-  /** The latest heartbeat (or opt-out) from each holder addressed to `ownerKey`. */
+  /** The unread heartbeat (or opt-out) from each holder addressed to `ownerKey`. */
   def getHeartbeatsForOwner(ownerKey: PublicKey): Seq[CustodyHeartbeat]
+
+  def getHeartbeatById(id: java.util.UUID): Option[CustodyHeartbeat]
+
+  /** Deletes a single heartbeat row by primary key. */
+  def deleteHeartbeatById(id: java.util.UUID): Unit

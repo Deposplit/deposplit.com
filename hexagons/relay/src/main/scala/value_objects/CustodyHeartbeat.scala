@@ -31,12 +31,15 @@ import java.util.UUID
   * one owner at a time, or the same holder's signed opt-out notice ("my silence from here on is not a loss signal")
   * when `optedOut` is true.
   *
-  * Deliberately not a `ShareRequest`: no `secretId` column, no consent phase. Deliberately *not* consumed-and-deleted
-  * like `KeyRotation`/Inventory either — a heartbeat is a standing "last seen" record, not a one-shot delivery, so the
-  * relay keeps only the *latest* one per `(holderKey, ownerKey)` pair (upserted, never accumulated). The owner's
-  * durable freshness state lives on the owner's own device, refreshed each time it observes this row — the relay row
-  * itself may be GC'd at any time without consequence: correctness comes from idempotent re-emission, not from
-  * retention.
+  * Deliberately not a `ShareRequest`: no `secretId` column, no consent phase. Like `KeyRotation` and Inventory it is a
+  * message, consumed and deleted by its owner once read; the owner's freshness state lives on the owner's own device,
+  * and the holder re-emits every interval, so nothing is lost with the row. Until it is read, a newer push from the
+  * same holder to the same owner replaces it (upserted, never accumulated), under a fresh `id` each time, so an owner
+  * deleting the one she read can never take a newer one with it.
+  *
+  * `emittedAt` is the holder's own clock at signing and is covered by the signature — it is the time the owner dates
+  * custody from. `createdAt` is this relay's receipt time, unsigned, and for operators only: a relay that could set the
+  * time custody was last proven could keep a lost holder looking fresh by re-serving an old heartbeat.
   */
 case class CustodyHeartbeat(
     id: UUID,
@@ -44,6 +47,7 @@ case class CustodyHeartbeat(
     ownerKey: PublicKey,
     secretIds: Seq[UUID],
     optedOut: Boolean,
+    emittedAt: Instant,
     signature: Signature,
     createdAt: Instant
 )

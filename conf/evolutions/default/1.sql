@@ -1,12 +1,17 @@
 # --- !Ups
 
-CREATE TYPE share_transaction_type AS ENUM ('deposit', 'retrieval', 'removal', 'inventory');
-CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'withdrawn');
+CREATE TYPE share_transaction_type AS ENUM ('deposit', 'retrieval', 'removal', 'inventory', 'withdrawal');
+CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 
 -- One row per share request of any type.
 -- deposit, retrieval, and removal share a symmetric consent model: sender Alice requests
 -- something of recipient Bob (deposit a share, send it back, or remove it), and Bob can approve
--- or deny. inventory is different: a holder-initiated *push*, not consent-gated (see below).
+-- or deny. inventory and withdrawal are different: holder-initiated *pushes*, not consent-gated
+-- (see below).
+--
+-- Every row is a message, deleted by the party it is addressed to once acted on, so no row
+-- stands for a relationship. A picked-up deposit is deleted by Alice as soon as she has seen the
+-- pickup, an answered retrieval or removal by Alice, a push by its recipient.
 --
 -- deposit:    Alice deposits a share for Bob. ciphertext is populated by Alice at creation,
 --             delivered to Bob on approval and cleared from the relay. Bob can also deny. k/n
@@ -20,23 +25,21 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 --             (never carries share bytes) but k/n are required. Not consent-gated: created
 --             directly in 'approved' state (no pending phase), and the recipient polls for it and
 --             deletes the row once consumed.
---
--- The 'withdrawn' state applies only to deposit rows: when a holder unilaterally stops
--- holding a share, the relay flips that row to 'withdrawn' instead of hard-deleting it, so the
--- sender's next poll can observe the tombstone. It is a best-effort, fire-and-forget courtesy,
--- not authoritative — the relay may still garbage-collect the row at any time, so its absence
--- must never be read as a signal, only an explicitly observed 'withdrawn' row counts. See
--- ShareRequests.withdrawShareRequests and docs/protocol.md.
+-- withdrawal: Bob tells Alice he has stopped holding a share, unilaterally. Created 'approved'
+--             like inventory and deleted by Alice once consumed. No ciphertext, k, n or
+--             mime_type. Signed by Bob like any other row, so a relay cannot invent one to make
+--             Alice forget a holder who still has the share. See docs/protocol.md.
 --
 -- A retrieval or removal row carries no pointer to the deposit it follows, and needs none.
--- (secret_id, recipient_key) already identifies the live deposit. That is the pair the
--- uq_deposit_active index below enforces, and the pair both parties match on.
+-- (secret_id, recipient_key) already identifies the share it is about. That is the pair the
+-- uq_deposit_active index below enforces while a deposit is in flight, and the pair both
+-- parties match on.
 --
 -- k and n are the SSS threshold/share-count populated for deposit and inventory only (NULL for
--- retrieval/removal), reported by holders during recovery as a cross-holder
+-- retrieval/removal/withdrawal), reported by holders during recovery as a cross-holder
 -- consistency check. Signed as part of sender_signature.
 --
--- mime_type follows the same rule: populated for deposit and inventory, NULL for retrieval/removal,
+-- mime_type follows the same rule: populated for deposit and inventory, NULL for the other three,
 -- and signed as part of sender_signature. It is the sender's claim about what the secret is, kept so
 -- the recipient can decide how to render it once reconstructed. The relay never interprets it and
 -- could not check it if it wanted to, the payload being ciphertext. Unlike the label it is stored in
@@ -55,7 +58,7 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 -- row so any reader (not just this relay) can independently re-verify authorship — required for
 -- BYOR, since a third-party relay performs no verification of its own. sender_signature is set
 -- at INSERT and never cleared. recipient_signature is NULL while pending, set on response (it
--- stays NULL for inventory rows — there is no response phase). See hexagons/relay's
+-- stays NULL for inventory and withdrawal rows — there is no response phase). See hexagons/relay's
 -- PayloadCanonical for the exact bytes signed.
 --
 -- Note: partial unique indexes would add defence-in-depth but H2 does not support them.
@@ -65,7 +68,7 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied', 'wi
 -- falls at the end of its line, leaving the next fragment starting with a comment marker.)
 --   CREATE UNIQUE INDEX uq_deposit_active
 --       ON share_requests (secret_id, recipient_key)
---       WHERE transaction_type = 'deposit' AND state NOT IN ('denied', 'withdrawn');
+--       WHERE transaction_type = 'deposit' AND state <> 'denied';
 --   CREATE UNIQUE INDEX uq_consent_pending
 --       ON share_requests (secret_id, sender_key, recipient_key, transaction_type)
 --       WHERE state = 'pending';
@@ -126,26 +129,29 @@ CREATE INDEX ON key_rotations (recipient_key);
 -- The signed custodial-heartbeat push: a holder's proactive "still guarding {secretIds}
 -- for you" notice (or, when opted_out is true, a signed "my silence from here on is not a loss
 -- signal" notice), addressed to one owner at a time. Deliberately not a share_requests row (no
--- secret_id singular, no consent phase) and, unlike key_rotations/inventory, deliberately NOT
--- consumed-and-deleted: this table holds only the LATEST heartbeat per (holder_key, owner_key)
--- pair, upserted on every push, since it represents an ongoing "last seen" status rather than a
--- one-shot delivery. The owner's durable freshness/opt-out state lives on the owner's own
--- device, refreshed each time it observes this row — this table may be GC'd or pruned by
--- operators at any time without consequence (see hexagons/relay's CustodyHeartbeat and
--- docs/protocol.md).
+-- secret_id singular, no consent phase). Like key_rotations it is a message: the owner deletes it
+-- once read, keeping what it told her on her own device, and the holder re-emits every interval.
+-- Until it is read, a newer push from the same holder to the same owner replaces it, so this
+-- table holds at most one row per (holder_key, owner_key) pair. The replacement takes a fresh
+-- id, so an owner deleting the row she read cannot delete one she has not (see hexagons/relay's
+-- CustodyHeartbeat and docs/protocol.md).
 --
 -- secret_ids is a comma-joined list of UUID strings — opaque to the relay, which only stores and
 -- forwards it. Kept as TEXT rather than a native array column for portability (H2/Postgres) and
 -- consistency with how every other opaque payload on this table is stored.
 --
+-- emitted_at is the holder's own clock at signing, and is signed. It is the time the owner dates
+-- custody from. created_at is this relay's receipt time, unsigned, for operators only.
+--
 -- signature is an Ed25519 signature by holder_key's private key over (ownerKey || sortedSecretIds
--- || optedOut) — see hexagons/relay's PayloadCanonical.forHeartbeat for the exact bytes.
+-- || optedOut || emittedAt) — see hexagons/relay's PayloadCanonical.forHeartbeat for the exact bytes.
 CREATE TABLE custody_heartbeats (
     id           UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
     holder_key   BYTEA   NOT NULL,
     owner_key    BYTEA   NOT NULL,
     secret_ids   TEXT    NOT NULL,
     opted_out    BOOLEAN NOT NULL DEFAULT false,
+    emitted_at   TIMESTAMP WITH TIME ZONE NOT NULL,
     signature    BYTEA   NOT NULL,
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     UNIQUE (holder_key, owner_key)

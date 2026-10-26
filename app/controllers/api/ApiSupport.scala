@@ -96,10 +96,9 @@ trait ApiSupport { self: BaseController =>
       "secretCreatedAt" -> req.secretCreatedAt.toString,
       "transactionType" -> req.transactionType.wireValue,
       "state" -> (req.state match
-        case ShareRequestState.Pending   => "pending"
-        case ShareRequestState.Approved  => "approved"
-        case ShareRequestState.Denied    => "denied"
-        case ShareRequestState.Withdrawn => "withdrawn"),
+        case ShareRequestState.Pending  => "pending"
+        case ShareRequestState.Approved => "approved"
+        case ShareRequestState.Denied   => "denied"),
       "requestedAt" -> req.requestedAt.toString,
       "respondedAt" -> req.respondedAt.map(_.toString),
       "senderSignature" -> req.senderSignature.toBase64Url
@@ -133,6 +132,7 @@ trait ApiSupport { self: BaseController =>
       "ownerKey" -> h.ownerKey.toBase64Url,
       "secretIds" -> h.secretIds.map(_.toString),
       "optedOut" -> h.optedOut,
+      "emittedAt" -> h.emittedAt.toString,
       "signature" -> h.signature.toBase64Url,
       "createdAt" -> h.createdAt.toString
     )

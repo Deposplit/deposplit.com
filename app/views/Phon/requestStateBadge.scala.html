@@ -24,7 +24,7 @@
 
 @import value_objects.svo.ShareRequestState
 
-@* The four states a request can be in, in the same words on every screen that shows one. *@
+@* The three states a request can be in, in the same words on every screen that shows one. *@
 @(state: ShareRequestState)(implicit messages: Messages)
 
 @state match {
@@ -36,8 +36,5 @@
     }
     case ShareRequestState.Denied => {
         <span class="badge text-bg-danger">@messages("phon.requestState.denied")</span>
-    }
-    case ShareRequestState.Withdrawn => {
-        <span class="badge text-bg-secondary">@messages("phon.requestState.withdrawn")</span>
     }
 }

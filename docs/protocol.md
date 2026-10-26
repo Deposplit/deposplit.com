@@ -66,13 +66,13 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 | `forOpen` | `secretId`, `transactionType`, `recipientKey`, `sealedLabel` (standard base64), `secretCreatedAt` (epoch ms), `ciphertext` (standard base64), `k`, `n`, `mimeType` |
 | `forRespond` | `requestId`, `"approved"` or `"denied"`, `ciphertext` |
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
-| `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut` |
+| `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut`, `emittedAt` (epoch ms) |
 
 **A signed timestamp has to survive the wire.** The receiver never verifies against the bytes the
-sender built — it rebuilds them from the JSON it parsed — so `secretCreatedAt` must be transmitted
-with its milliseconds intact: `2026-01-01T00:00:00.123Z`, never `2026-01-01T00:00:00Z`. Java's
-`Instant.toString` keeps them; Foundation's default `ISO8601DateFormatter` drops them, and a
-dropped millisecond makes every signature fail to verify.
+sender built — it rebuilds them from the JSON it parsed — so `secretCreatedAt` and a heartbeat's
+`emittedAt` must be transmitted with their milliseconds intact: `2026-01-01T00:00:00.123Z`, never
+`2026-01-01T00:00:00Z`. Java's `Instant.toString` keeps them; Foundation's default
+`ISO8601DateFormatter` drops them, and a dropped millisecond makes every signature fail to verify.
 
 Three rules govern changes here:
 
@@ -92,8 +92,8 @@ against a fixed signature instead.)
 
 ## Transaction types
 
-Four types share the `share_requests` table. Three are consent-gated — Alice asks
-something of Bob, Bob approves or denies — and one is a push. Where each one falls in the
+Five types share the `share_requests` table. Three are consent-gated — Alice asks
+something of Bob, Bob approves or denies — and two are pushes. Where each one falls in the
 life of a secret or a share is in [lifecycles.md](lifecycles.md).
 
 | Type | Direction | Carries | Purpose |
@@ -102,11 +102,35 @@ life of a secret or a share is in [lifecycles.md](lifecycles.md).
 | `retrieval` | sender → holder → sender | references `secretId`, with its `sealedLabel` | Ask for a share back. The holder re-encrypts fresh to the requester's current key. |
 | `removal` | sender → holder | references the deposit, with its `sealedLabel` | Ask a holder to destroy a share. |
 | `inventory` | holder → owner | `secretId`, `sealedLabel`, `secretCreatedAt`, `k`, `n`, `mimeType` — **never ciphertext** | Tell an owner what you still hold for them, so they can rebuild lost records. |
+| `withdrawal` | holder → owner | `secretId`, `sealedLabel`, `secretCreatedAt` — nothing else | Tell an owner you have stopped holding a share, unilaterally. |
 
-`inventory` is the odd one out: it is created already `Approved`, has no pending phase and
-no conflict check, and the recipient deletes it once consumed. It self-approves because
-there is nothing to consent to — a holder volunteering "here is what I hold for you" needs
-no permission from the person being told. A holder may push it repeatedly.
+`inventory` and `withdrawal` are the odd ones out: each is created already `Approved`, has no
+pending phase and no conflict check, and the recipient deletes it once consumed. They
+self-approve because there is nothing to consent to — a holder volunteering "here is what I
+hold for you", or "I hold this no longer", needs no permission from the person being told. A
+holder may push either repeatedly.
+
+**A withdrawal is explicit, not inferred from heartbeats.** Heartbeats already carry the
+implication, and the owner already uses it the right way: a secret a holder stops naming stops
+refreshing, and the holder drops out of `n_live` at the loss threshold — reversibly. A
+withdrawal drives the *irreversible* step, forgetting the holder's record for that secret, which
+needs a deliberate, signed act. Omission cannot be that:
+
+- **Often there is nothing to omit from.** A holder sends heartbeats only to owners it holds
+  something for, so deleting the last share from an owner ends heartbeats to that owner
+  altogether. Silence, not an empty list.
+- **Opted-out holders name nothing** by design, so for them omission means nothing at all.
+- **Omission is not an act.** A storage fault on the holder's phone looks identical, and a record
+  dropped on the strength of it cannot be brought back by a later heartbeat.
+- **Omission is replayable; a withdrawal is monotonic.** A relay can serve an older heartbeat
+  that predates a deposit. A withdrawal of a `secretId` stays true for ever — a holder never
+  holds the same `secretId` again, since repair mints a fresh one — so replaying it changes
+  nothing.
+
+And it is a signed row of its own, not a state the relay sets on another: the relay cannot sign
+one, so it cannot make an owner forget a holder who still has the share — the same reason an
+approved removal is verified before it is acted on. Addressed to the owner's current key and
+signed with the holder's, it also survives either side having rotated since the deposit.
 
 **Consent is asymmetric on purpose.** Retrieval requires the holder's approval so they can
 verify out of band — a phone call — that Alice really asked, rather than someone holding
@@ -115,24 +139,27 @@ compel a holder to delete. Holder-initiated deletion is unilateral and needs nob
 permission, because a custodian who no longer wishes to hold something must always be able
 to stop.
 
-Row state is `Pending`, `Approved`, `Denied`, or `Withdrawn`. `Withdrawn` is the tombstone
-a holder leaves behind on unilateral deletion — a courtesy so the sender is not blindsided
-by silently eroding redundancy, never an authoritative signal.
+Row state is `Pending`, `Approved`, or `Denied`.
 
 ## Tables
 
-Three, none of them about people.
+Three, none of them about people — and none of them standing. **Every row is a message**,
+deleted by the party it is addressed to once that party has acted on it: an approved deposit by
+its sender as soon as she has seen the pickup, an answered retrieval or removal by its sender, a
+denied one when she asks again, every push by its recipient. Nothing on the relay records who
+keeps what for whom once the message about it has been read.
 
-**`share_requests`** — the four transaction types above. Columns: `id`, `secret_id`, `sealed_label`,
+**`share_requests`** — the five transaction types above. Columns: `id`, `secret_id`, `sealed_label`,
 `sender_key`, `recipient_key`, `state`, `ciphertext`, `k`, `n`, `mime_type`,
 `secret_created_at`, `requested_at`, `responded_at`, `sender_signature`,
 `recipient_signature`. `k`, `n` and `mime_type` are required for `deposit` and `inventory`,
-forbidden for `retrieval` and `removal`.
+forbidden for the other three.
 
 A `retrieval` or `removal` row carries no pointer to the `deposit` it follows. It needs none:
-`(secret_id, recipient_key)` already identifies the live deposit — the relay enforces exactly
-that pair — so both parties match on it. A row that named a specific deposit would additionally
-be worthless to a holder whose sender has since recovered onto a fresh device.
+`(secret_id, recipient_key)` already identifies the share it is about — the pair the relay
+enforces while a deposit is in flight — so both parties match on it. A row that named a specific
+deposit would point at a row that is gone once its pickup has been seen, and would be worthless
+to a holder whose sender has since recovered onto a fresh device.
 
 `sealed_label` is the secret's label, sealed by the sender to the recipient's encryption key with the
 same box as a share, under HPKE info of its own (see [security.md](security.md)). Every type
@@ -176,9 +203,16 @@ business writing them to disk.
 the old key it already trusts, and deletes the row once consumed.
 
 **`custody_heartbeats`** — signed "still guarding these for you" reports. Columns: `id`,
-`holder_key`, `owner_key`, `secret_ids`, `opted_out`, `signature`, `created_at`, with
-`UNIQUE (holder_key, owner_key)`. `POST` **upserts** and `GET` does **not** delete, because
-a heartbeat is a standing status a holder re-emits rather than a one-shot delivery.
+`holder_key`, `owner_key`, `secret_ids`, `opted_out`, `emitted_at`, `signature`, `created_at`,
+with `UNIQUE (holder_key, owner_key)`. The owner deletes a heartbeat once read: what it told her
+is kept on her own device, and the holder re-emits every interval. Until then `POST` **upserts**
+— a newer push replaces an unread one, under a fresh `id`, so an owner deleting the one she read
+can never delete one she has not.
+
+`emitted_at` is the holder's own clock, and is signed; it is the time custody is dated from.
+`created_at` is the relay's receipt time, unsigned, for operators only. A relay that could set the
+time custody was last proven could keep a lost holder looking fresh by re-serving an old
+heartbeat, so the owner never reads it.
 
 Rotation and heartbeat deliberately are *not* `share_requests` rows. Neither carries a
 `secretId` and neither has a consent phase, so folding them in would mean a nullable
@@ -191,22 +225,24 @@ Pre-launch, that file is **edited in place** rather than accompanied by new evol
 ## Endpoints
 
 ```
-POST   /share-requests             open a request (any of the four types)
+POST   /share-requests             open a request (any of the five types)
 GET    /share-requests             list requests visible to the caller
 GET    /share-requests/{id}        fetch one
 PATCH  /share-requests/{id}        approve or deny (recipient only)
 DELETE /share-requests/{id}        delete one
-POST   /share-requests/withdraw    recipient-initiated unilateral withdrawal
 
 POST   /key-rotations              push a signed rotation notice
 GET    /key-rotations              list notices addressed to the caller
 DELETE /key-rotations/{id}         delete one once consumed
 
 POST   /custody-heartbeats         push (upsert) a signed heartbeat
-GET    /custody-heartbeats         list the latest heartbeat per holder
+GET    /custody-heartbeats         list the unread heartbeat per holder
+DELETE /custody-heartbeats/{id}    delete one once read (owner only)
 ```
 
-Deleting a `deposit` row cascades to the `retrieval` and `removal` rows referencing it.
+Deleting a row deletes that row and nothing else. A sender deletes an approved `deposit` as soon
+as she has seen the pickup, and a `retrieval` or `removal` she opened in the meantime — Destroy
+tapped before the pickup was seen, say — must not go with it.
 
 ## Delivery: polling only
 
@@ -231,9 +267,14 @@ that safe:
 > means "lost".
 
 Everything is therefore either idempotently re-emitted on the next poll (heartbeats,
-rotations, inventory pushes, tombstones) or re-issuable by the user (action requests).
+rotations, inventory pushes) or re-issuable by the user (action requests).
 Clients follow one rule when reconciling: **upsert, never delete.** A row's disappearance
 must never cause a client to forget something.
+
+A `withdrawal` is neither — once the share is gone, nothing re-emits it — and losing one costs
+little: the owner misses the explicit answer, not the share's safety. A monitored holder who has
+stopped holding stops naming the secret, falls silent for it, and drops out of `n_live` at the
+loss threshold like any holder who stops reporting.
 
 **The rule binds the relay too.** Approving a `removal` sweeps the rest of that
 (`secret_id`, `sender_key`, `recipient_key`) triple — the `deposit` above all, which may
@@ -244,10 +285,10 @@ already gone. Since the sweep takes every other trace of that holder's custody w
 deleting the answer as well would leave the sender an absence to read, and an absence says
 nothing. She deletes the row herself once she has acted on it.
 
-Retention classes are an operator concern, not application logic: consent-gated action
-requests want generous retention so an offline counterparty can still act, while
-fire-and-forget pushes can be short-lived and latest-wins. Neither is enforced by the relay
-code today.
+Retention is an operator concern, not application logic. With every row a message, there is one
+question to answer — how long to wait for an addressee who never comes — and it wants a
+generous answer, so an offline counterparty can still act. Nothing enforces one in the relay code
+today.
 
 **One exception needs care.** A `deposit` row carries the only copy of an encrypted share
 in transit, so collection before pickup would appear to lose it — and the polynomial is not

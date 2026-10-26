@@ -200,8 +200,8 @@ sustained silence as the loss signal — but the framing matters. A pull puts th
 in the position of an audited suspect whose app answers on his behalf; a push makes him an
 active custodian reporting in, and makes opting out a natural act rather than an evasion.
 
-- Heartbeats are **signed** over the reported `secretIds` and a timestamp, so a blind relay
-  cannot forge "Bob is fine".
+- Heartbeats are **signed** over the reported `secretIds` and the time the holder sent them, so a
+  blind relay cannot forge "Bob is fine" — not even by re-serving an old one as new.
 - They are **default-on and holder-disableable**, globally or per owner.
 - **Opting out is itself a signed notice**, so the owner can distinguish *"chose privacy,
   status unknown by choice"* from *"went dark, possibly lost"*. An unmonitorable holder is a
@@ -238,6 +238,14 @@ present a weeks-old "healthy" as live truth. Every holder falls into one bucket:
 
 *Any* signed proof of custody refreshes the clock — a heartbeat, a pickup approval, or a
 retrieval approval — so a holder you recently retrieved from is fresh automatically.
+
+A heartbeat is dated by the time the holder signed into it, never by when the relay received it,
+and it only ever moves the clock forward: one older than what your phone already knows changes
+nothing, so a relay holding on to an old heartbeat gains nothing by serving it again. Nor can it
+date custody later than your phone's own clock, which is what a holder whose clock runs ahead
+would otherwise do. The opt-out follows the same rule, with one gap left open on purpose: a
+replayed old opt-out can still mark a holder *Unmonitored by choice*. That takes them out of
+`n_live`, so it can raise an alarm, never silence one.
 
 Dropping out at the threshold, rather than merely being annotated, is the point: erosion has
 to show up in the number you plan against, not in a footnote. It is also **reversible** — a

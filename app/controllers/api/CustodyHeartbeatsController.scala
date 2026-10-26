@@ -30,6 +30,7 @@ import play.api.libs.json.*
 import play.api.mvc.*
 import value_objects.*
 
+import java.time.Instant
 import java.util.UUID
 
 /** The signed custodial-heartbeat push — see `driving_ports.CustodyHeartbeats`. */
@@ -58,19 +59,24 @@ class CustodyHeartbeatsController @Inject() (
       optedOut <- (json \ "optedOut")
         .asOpt[Boolean]
         .toRight(BadRequest(errorJson("missing_field", "optedOut is required")))
+      emittedAtStr <- (json \ "emittedAt")
+        .asOpt[String]
+        .toRight(BadRequest(errorJson("missing_field", "emittedAt is required")))
+      emittedAt <- parseInstant(emittedAtStr)
+        .toRight(BadRequest(errorJson("invalid_field", "emittedAt must be an ISO-8601 instant")))
       sigStr <- (json \ "signature")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "signature is required")))
       signature <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(errorJson("invalid_field", e)))
       heartbeat <- heartbeats
-        .pushHeartbeat(callerKey, ownerKey, secretIds, optedOut, signature)
+        .pushHeartbeat(callerKey, ownerKey, secretIds, optedOut, emittedAt, signature)
         .left
         .map(domainErrorToResult)
     yield Created(custodyHeartbeatJson(heartbeat))
     result.merge
   }
 
-  /** GET /custody-heartbeats — the latest heartbeat from each holder addressed to the caller. */
+  /** GET /custody-heartbeats — the unread heartbeat from each holder addressed to the caller. */
   def listHeartbeats() = Action { (request: Request[AnyContent]) =>
     val result = for
       callerKey <- AuthHelper.verify(request, Array.empty)
@@ -79,9 +85,27 @@ class CustodyHeartbeatsController @Inject() (
     result.merge
   }
 
+  /** DELETE /custody-heartbeats/:id — the owner deletes a heartbeat once she has read it. */
+  def deleteHeartbeat(id: String) = Action { (request: Request[AnyContent]) =>
+    val result = for
+      callerKey <- AuthHelper.verify(request, Array.empty)
+      uuid <- parseUuid(id).toRight(BadRequest(errorJson("invalid_param", "id must be a UUID")))
+      _ <- heartbeats.deleteHeartbeat(callerKey, uuid).left.map(domainErrorToResult)
+    yield NoContent
+    result.merge
+  }
+
   private def parseJson(bytes: Array[Byte]): Either[Result, JsValue] =
     try Right(Json.parse(bytes))
     catch case e: Exception => Left(BadRequest(errorJson("invalid_json", e.getMessage)))
+
+  private def parseUuid(s: String): Option[UUID] =
+    try Some(UUID.fromString(s))
+    catch case _: Exception => None
+
+  private def parseInstant(s: String): Option[Instant] =
+    try Some(Instant.parse(s))
+    catch case _: Exception => None
 
   private def parseUuids(strs: Seq[String]): Option[Seq[UUID]] =
     try Some(strs.map(UUID.fromString))

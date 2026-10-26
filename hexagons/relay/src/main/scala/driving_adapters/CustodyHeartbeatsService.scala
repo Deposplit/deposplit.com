@@ -34,25 +34,40 @@ import java.util.UUID
 
 class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository) extends CustodyHeartbeats:
 
+  private def sameKey(a: PublicKey, b: PublicKey): Boolean =
+    a.toBase64Url == b.toBase64Url
+
   override def pushHeartbeat(
       holderKey: PublicKey,
       ownerKey: PublicKey,
       secretIds: Seq[UUID],
       optedOut: Boolean,
+      emittedAt: Instant,
       signature: Signature
   ): Either[Error, CustodyHeartbeat] =
-    val canon = PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut)
+    val canon = PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut, emittedAt)
     if !holderKey.verify(canon, signature) then return Left(Error.BadRequest)
+    val now = Instant.now()
+    if emittedAt.isAfter(now) then return Left(Error.BadRequest)
     val heartbeat = CustodyHeartbeat(
       id = UUID.randomUUID(),
       holderKey = holderKey,
       ownerKey = ownerKey,
       secretIds = secretIds,
       optedOut = optedOut,
+      emittedAt = emittedAt,
       signature = signature,
-      createdAt = Instant.now()
+      createdAt = now
     )
     Right(repository.upsertHeartbeat(heartbeat))
 
   override def listHeartbeats(ownerKey: PublicKey): Either[Error, Seq[CustodyHeartbeat]] =
     Right(repository.getHeartbeatsForOwner(ownerKey))
+
+  override def deleteHeartbeat(ownerKey: PublicKey, id: UUID): Either[Error, Unit] =
+    repository.getHeartbeatById(id) match
+      case None                                      => Left(Error.NotFound)
+      case Some(h) if !sameKey(h.ownerKey, ownerKey) => Left(Error.Forbidden)
+      case Some(_)                                   =>
+        repository.deleteHeartbeatById(id)
+        Right(())

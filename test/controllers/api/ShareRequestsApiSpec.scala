@@ -424,7 +424,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
   "POST /share-requests (Removal) + PATCH (approve Removal)" should {
 
-    "open a Removal request and, when approved, cascade-delete Deposit + Retrieval rows" in {
+    "open a Removal request and, when approved, sweep the Deposit + Retrieval rows" in {
       // Open a fresh Deposit in a fresh secretId so this doesn't interfere with prior state
       val freshSecretId = UUID.randomUUID().toString
       val freshDepositSig =
@@ -462,7 +462,7 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(approveResult) mustBe OK
       (contentAsJson(approveResult) \ "state").as[String] mustBe "approved"
 
-      // Deposit row should be gone (cascade)
+      // Deposit row should be gone (swept)
       val depositGet = route(app, alice.get(s"/share-requests/$deposit2Id")).get
       status(depositGet) mustBe NOT_FOUND
 
@@ -483,10 +483,15 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
 
   "DELETE /share-requests/:requestId" should {
 
-    "allow the sender to delete a Deposit row (cascading Retrieval/Removal)" in {
+    "allow the sender to delete a Deposit row, and only that row" in {
       // The depositId from the main flow is still in the DB
       val result = route(app, alice.delete(s"/share-requests/$depositId")).get
       status(result) mustBe NO_CONTENT
+      status(route(app, alice.get(s"/share-requests/$depositId")).get) mustBe NOT_FOUND
+      // The retrieval Bob answered for the same share is a copy already handed back, and outlives it.
+      val retrievalGet = route(app, alice.get(s"/share-requests/$retrievalId")).get
+      status(retrievalGet) mustBe OK
+      (contentAsJson(retrievalGet) \ "state").as[String] mustBe "approved"
     }
 
     "return 404 for an unknown request ID" in {
@@ -495,45 +500,51 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
     }
   }
 
-  // ── Withdraw (recipient-initiated tombstone) ────────────────────────────────
+  // ── Withdrawal push ─────────────────────────────────────────────────────────
 
-  "POST /share-requests/withdraw" should {
+  "POST /share-requests (Withdrawal)" should {
 
-    "flip an approved Deposit to withdrawn instead of deleting it" in {
+    "self-approve on open, reach the owner as recipient, and be deleted by her once consumed" in {
       val sid = UUID.randomUUID().toString
-      val body = depositBody(alice, bob, sid = sid)
-      val depositResult = route(app, alice.post("/share-requests", body)).get
-      status(depositResult) mustBe CREATED
-      val id = (contentAsJson(depositResult) \ "id").as[String]
+      // Bob (the holder) tells Alice (the owner) he no longer holds her share — the holder is senderKey.
+      val sig = bob.signOpen(sid, "withdrawal", alice.publicKeyHeader, "eA==", createdAt, None)
+      val body =
+        s"""{"transactionType":"withdrawal","secretId":"$sid","sealedLabel":"eA==","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      val result = route(app, bob.post("/share-requests", body)).get
+      status(result) mustBe CREATED
+      val json = contentAsJson(result)
+      val id = (json \ "id").as[String]
+      (json \ "transactionType").as[String] mustBe "withdrawal"
+      (json \ "state").as[String] mustBe "approved"
+      (json \ "recipientSignature").asOpt[String] mustBe None
+      (json \ "k").asOpt[Int] mustBe None
 
-      val approveResult = route(app, bob.patch(s"/share-requests/$id", respondBody(bob, id, approved = true))).get
-      status(approveResult) mustBe OK
+      val listResult = route(app, alice.get("/share-requests?role=recipient&type=withdrawal")).get
+      status(listResult) mustBe OK
+      contentAsJson(listResult).as[JsArray].value.exists(j => (j \ "id").as[String] == id) mustBe true
 
-      val withdrawResult = route(app, bob.post(s"/share-requests/withdraw?secretId=$sid", Array.empty[Byte])).get
-      status(withdrawResult) mustBe NO_CONTENT
-
-      val getResult = route(app, alice.get(s"/share-requests/$id")).get
-      status(getResult) mustBe OK
-      (contentAsJson(getResult) \ "state").as[String] mustBe "withdrawn"
+      status(route(app, alice.delete(s"/share-requests/$id")).get) mustBe NO_CONTENT
     }
 
-    "leave a Pending Deposit untouched — nothing to withdraw yet" in {
+    "reject a Withdrawal carrying k/n/mimeType" in {
       val sid = UUID.randomUUID().toString
-      val body = depositBody(alice, bob, sid = sid)
-      val depositResult = route(app, alice.post("/share-requests", body)).get
-      status(depositResult) mustBe CREATED
-      val id = (contentAsJson(depositResult) \ "id").as[String]
-
-      val withdrawResult = route(app, bob.post(s"/share-requests/withdraw?secretId=$sid", Array.empty[Byte])).get
-      status(withdrawResult) mustBe NO_CONTENT
-
-      val getResult = route(app, alice.get(s"/share-requests/$id")).get
-      (contentAsJson(getResult) \ "state").as[String] mustBe "pending"
-    }
-
-    "is a no-op (still 204) when nothing matches" in {
-      val result = route(app, bob.post("/share-requests/withdraw?secretId=" + UUID.randomUUID(), Array.empty[Byte])).get
-      status(result) mustBe NO_CONTENT
+      val sig =
+        bob.signOpen(
+          sid,
+          "withdrawal",
+          alice.publicKeyHeader,
+          "eA==",
+          createdAt,
+          None,
+          Some(2),
+          Some(3),
+          Some("text/plain")
+        )
+      val body =
+        s"""{"transactionType":"withdrawal","secretId":"$sid","sealedLabel":"eA==","recipientKey":"${alice.publicKeyHeader}","secretCreatedAt":"$createdAt","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
+          .getBytes("UTF-8")
+      status(route(app, bob.post("/share-requests", body)).get) mustBe BAD_REQUEST
     }
   }
 

@@ -35,6 +35,7 @@ import java.util.UUID
   *   - Removal: always None.
   *   - Inventory: always None — this type never carries share bytes, only the metadata a recovering owner needs to
   *     rebuild her records on her own device (see "state" below).
+  *   - Withdrawal: always None — a holder's signed notice that they no longer hold the share.
   *
   * `k`/`n` are populated for Deposit and Inventory only (None for Retrieval/Removal). Signed as part of
   * `senderSignature` so a holder can't misreport them without invalidating the row.
@@ -42,11 +43,14 @@ import java.util.UUID
   * `mimeType` follows the same rule and is likewise signed. It is the sender's claim about what the secret is, kept so
   * the recipient can decide how to render it after reconstruction; the relay never interprets it.
   *
-  * `state` is `Pending` at creation for Deposit/Retrieval/Removal, awaiting the recipient's approve/deny. Inventory is
-  * different: it's a holder-initiated *push*, not a consent-gated request — nothing for the recipient to approve — so
-  * it's created directly in `Approved` state (`respondedAt` set immediately, `recipientSignature` left None). The
-  * recipient simply polls for it and deletes the row once consumed, via the same `deleteShareRequestById` any party may
-  * already call.
+  * `state` is `Pending` at creation for Deposit/Retrieval/Removal, awaiting the recipient's approve/deny. Inventory and
+  * Withdrawal are different: each is a holder-initiated *push*, not a consent-gated request — nothing for the recipient
+  * to approve — so each is created directly in `Approved` state (`respondedAt` set immediately, `recipientSignature`
+  * left None). The recipient simply polls for it and deletes the row once consumed, via the same
+  * `deleteShareRequestById` any party may already call.
+  *
+  * Every row is a message, deleted by the party it is addressed to once acted on: an approved Deposit by its sender as
+  * soon as she has seen the pickup, an answered Retrieval or Removal by its sender, a push by its recipient.
   *
   * `senderSignature` and `recipientSignature` are Ed25519 signatures over `PayloadCanonical`'s byte constructions —
   * independent of the transport-auth signature, they let any reader re-verify authorship, which is what makes BYOR (a

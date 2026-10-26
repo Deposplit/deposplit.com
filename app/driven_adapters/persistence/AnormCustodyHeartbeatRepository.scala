@@ -68,17 +68,20 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
       get[Array[Byte]]("owner_key") ~
       get[String]("secret_ids") ~
       get[Boolean]("opted_out") ~
+      get[Instant]("emitted_at") ~
       get[Array[Byte]]("signature") ~
-      get[Instant]("created_at") map { case id ~ holderKey ~ ownerKey ~ secretIds ~ optedOut ~ sig ~ createdAt =>
-        CustodyHeartbeat(
-          id = id,
-          holderKey = parseKey(holderKey),
-          ownerKey = parseKey(ownerKey),
-          secretIds = parseSecretIds(secretIds),
-          optedOut = optedOut,
-          signature = parseSignature(sig),
-          createdAt = createdAt
-        )
+      get[Instant]("created_at") map {
+        case id ~ holderKey ~ ownerKey ~ secretIds ~ optedOut ~ emittedAt ~ sig ~ createdAt =>
+          CustodyHeartbeat(
+            id = id,
+            holderKey = parseKey(holderKey),
+            ownerKey = parseKey(ownerKey),
+            secretIds = parseSecretIds(secretIds),
+            optedOut = optedOut,
+            emittedAt = emittedAt,
+            signature = parseSignature(sig),
+            createdAt = createdAt
+          )
       }
 
   // Plain select-then-insert-or-update rather than `ON CONFLICT ... DO UPDATE`: H2's PostgreSQL
@@ -88,6 +91,9 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
   // concurrent pushes from the same holder to the same owner (rare — the whole point of
   // coalescing is one push per sender per interval) can at worst leave either push's content
   // persisted, which is harmless: both are freshness proofs from the same holder.
+  //
+  // The UPDATE replaces the id as well, so an owner who read the old row and deletes it by that id cannot delete this
+  // newer one, which she has not read yet.
   override def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat =
     db.withConnection { implicit conn =>
       val existingId =
@@ -99,13 +105,16 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
         case Some(id) =>
           SQL("""
             UPDATE custody_heartbeats
-            SET secret_ids = {secretIds}, opted_out = {optedOut}, signature = {signature}, created_at = {createdAt}
+            SET id = {newId}::uuid, secret_ids = {secretIds}, opted_out = {optedOut}, emitted_at = {emittedAt},
+                signature = {signature}, created_at = {createdAt}
             WHERE id = {id}::uuid
           """)
             .on(
               "id" -> id.toString,
+              "newId" -> heartbeat.id.toString,
               "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
               "optedOut" -> heartbeat.optedOut,
+              "emittedAt" -> heartbeat.emittedAt,
               "signature" -> heartbeat.signature.toBytes,
               "createdAt" -> heartbeat.createdAt
             )
@@ -113,9 +122,9 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
         case None =>
           SQL("""
             INSERT INTO custody_heartbeats
-              (id, holder_key, owner_key, secret_ids, opted_out, signature, created_at)
+              (id, holder_key, owner_key, secret_ids, opted_out, emitted_at, signature, created_at)
             VALUES
-              ({id}::uuid, {holderKey}, {ownerKey}, {secretIds}, {optedOut}, {signature}, {createdAt})
+              ({id}::uuid, {holderKey}, {ownerKey}, {secretIds}, {optedOut}, {emittedAt}, {signature}, {createdAt})
           """)
             .on(
               "id" -> heartbeat.id.toString,
@@ -123,6 +132,7 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
               "ownerKey" -> heartbeat.ownerKey.toBytes,
               "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
               "optedOut" -> heartbeat.optedOut,
+              "emittedAt" -> heartbeat.emittedAt,
               "signature" -> heartbeat.signature.toBytes,
               "createdAt" -> heartbeat.createdAt
             )
@@ -138,4 +148,18 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
       SQL("SELECT * FROM custody_heartbeats WHERE owner_key = {ownerKey}")
         .on("ownerKey" -> ownerKey.toBytes)
         .as(heartbeatParser.*)
+    }
+
+  override def getHeartbeatById(id: UUID): Option[CustodyHeartbeat] =
+    db.withConnection { implicit conn =>
+      SQL("SELECT * FROM custody_heartbeats WHERE id = {id}::uuid")
+        .on("id" -> id.toString)
+        .as(heartbeatParser.singleOpt)
+    }
+
+  override def deleteHeartbeatById(id: UUID): Unit =
+    db.withConnection { implicit conn =>
+      SQL("DELETE FROM custody_heartbeats WHERE id = {id}::uuid")
+        .on("id" -> id.toString)
+        .executeUpdate()
     }

@@ -49,8 +49,8 @@ trait ShareRepository:
       state: Option[ShareRequestState]
   ): Seq[ShareRequest]
 
-  /** True if a non-denied Deposit already exists for this (secretId, recipientKey) pair. Used to prevent duplicate
-    * deposits (a denied Deposit allows re-deposit).
+  /** True if a non-denied Deposit still exists for this (secretId, recipientKey) pair: one in transit, or one picked up
+    * whose sender has not yet seen it. Used to prevent duplicate deposits (a denied Deposit allows re-deposit).
     */
   def hasActiveDeposit(secretId: SecretId, recipientKey: PublicKey): Boolean
 
@@ -76,31 +76,13 @@ trait ShareRepository:
   /** Deletes a single request row by primary key. */
   def deleteShareRequestById(id: UUID): Unit
 
-  /** Deletes every row for one (secretId, senderKey, recipientKey) triple. Used when a Deposit row is deleted by id, so
-    * that the Retrieval and Removal rows for the same share go with it.
-    */
-  def deleteShareRequests(
-      recipientKey: PublicKey,
-      senderKey: PublicKey,
-      secretId: SecretId
-  ): Unit
-
-  /** Same delete, sparing the row named by `keeping`. Used when a Removal is approved: everything that removal made
-    * pointless goes, but the answer itself stays, because it is the sender's only evidence that this holder destroyed
-    * their share — and absence proves nothing.
+  /** Deletes every row for one (secretId, senderKey, recipientKey) triple, sparing the row named by `keeping`. Used
+    * when a Removal is approved: everything that removal made pointless goes, but the answer itself stays, because it
+    * is the sender's only evidence that this holder destroyed their share — and absence proves nothing.
     */
   def deleteShareRequestsExcept(
       recipientKey: PublicKey,
       senderKey: PublicKey,
       secretId: SecretId,
       keeping: UUID
-  ): Unit
-
-  /** Flips matching `Approved` Deposit rows (recipientKey match, optionally filtered by senderKey and/or secretId) to
-    * `Withdrawn`, in place — see `ShareRequests.withdrawShareRequests`.
-    */
-  def withdrawDeposits(
-      recipientKey: PublicKey,
-      senderKey: Option[PublicKey],
-      secretId: Option[SecretId]
   ): Unit

@@ -33,7 +33,7 @@ enum Role:
 /** The kind of thing that happened (or is being asked to happen) to a share, phrased as a neutral transaction noun
   * rather than either party's verb. Naming from a single named actor's point of view (Alice's, or Bob's) breaks down
   * because the actor genuinely alternates — Alice always opens Deposit/Retrieval/Removal, but the *holder* opens
-  * Inventory (holder → owner).
+  * Inventory and Withdrawal (holder → owner).
   *
   * `wireValue` is the single source of truth for this type's wire representation, mirroring the relay's
   * `ShareTransactionType` (this module can't depend on `relay` — separate sbt subprojects with no dependency between
@@ -44,15 +44,13 @@ enum ShareTransactionType(val wireValue: String):
   case Retrieval extends ShareTransactionType("retrieval")
   case Removal extends ShareTransactionType("removal")
   case Inventory extends ShareTransactionType("inventory")
+  case Withdrawal extends ShareTransactionType("withdrawal")
 
 object ShareTransactionType:
   def fromWire(s: String): Option[ShareTransactionType] = values.find(_.wireValue == s)
 
 enum ShareRequestState:
-  /** Deposit-only: the recipient unilaterally stopped holding the share. A best-effort tombstone, not authoritative —
-    * see `ShareRelay.withdrawShareRequests`.
-    */
-  case Pending, Approved, Denied, Withdrawn
+  case Pending, Approved, Denied
 
 /** Flat mirror of the relay's ShareRequest — every request type uses the same structure.
   *
@@ -73,7 +71,7 @@ case class ShareRequest(
     respondedAt: Option[Instant],
     ciphertext: Option[Array[Byte]],
     // SSS threshold/share-count and the sender's declared media type — all populated for
-    // Deposit/Inventory, None for Retrieval/Removal.
+    // Deposit/Inventory, None for Retrieval/Removal/Withdrawal.
     k: Option[Int] = None,
     n: Option[Int] = None,
     mimeType: Option[MimeType] = None,

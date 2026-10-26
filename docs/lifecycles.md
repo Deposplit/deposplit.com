@@ -17,7 +17,7 @@ together:
 | Record | Where | What it is |
 |---|---|---|
 | `Secret`, plus one `ShareMetadata` per holder | the owner's phone | what the owner believes about her own secret |
-| a `share_requests` row | the relay | a message in flight, or the trace one left |
+| a `share_requests` row | the relay | a message in flight, gone once its addressee has read it |
 | `HeldShare` | the holder's phone | the share itself, plaintext |
 
 There is no transaction across them, and no push channel either. Every transition below is
@@ -147,8 +147,9 @@ skipped as already outstanding.
 
 ### What moves the holders without moving the secret
 
-- **A holder withdraws.** Their `ShareMetadata` is dropped on the next poll, `n_live` falls,
-  and the health badge may drop a rung. The secret stays `Active`: erosion is a health
+- **A holder withdraws.** Their signed withdrawal drops their `ShareMetadata` on the next poll,
+  along with this device's unanswered asks to them about that secret; `n_live` falls, and the
+  health badge may drop a rung. The secret stays `Active`: erosion is a health
   event, never a state change.
 - **A holder goes quiet.** They fall out of `n_live` at the loss threshold and come back the
   moment they reopen their app. Nothing is written down and nothing is lost.
@@ -195,8 +196,9 @@ stored. The owner sees the second case as a holder who simply never confirms.
 the ciphertext — the sender's signature covers it, so the row cannot be verified without it
 — so the order is decrypt, store, *then* approve. A failure anywhere leaves the row pending
 with the relay's copy intact and the next poll simply retries; the approval's job is to tell
-the owner the share arrived and let the relay drop its only copy. See
-[protocol.md](protocol.md#absence-is-never-a-signal).
+the owner the share arrived and let the relay drop its only copy. Once the owner has read it,
+she deletes the row: it has said all it had to say, and kept, it would be the relay's record of
+who holds what for whom. See [protocol.md](protocol.md#absence-is-never-a-signal).
 
 **The bytes never change while held.** A retrieval hands back a *fresh encryption* of the
 same plaintext, to whatever key the owner has **now** — looked up live, not pinned at
@@ -206,7 +208,7 @@ survive its owner rotating keys or recovering onto a new phone; see
 
 **Two ways out, and only one of them needs anyone's permission.** A removal is a *request*:
 it can be denied, and a denial ends nothing. `deleteHeldShare` is unilateral and needs
-nobody — it leaves a withdrawn tombstone behind as a courtesy, best-effort, and deletes
+nobody — it pushes a signed withdrawal to the owner as a courtesy, best-effort, and deletes
 locally whether or not that reaches anybody. Nothing can compel a holder to destroy a share,
 and nothing can stop one.
 
@@ -225,7 +227,7 @@ stateDiagram-v2
         SilentOverdue --> Unmonitored : signed opt-out
         Unmonitored --> Confirmed : opt-out withdrawn
     }
-    Deposited --> [*] : withdrawn tombstone seen, removal approved, or Force Forget
+    Deposited --> [*] : signed withdrawal seen, removal approved, or Force Forget
 ```
 
 There is deliberately no *awaiting pickup* bucket: a holder who has confirmed nothing yet is
@@ -244,7 +246,7 @@ row below is a designed-for gap, not a defect:
 |---|---|---|
 | a holder has gone silent | nothing — the phone was lost, and its replacement has no record it ever held anything | only the owner can notice; `n_live` drops at the loss threshold, and repair is reconstruct-then-re-split |
 | a holder has gone silent | the share, on a phone nobody has opened for a fortnight | the next app open, which restores them to `n_live` in full — which is what makes erring toward alarm cheap |
-| the share is still out there | deleted, unilaterally | the withdrawn tombstone, observed on the next poll. Never the row's disappearance |
+| the share is still out there | deleted, unilaterally | the holder's signed withdrawal, read on the next poll. Never a row's disappearance, nor a heartbeat that stops naming the secret |
 | the secret is `Destroying`, waiting on one holder | the share, with the removal denied | nothing. Force Forget is the owner's escape, and it deliberately does not reach the phone that holds the share |
 | nothing — the secret was force-forgotten | a share nobody will ever ask about again | the holder may delete it at will; or, if they relink, their inventory push brings the owner's record back as `Active` |
 | a holder has never picked up | nothing at all | the retained blob, which is why an uncollected deposit is not yet a lost share |

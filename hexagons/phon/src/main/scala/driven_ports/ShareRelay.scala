@@ -43,8 +43,8 @@ trait ShareRelay:
   /** The URL this relay answers at — what a warning names when it does not. */
   def baseUrl: String
 
-  /** Open a Deposit, Retrieval, or Removal request on the relay. For Deposit: ciphertext must be supplied (the
-    * encrypted share). For Retrieval/Removal: ciphertext is absent.
+  /** Open a request of any type on the relay. For Deposit: ciphertext must be supplied (the encrypted share). For every
+    * other type: ciphertext is absent.
     */
   def openShareRequest(
       secretId: UUID,
@@ -74,15 +74,8 @@ trait ShareRelay:
       recipientSignature: Array[Byte]
   ): ShareRequest
 
-  /** Delete a single request by id. When the caller deletes a Deposit, the relay cascades to Retrieval/Removal rows for
-    * the same share.
-    */
+  /** Delete a single request by id, and nothing else with it. */
   def deleteShareRequest(requestId: UUID): Unit
-
-  /** Recipient-initiated unilateral withdrawal — flips matching approved Deposit rows to Withdrawn on the relay instead
-    * of deleting them, so the sender's next poll can observe the tombstone. Best-effort and fire-and-forget.
-    */
-  def withdrawShareRequests(senderKey: Option[Array[Byte]] = None, secretId: Option[UUID] = None): Unit
 
   // The signed rotate(K_old -> K_new) push. Grouped onto this trait rather than a separate
   // port: it's the same physical relay endpoint and the same BYOR per-contact routing as every
@@ -113,12 +106,19 @@ trait ShareRelay:
   // the rotation methods above — same physical relay endpoint, same BYOR per-contact routing.
 
   /** Pushes (upserts) a signed heartbeat to one owner. `signature` must verify against the caller's own current Ed25519
-    * key (the relay's `holderKey`) over `value_objects.svo.PayloadCanonical.forHeartbeat`. The same call covers the
-    * opt-out notice (`optedOut = true`).
+    * key (the relay's `holderKey`) over `value_objects.svo.PayloadCanonical.forHeartbeat`, `emittedAt` included. The
+    * same call covers the opt-out notice (`optedOut = true`).
     */
-  def pushHeartbeat(ownerKey: Array[Byte], secretIds: Seq[UUID], optedOut: Boolean, signature: Array[Byte]): Unit
+  def pushHeartbeat(
+      ownerKey: Array[Byte],
+      secretIds: Seq[UUID],
+      optedOut: Boolean,
+      emittedAt: Instant,
+      signature: Array[Byte]
+  ): Unit
 
-  /** The latest heartbeat from each holder addressed to this device (the owner). Never consumed-and-deleted — see
-    * `CustodyHeartbeat` for why it's a standing status, not a one-shot delivery.
-    */
+  /** The unread heartbeat from each holder addressed to this device (the owner). */
   def listHeartbeats(): List[CustodyHeartbeat]
+
+  /** Deletes a heartbeat once read — see `CustodyHeartbeat`. */
+  def deleteHeartbeat(id: UUID): Unit

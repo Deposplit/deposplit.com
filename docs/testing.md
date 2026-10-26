@@ -264,20 +264,20 @@ Step 10 is the one worth watching closely: it is where holder-decrypts-at-pickup
 and where the relay stops holding anything.
 
 Steps 16 and 17 are the pair that proves clearing is not teardown. After 16, check the relay's
-`share_requests`: the secret's retrieval rows are gone, its deposit rows are not, and Bob's and
-Carol's Keeping safe lists are untouched. Check too that every disabled control on the secret's
+`share_requests`: the secret's retrieval rows are gone — its deposit rows went long before, once
+Alice's phone had seen each pickup — and Bob's and Carol's Keeping safe lists are untouched. Check too that every disabled control on the secret's
 screen says why it is disabled — that is the rule the screen exists to keep.
 
 ## Flow 2 — Deny and re-request
 
 At step 13, Bob taps **Deny** instead. Alice's view shows "Denied" with a retry affordance;
-she re-requests and Bob approves.
+she re-requests and Bob approves. The denial is gone from the relay once the new ask is open.
 
 ## Flow 3 — Sender-initiated removal
 
 Alice opens a **Removal** request on one share. Bob's Requests tab shows it; Bob approves;
-Bob's deposit row is deleted, cascading to any related retrieval and removal rows, and the
-share disappears from Bob's Keeping safe view.
+the relay sweeps whatever other rows for that share are left, keeps Bob's signed answer until
+Alice's phone has read it, and the share disappears from Bob's Keeping safe view.
 
 ## Flow 4 — Holder-initiated deletion
 
@@ -290,7 +290,8 @@ missing.
 Before Alice refreshes, have her ask for the share back. Her phone has not seen the deletion yet,
 so the ask reaches Bob, whose Requests tab must show it with Approve disabled and the reason
 beneath it — there is nothing left to hand back — while Deny still works. Once Alice refreshes,
-her phone drops Bob as a holder and the ask disappears from Bob's list on his next refresh.
+her phone drops Bob as a holder and the ask disappears from Bob's list on his next refresh. Check
+the relay afterwards: neither Bob's withdrawal nor Alice's ask is left on it.
 
 ## Flow 5 — Offline and error states
 
@@ -320,7 +321,9 @@ now refuses every request, and the same places say so instead: *Relay … answer
 ## Flow 6 — Cross-platform
 
 Run Alice on iOS and Bob on Android at the same time, against one relay. Alice deposits for
-Bob; Bob sees it in Keeping safe; Bob opens a retrieval; Alice reconstructs.
+Bob; Bob sees it in Keeping safe; Bob opens a retrieval; Alice reconstructs. Then let one of
+Bob's heartbeats reach Alice, and swap the platforms for another: each must refresh the holder's
+freshness, which proves a signed `emittedAt` survives the wire in both directions.
 
 This is the highest-value flow in this document, because it is the only test that proves
 CryptoKit and BouncyCastle interoperate on a live wire. The vector tests prove that the
