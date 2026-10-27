@@ -41,3 +41,8 @@ trait CustodyHeartbeatRepository:
 
   /** Deletes a single heartbeat row by primary key. */
   def deleteHeartbeatById(id: java.util.UUID): Unit
+
+  /** Deletes every heartbeat whose `createdAt` — the receipt of its latest push — lies before `cutoff`. Returns how
+    * many rows it deleted.
+    */
+  def deleteHeartbeatsReceivedBefore(cutoff: java.time.Instant): Int

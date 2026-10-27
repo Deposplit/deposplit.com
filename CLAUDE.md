@@ -89,7 +89,7 @@ phon is still normal and needs no justification; skipping domain logic does.
 ```bash
 sbt run                                     # dev server, auto-reloads
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against local H2 (needed for phon)
-sbt test                                    # all tests (456: relay 113, phon 201, root 142)
+sbt test                                    # all tests (463: relay 116, phon 202, root 145)
 sbt relay/test                              # relay hexagon only
 sbt compile
 sbt dist
@@ -102,13 +102,13 @@ The sibling repositories, for reference:
 
 ```bash
 # from Android/
-./gradlew test                    # JVM unit tests, no device needed (207 :hexagon, 20 :app)
+./gradlew test                    # JVM unit tests, no device needed (208 :hexagon, 20 :app)
 ./gradlew :app:lintDebug          # the four gated lint checks
 ./gradlew :hexagon:test           # hexagon only
 ./gradlew assembleDebug
 
 # from iOS/hexagon/
-swift test                        # 204 tests
+swift test                        # 205 tests
 swift build
 ```
 
@@ -129,6 +129,7 @@ swift build
 | `app/controllers/gui/` | Landing page and Markdown rendering |
 | `app/controllers/phon/` | The emulator's controllers, its forms, and the view models its templates are handed |
 | `app/driven_adapters/persistence/` | Anorm repositories — the only code that knows SQL |
+| `app/jobs/` | Work driven by a clock rather than a request: the retention sweep |
 | `app/views/` | Twirl templates; `Phon/` is the emulator's own, with its own document layout |
 | `conf/` | `routes` (production), `dev.routes` (mounts phon) and `phon.routes` (one route per phon screen), `openapi.yaml`, `evolutions/`, `messages` + `messages.de` |
 | `public/markdowns/` | Landing page copy, English and German |

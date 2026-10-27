@@ -134,14 +134,16 @@ CREATE INDEX ON key_rotations (recipient_key);
 -- Until it is read, a newer push from the same holder to the same owner replaces it, so this
 -- table holds at most one row per (holder_key, owner_key) pair. The replacement takes a fresh
 -- id, so an owner deleting the row she read cannot delete one she has not (see hexagons/relay's
--- CustodyHeartbeat and docs/protocol.md).
+-- CustodyHeartbeat and docs/protocol.md). A row that is neither read nor superseded expires once
+-- its created_at is older than relay.retention.custody-heartbeats in application.conf.
 --
 -- secret_ids is a comma-joined list of UUID strings — opaque to the relay, which only stores and
 -- forwards it. Kept as TEXT rather than a native array column for portability (H2/Postgres) and
 -- consistency with how every other opaque payload on this table is stored.
 --
 -- emitted_at is the holder's own clock at signing, and is signed. It is the time the owner dates
--- custody from. created_at is this relay's receipt time, unsigned, for operators only.
+-- custody from. created_at is this relay's receipt time of the latest push, unsigned, and used
+-- for expiry and by operators, never by the owner.
 --
 -- signature is an Ed25519 signature by holder_key's private key over (ownerKey || sortedSecretIds
 -- || optedOut || emittedAt) — see hexagons/relay's PayloadCanonical.forHeartbeat for the exact bytes.

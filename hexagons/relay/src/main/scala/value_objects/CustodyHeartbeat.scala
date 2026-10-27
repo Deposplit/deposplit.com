@@ -38,8 +38,9 @@ import java.util.UUID
   * deleting the one she read can never take a newer one with it.
   *
   * `emittedAt` is the holder's own clock at signing and is covered by the signature — it is the time the owner dates
-  * custody from. `createdAt` is this relay's receipt time, unsigned, and for operators only: a relay that could set the
-  * time custody was last proven could keep a lost holder looking fresh by re-serving an old heartbeat.
+  * custody from. `createdAt` is this relay's receipt time of the latest push, unsigned, and used for expiry and by
+  * operators, never by the owner: a relay that could set the time custody was last proven could keep a lost holder
+  * looking fresh by re-serving an old heartbeat.
   */
 case class CustodyHeartbeat(
     id: UUID,

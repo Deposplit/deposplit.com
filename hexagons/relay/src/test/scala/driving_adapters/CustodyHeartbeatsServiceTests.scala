@@ -57,6 +57,11 @@ class InMemoryCustodyHeartbeatRepository extends CustodyHeartbeatRepository:
   override def deleteHeartbeatById(id: UUID): Unit =
     heartbeats = heartbeats.filterNot(_.id == id)
 
+  override def deleteHeartbeatsReceivedBefore(cutoff: Instant): Int =
+    val (expired, kept) = heartbeats.partition(_.createdAt.isBefore(cutoff))
+    heartbeats = kept
+    expired.size
+
 // ---------------------------------------------------------------------------
 // Tests — reuses ShareRequestsServiceTests's Fixtures (same package) for keypairs.
 // ---------------------------------------------------------------------------
@@ -185,4 +190,37 @@ class CustodyHeartbeatsServiceTests extends munit.FunSuite:
     assertNotEquals(newer.id, read.id)
     assertEquals(service.deleteHeartbeat(alice, read.id), Left(Error.NotFound))
     assertEquals(repo.getHeartbeatsForOwner(alice).map(_.id), Seq(newer.id))
+  }
+
+  // --- expireHeartbeats ---
+
+  test("expireHeartbeats expires only heartbeats received before the cutoff, and says how many") {
+    val (repo, service) = newService()
+    val stale = push(service, bob, alice).getOrElse(fail("push failed"))
+    val fresh = push(service, charlie, alice).getOrElse(fail("push failed"))
+    // Received 31 days ago — the relay's own receipt time, which is what expiry keys on.
+    repo.upsertHeartbeat(stale.copy(createdAt = Instant.now().minus(Duration.ofDays(31))))
+
+    assertEquals(service.expireHeartbeats(Instant.now().minus(Duration.ofDays(30))), 1)
+    assertEquals(repo.getHeartbeatsForOwner(alice).map(_.id), Seq(fresh.id))
+  }
+
+  test("expireHeartbeats keys on the relay's receipt time, not on the holder's emittedAt") {
+    val (repo, service) = newService()
+    // A holder whose clock runs 40 days behind: an old emittedAt, received just now.
+    val behind = Instant.now().minus(Duration.ofDays(40)).truncatedTo(ChronoUnit.MILLIS)
+    push(service, bob, alice, emittedAt = behind)
+
+    assertEquals(service.expireHeartbeats(Instant.now().minus(Duration.ofDays(30))), 0)
+    assertEquals(repo.getHeartbeatsForOwner(alice).size, 1)
+  }
+
+  test("a heartbeat re-pushed after the cutoff is not expired") {
+    val (repo, service) = newService()
+    val first = push(service, bob, alice).getOrElse(fail("push failed"))
+    repo.upsertHeartbeat(first.copy(createdAt = Instant.now().minus(Duration.ofDays(31))))
+    val repushed = push(service, bob, alice).getOrElse(fail("push failed"))
+
+    assertEquals(service.expireHeartbeats(Instant.now().minus(Duration.ofDays(30))), 0)
+    assertEquals(repo.getHeartbeatsForOwner(alice).map(_.id), Seq(repushed.id))
   }

@@ -35,6 +35,7 @@ import driven_adapters.persistence.AnormShareRepository
 import driving_adapters.CustodyHeartbeatsService
 import driving_adapters.KeyRotationsService
 import driving_adapters.ShareRequestsService
+import jobs.RetentionSweep
 
 class Module extends AbstractModule:
   override def configure(): Unit =
@@ -44,3 +45,4 @@ class Module extends AbstractModule:
     bind(classOf[KeyRotations]).to(classOf[KeyRotationsService])
     bind(classOf[CustodyHeartbeatRepository]).to(classOf[AnormCustodyHeartbeatRepository])
     bind(classOf[CustodyHeartbeats]).to(classOf[CustodyHeartbeatsService])
+    bind(classOf[RetentionSweep]).asEagerSingleton()

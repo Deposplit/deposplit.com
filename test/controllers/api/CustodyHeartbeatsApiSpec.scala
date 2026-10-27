@@ -185,6 +185,18 @@ class CustodyHeartbeatsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       remaining.map(j => (j \ "id").as[String]) mustBe Seq(newerId)
     }
 
+    "let the holder push again once the owner has deleted the one she read" in {
+      val frank = new RequestSigner()
+      val read = route(app, bob.post("/custody-heartbeats", pushBody(bob, frank))).get
+      status(route(app, frank.delete(s"/custody-heartbeats/${(contentAsJson(read) \ "id").as[String]}")).get) mustBe
+        NO_CONTENT
+
+      val next = route(app, bob.post("/custody-heartbeats", pushBody(bob, frank))).get
+      status(next) mustBe CREATED
+      val remaining = contentAsJson(route(app, frank.get("/custody-heartbeats")).get).as[JsArray].value
+      remaining.map(j => (j \ "id").as[String]) mustBe Seq((contentAsJson(next) \ "id").as[String])
+    }
+
     "return 400 for an id that is not a UUID" in {
       status(route(app, alice.delete("/custody-heartbeats/not-a-uuid")).get) mustBe BAD_REQUEST
     }

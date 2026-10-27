@@ -1564,16 +1564,37 @@ class ShareServiceSignatureTests extends munit.FunSuite:
     assertEquals(contactRepo.getById(optedOutContact.id).flatMap(_.heartbeatOptedOutAt), Some(optedOutAt))
   }
 
-  test("syncDistributed ignores a heartbeat with a forged signature, and leaves it") {
+  test("syncDistributed ignores a heartbeat with a forged signature, and deletes it") {
     val relay = FakeShareRelay()
-    val (svc, bob, _, contactRepo, _, _, _) = newService(relay)
-    val notice = signedHeartbeat(aliceKeys.publicKey, bob.verifyKey().get, strangerKeys)
+    val (svc, bob, _, contactRepo, metaRepo, _, _) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
+    val notice = signedHeartbeat(aliceKeys.publicKey, bob.verifyKey().get, strangerKeys, Seq(secretId))
     relay.heartbeatsToReturn = List(notice)
 
     svc.syncDistributed()
 
     assertEquals(contactRepo.getAll(), List(aliceContact))
-    assert(relay.deletedHeartbeatIds.isEmpty)
+    assertEquals(metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt), None)
+    assertEquals(relay.deletedHeartbeatIds, List(notice.id))
+  }
+
+  test("syncDistributed ignores a heartbeat from an unknown key, and deletes it") {
+    val relay = FakeShareRelay()
+    val (svc, bob, _, contactRepo, metaRepo, _, _) = newService(relay)
+    val depositId = UUID.randomUUID()
+    val secretId = UUID.randomUUID()
+    metaRepo.save(ShareMetadata(depositId, secretId, aliceContact.id))
+    // Validly signed, but by a key this device knows no contact by — say one it has deleted.
+    val notice = signedHeartbeat(strangerKeys.publicKey, bob.verifyKey().get, strangerKeys, Seq(secretId))
+    relay.heartbeatsToReturn = List(notice)
+
+    svc.syncDistributed()
+
+    assertEquals(contactRepo.getAll(), List(aliceContact))
+    assertEquals(metaRepo.getAll().find(_.id == depositId).flatMap(_.lastConfirmedAt), None)
+    assertEquals(relay.deletedHeartbeatIds, List(notice.id))
   }
 
   test("syncDistributed rejects a heartbeat whose emittedAt is not the time that was signed") {

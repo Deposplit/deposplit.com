@@ -52,3 +52,10 @@ trait CustodyHeartbeats:
 
   /** The owner deletes a heartbeat once she has read it. Only the owner it is addressed to may. */
   def deleteHeartbeat(ownerKey: PublicKey, id: java.util.UUID): Either[Error, Unit]
+
+  /** Expires every heartbeat that has been neither read nor superseded since `receivedBefore` — one whose owner no
+    * longer reads it, because she lost her phone or changed her key, and whose holder no longer pushes to her. Keyed on
+    * this relay's own receipt time, never on the holder's signed `emittedAt`: a holder whose clock runs behind would
+    * have its heartbeats expire early. Returns how many it expired.
+    */
+  def expireHeartbeats(receivedBefore: java.time.Instant): Int

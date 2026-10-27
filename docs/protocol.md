@@ -209,10 +209,44 @@ is kept on her own device, and the holder re-emits every interval. Until then `P
 — a newer push replaces an unread one, under a fresh `id`, so an owner deleting the one she read
 can never delete one she has not.
 
+She deletes every heartbeat she lists, including one she cannot use — from a key she knows no
+contact by, or with a signature that fails. That is where heartbeats part from rotations, which
+she leaves alone in the same case: a rotation is sent once, while a heartbeat has a newer one
+behind it. Left on the relay, a heartbeat from a contact she has deleted would be refreshed by
+every push its holder still makes, and so never expire.
+
 `emitted_at` is the holder's own clock, and is signed; it is the time custody is dated from.
-`created_at` is the relay's receipt time, unsigned, for operators only. A relay that could set the
-time custody was last proven could keep a lost holder looking fresh by re-serving an old
-heartbeat, so the owner never reads it.
+`created_at` is the relay's receipt time of the latest push, unsigned, and used for expiry and
+by operators, never by the owner. A relay that could set the time custody was last proven could
+keep a lost holder looking fresh by re-serving an old heartbeat, so the owner never reads it.
+
+**Expiry.** The relay deletes a heartbeat that has been neither read nor superseded for 28 days —
+one addressed to an owner who has changed her key or lost her phone, or from a holder who has
+stopped pushing. It keys on `created_at`, never on `emitted_at`, because a holder whose clock
+runs behind would otherwise have its heartbeats expire early. The period must not fall below the
+apps' loss threshold of 9 days: a heartbeat that old would mark its holder lost anyway, so
+expiring it changes nothing the owner concludes, whereas expiring a younger one could make a live
+holder look lost to an owner who was offline for a week.
+
+Expiry cannot reach one case: an owner gone for good whose holder still pushes to her. Each push
+refreshes the row, so it stays — one per pair, by the upsert — until the holder lets the share
+go. Telling *gone* from *offline* would take a record of when owners poll, which
+[privacy.md](privacy.md) rules out.
+
+**Why delete on read, not append-only.** A simpler design would never update or delete a
+heartbeat: holders append, the owner acts on the latest one per holder, and expiry is the only
+deletion. It is rejected for four reasons:
+
+- **It turns heartbeats back into standing state.** The relay would hold a few rows of history
+  for every active pair at all times, secret ids included, where today it holds only the
+  heartbeats nobody has read yet. A breach, a backup or a legal demand would then yield the whole
+  custody graph at any moment.
+- **It breaks the rule every other row follows,** and with it what the privacy policy promises:
+  every entry is deleted by the app it is meant for once that app has acted on it.
+- **It makes expiry load-bearing.** Expiry would be what bounds the table, which pushes its
+  period down to the loss threshold, instead of leaving it a generous safety net for edge cases.
+- **It lets a buggy holder grow the table,** and every owner's download, with each poll. The
+  upsert absorbs the same bug.
 
 Rotation and heartbeat deliberately are *not* `share_requests` rows. Neither carries a
 `secretId` and neither has a consent phase, so folding them in would mean a nullable
@@ -285,10 +319,13 @@ already gone. Since the sweep takes every other trace of that holder's custody w
 deleting the answer as well would leave the sender an absence to read, and an absence says
 nothing. She deletes the row herself once she has acted on it.
 
-Retention is an operator concern, not application logic. With every row a message, there is one
-question to answer — how long to wait for an addressee who never comes — and it wants a
-generous answer, so an offline counterparty can still act. Nothing enforces one in the relay code
-today.
+With every row a message, retention has one question to answer — how long to wait for an
+addressee who never comes — and it wants a generous answer, so an offline counterparty can still
+act. The relay answers it itself, with a sweep that runs inside the app (`jobs.RetentionSweep`),
+so a self-hosted relay expires rows the same way without its operator doing anything. The period
+for each table is configuration, under `relay.retention` in `application.conf`. Only
+`custody_heartbeats` has one so far, described above. `key_rotations` and `share_requests` have
+none yet, so a row on either stays until its addressee deletes it.
 
 **One exception needs care.** A `deposit` row carries the only copy of an encrypted share
 in transit, so collection before pickup would appear to lose it — and the polynomial is not
@@ -299,9 +336,10 @@ discarded at sealing: she cannot open what she is retaining, so holding all *n* 
 forward-only blobs, not a reconstructable secret sitting on one device.
 
 **The blob is the prerequisite, not yet the mechanism.** Nothing re-deposits from it today,
-and that path lands with collection itself. Nothing costs anything meanwhile, because no
-collection job exists to GC a deposit row in the first place — but adding one *without* the
-client half is what would turn this into the very loss the retention exists to prevent.
+and that path lands with collection itself. Nothing costs anything meanwhile, because the
+retention sweep does not collect `share_requests` rows in the first place — but extending it to
+deposits *without* the client half is what would turn this into the very loss the retention
+exists to prevent.
 
 Pickup counts as confirmed through either channel — the relay showing the deposit accepted
 (fast, but collectable before she ever polls), or the holder's signed heartbeat naming that

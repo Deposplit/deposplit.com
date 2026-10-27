@@ -71,3 +71,6 @@ class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository
       case Some(_)                                   =>
         repository.deleteHeartbeatById(id)
         Right(())
+
+  override def expireHeartbeats(receivedBefore: Instant): Int =
+    repository.deleteHeartbeatsReceivedBefore(receivedBefore)

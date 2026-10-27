@@ -451,7 +451,9 @@ components:
           type: string
           format: date-time
           description: >
-            This relay's receipt time. Unsigned, for operators only — clients date nothing by it.
+            This relay's receipt time of the latest push. Unsigned, and used for expiry and by
+            operators — clients date nothing by it. A heartbeat neither read nor superseded is
+            deleted by the relay once this is older than its retention period, 28 days by default.
 
     PushHeartbeatBody:
       type: object

@@ -84,59 +84,58 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
           )
       }
 
-  // Plain select-then-insert-or-update rather than `ON CONFLICT ... DO UPDATE`: H2's PostgreSQL
-  // compatibility mode does not support Postgres upsert syntax, the same category of H2/Postgres
-  // gap documented in conf/evolutions/default/1.sql for partial indexes — handled at the
-  // application layer instead of relying on a DB-specific feature. A benign race between two
-  // concurrent pushes from the same holder to the same owner (rare — the whole point of
-  // coalescing is one push per sender per interval) can at worst leave either push's content
-  // persisted, which is harmless: both are freshness proofs from the same holder.
+  // Update-else-insert rather than `ON CONFLICT ... DO UPDATE`: H2's PostgreSQL compatibility mode
+  // does not support Postgres upsert syntax, the same category of H2/Postgres gap documented in
+  // conf/evolutions/default/1.sql for partial indexes — handled at the application layer instead
+  // of relying on a DB-specific feature. Updating by the pair, rather than by an id selected
+  // first, means an owner deleting the row in between simply leaves nothing to update, and the
+  // push inserts instead. Two concurrent *first* pushes from the same holder to the same owner
+  // (rare — the whole point of coalescing is one push per owner per interval) can still both
+  // insert, and the unique constraint fails the second: that push errors, and the holder retries
+  // it on its next poll, because it only counts a push as sent once the relay has accepted it.
   //
   // The UPDATE replaces the id as well, so an owner who read the old row and deletes it by that id cannot delete this
-  // newer one, which she has not read yet.
+  // newer one, which she has not read yet. It also replaces created_at, which is what expiry keys on, so a heartbeat
+  // expires only once its holder has stopped pushing.
   override def upsertHeartbeat(heartbeat: CustodyHeartbeat): CustodyHeartbeat =
-    db.withConnection { implicit conn =>
-      val existingId =
-        SQL("SELECT id FROM custody_heartbeats WHERE holder_key = {holderKey} AND owner_key = {ownerKey}")
-          .on("holderKey" -> heartbeat.holderKey.toBytes, "ownerKey" -> heartbeat.ownerKey.toBytes)
-          .as(get[UUID]("id").singleOpt)
+    db.withTransaction { implicit conn =>
+      val updated =
+        SQL("""
+          UPDATE custody_heartbeats
+          SET id = {newId}::uuid, secret_ids = {secretIds}, opted_out = {optedOut}, emitted_at = {emittedAt},
+              signature = {signature}, created_at = {createdAt}
+          WHERE holder_key = {holderKey} AND owner_key = {ownerKey}
+        """)
+          .on(
+            "holderKey" -> heartbeat.holderKey.toBytes,
+            "ownerKey" -> heartbeat.ownerKey.toBytes,
+            "newId" -> heartbeat.id.toString,
+            "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
+            "optedOut" -> heartbeat.optedOut,
+            "emittedAt" -> heartbeat.emittedAt,
+            "signature" -> heartbeat.signature.toBytes,
+            "createdAt" -> heartbeat.createdAt
+          )
+          .executeUpdate()
 
-      existingId match
-        case Some(id) =>
-          SQL("""
-            UPDATE custody_heartbeats
-            SET id = {newId}::uuid, secret_ids = {secretIds}, opted_out = {optedOut}, emitted_at = {emittedAt},
-                signature = {signature}, created_at = {createdAt}
-            WHERE id = {id}::uuid
-          """)
-            .on(
-              "id" -> id.toString,
-              "newId" -> heartbeat.id.toString,
-              "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
-              "optedOut" -> heartbeat.optedOut,
-              "emittedAt" -> heartbeat.emittedAt,
-              "signature" -> heartbeat.signature.toBytes,
-              "createdAt" -> heartbeat.createdAt
-            )
-            .executeUpdate()
-        case None =>
-          SQL("""
-            INSERT INTO custody_heartbeats
-              (id, holder_key, owner_key, secret_ids, opted_out, emitted_at, signature, created_at)
-            VALUES
-              ({id}::uuid, {holderKey}, {ownerKey}, {secretIds}, {optedOut}, {emittedAt}, {signature}, {createdAt})
-          """)
-            .on(
-              "id" -> heartbeat.id.toString,
-              "holderKey" -> heartbeat.holderKey.toBytes,
-              "ownerKey" -> heartbeat.ownerKey.toBytes,
-              "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
-              "optedOut" -> heartbeat.optedOut,
-              "emittedAt" -> heartbeat.emittedAt,
-              "signature" -> heartbeat.signature.toBytes,
-              "createdAt" -> heartbeat.createdAt
-            )
-            .executeUpdate()
+      if updated == 0 then
+        SQL("""
+          INSERT INTO custody_heartbeats
+            (id, holder_key, owner_key, secret_ids, opted_out, emitted_at, signature, created_at)
+          VALUES
+            ({id}::uuid, {holderKey}, {ownerKey}, {secretIds}, {optedOut}, {emittedAt}, {signature}, {createdAt})
+        """)
+          .on(
+            "id" -> heartbeat.id.toString,
+            "holderKey" -> heartbeat.holderKey.toBytes,
+            "ownerKey" -> heartbeat.ownerKey.toBytes,
+            "secretIds" -> heartbeat.secretIds.map(_.toString).sorted.mkString(","),
+            "optedOut" -> heartbeat.optedOut,
+            "emittedAt" -> heartbeat.emittedAt,
+            "signature" -> heartbeat.signature.toBytes,
+            "createdAt" -> heartbeat.createdAt
+          )
+          .executeUpdate()
 
       SQL("SELECT * FROM custody_heartbeats WHERE holder_key = {holderKey} AND owner_key = {ownerKey}")
         .on("holderKey" -> heartbeat.holderKey.toBytes, "ownerKey" -> heartbeat.ownerKey.toBytes)
@@ -161,5 +160,12 @@ class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHe
     db.withConnection { implicit conn =>
       SQL("DELETE FROM custody_heartbeats WHERE id = {id}::uuid")
         .on("id" -> id.toString)
+        .executeUpdate()
+    }
+
+  override def deleteHeartbeatsReceivedBefore(cutoff: Instant): Int =
+    db.withConnection { implicit conn =>
+      SQL("DELETE FROM custody_heartbeats WHERE created_at < {cutoff}")
+        .on("cutoff" -> cutoff)
         .executeUpdate()
     }

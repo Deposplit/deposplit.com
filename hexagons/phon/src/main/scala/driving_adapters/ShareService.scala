@@ -703,9 +703,12 @@ class ShareService @Inject() (
 
   // Owner side — auto-verifies each holder's unread heartbeat (or opt-out notice)
   // against a known contact's trusted key, updates local freshness/opt-out state, then deletes
-  // the heartbeat: what it said is kept here, and the holder re-emits every interval. Unknown
-  // senders and forged signatures are silently skipped and left, same posture as
-  // processRotations().
+  // the heartbeat: what it said is kept here, and the holder re-emits every interval. One from an
+  // unknown key, or with a signature that fails, changes nothing and is deleted all the same.
+  // That is where heartbeats part from processRotations(), which leaves such a notice alone: a
+  // rotation is sent once, while a heartbeat has a newer one behind it. Left on the relay, one
+  // from a contact this device has since deleted would be refreshed by every push its holder
+  // still makes, and so never expire.
   //
   // Dated by the holder's signed emittedAt, and never backwards: a heartbeat older than what this
   // device already knows refreshes nothing, so a relay re-serving an old one gains nothing. Never
@@ -749,8 +752,8 @@ class ShareService @Inject() (
                     if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
                   }
                 }
-              Try(relay.deleteHeartbeat(notice.id))
           }
+          Try(relay.deleteHeartbeat(notice.id))
         }
       }
     }
