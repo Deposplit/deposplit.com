@@ -19,6 +19,14 @@ sbt -> h2-browser => run -Dconfig.file=conf/localhost.conf
 
 It listens on port 9000 and uses a file-backed H2 database, so state survives restarts.
 
+Until launch, `conf/evolutions/default/1.sql` is edited in place rather than followed by a
+`2.sql`, so a relay that has run an older version of it needs a fresh database. Stop it, delete
+`.devDBs/`, and append `-Dplay.evolutions.db.default.autoApply=true` to the `run` above. Without
+the flag every request answers 500 until the evolutions are applied, phon's included, which makes
+it look like a phon bug. `.devDBs/` also holds every phony phone's stores, so those phones start
+over too; reset the apps along with them, so that no device remembers contacts or requests that
+the relay and the phony phones have forgotten.
+
 ## Point a device at it
 
 The relay URL is **not** a build-time constant on either platform. Both apps resolve their
@@ -324,6 +332,12 @@ Run Alice on iOS and Bob on Android at the same time, against one relay. Alice d
 Bob; Bob sees it in Keeping safe; Bob opens a retrieval; Alice reconstructs. Then let one of
 Bob's heartbeats reach Alice, and swap the platforms for another: each must refresh the holder's
 freshness, which proves a signed `emittedAt` survives the wire in both directions.
+
+A holder sends at most one heartbeat per emission interval. To send one at once, pause and then
+resume heartbeats on the owner's row in the holder's Contacts: either change resets when one was
+last sent, so the next sync emits. A sync in between sends a paused heartbeat first, which the
+resumed one then supersedes. Once the owner has synced, the relay's `custody_heartbeats` must be
+empty, because she deletes a heartbeat as soon as she has read it.
 
 This is the highest-value flow in this document, because it is the only test that proves
 CryptoKit and BouncyCastle interoperate on a live wire. The vector tests prove that the

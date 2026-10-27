@@ -24,6 +24,7 @@ place rather than growing this list into a second manual.
 
 ### The documented flows
 
+- [ ] `A` `I` **Flows 2, 4 and 6, now that every relay row is deleted once read.** iOS's half builds and passes its unit tests on a Mac but has not yet met a live relay. Start from a fresh relay database (see *Start a relay*), with the Simulator against an Android phone or phony phones; a deposit needs two holders, so three parties in all. Flow 4 must leave neither Bob's withdrawal nor any of Alice's asks to Bob on the relay. Flow 2 must leave no denied row once the new ask is open. Flow 6 must refresh the holder's freshness with iOS holding and with iOS owning, and leave `custody_heartbeats` empty each time. Throughout, no approved deposit row may outlive a pickup its sender has seen.
 - [ ] `A` `I` **Flow 7 — BYOR.** Two relays, one contact overridden and one not; killing one degrades only that contact. Needs the Premium unlock first.
 
 ### The documented edge cases
