@@ -127,3 +127,10 @@ class AnormKeyRotationRepository @Inject() (db: Database) extends KeyRotationRep
         .on("id" -> id.toString)
         .executeUpdate()
     }
+
+  override def deleteRotationsReceivedBefore(cutoff: Instant): Int =
+    db.withConnection { implicit conn =>
+      SQL("DELETE FROM key_rotations WHERE created_at < {cutoff}")
+        .on("cutoff" -> cutoff)
+        .executeUpdate()
+    }

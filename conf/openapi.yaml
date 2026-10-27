@@ -389,6 +389,10 @@ components:
         createdAt:
           type: string
           format: date-time
+          description: >
+            This relay's receipt time. Unsigned, and used for expiry: a rotation nobody reads is
+            deleted by the relay once this is older than its retention period, 180 days by default.
+            A rotation is sent once and never again, so that contact is then relinked in person.
 
     PushRotationBody:
       type: object

@@ -40,7 +40,10 @@ claimed by the sender.
 Someone who still holds their old keys and wants new ones pushes a signed
 `rotate(K_old → K_new)` notice. The recipient verifies it against the old key they already
 trust and updates the contact **in place, preserving `contactId`**, so held and distributed
-shares stay linked.
+shares stay linked. The notice is sent once, because the old key cannot sign another after the
+switch, so a contact who has not picked it up within 180 days finds it expired and is relinked in
+person instead, as after recovery — see "Expiry" under `key_rotations` in
+[protocol.md](protocol.md).
 
 Two rules govern acceptance:
 

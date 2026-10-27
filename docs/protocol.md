@@ -202,6 +202,23 @@ business writing them to disk.
 `created_at`. There is no state column: the recipient polls, verifies the signature against
 the old key it already trusts, and deletes the row once consumed.
 
+She leaves alone a rotation from a key she knows no contact by, and one with a signature that
+fails. A contact who rotated twice while she was offline has left two notices, and if K1→K2 is
+read before K0→K1, its old key is not known yet; the next pass applies it.
+
+`POST` only ever inserts. Two rotations from the same old key to the same recipient mean a
+retry after a crash mid-rotation, or two claims to one identity, one of them made with a stolen
+key — and replacing the first would erase the evidence of the second.
+
+**Expiry.** A rotation is sent once and can never be sent again: the old signing key is gone
+once the new identity is active. One nobody reads — addressed to a key its recipient no longer
+lists under, or from a key she knows no contact by — waits 180 days and is then deleted by the
+relay, keyed on `created_at`, its receipt time. The contact it was meant for is then relinked
+in person, as after recovery, and the rotating device's *awaiting relink* nudge already lists
+who that is. The period is generous for that reason: holders are the people least likely to
+open the app, and a row costs the relay a few hundred bytes and an old→new link it already saw
+when the notice was pushed.
+
 **`custody_heartbeats`** — signed "still guarding these for you" reports. Columns: `id`,
 `holder_key`, `owner_key`, `secret_ids`, `opted_out`, `emitted_at`, `signature`, `created_at`,
 with `UNIQUE (holder_key, owner_key)`. The owner deletes a heartbeat once read: what it told her
@@ -300,15 +317,20 @@ that safe:
 > A missing row means "collected, or never sent". It never means "done", and it never
 > means "lost".
 
-Everything is therefore either idempotently re-emitted on the next poll (heartbeats,
-rotations, inventory pushes) or re-issuable by the user (action requests).
+Everything is therefore either idempotently re-emitted on the next poll (heartbeats, inventory
+pushes) or re-issuable by the user (action requests).
 Clients follow one rule when reconciling: **upsert, never delete.** A row's disappearance
 must never cause a client to forget something.
 
-A `withdrawal` is neither — once the share is gone, nothing re-emits it — and losing one costs
-little: the owner misses the explicit answer, not the share's safety. A monitored holder who has
-stopped holding stops naming the secret, falls silent for it, and drops out of `n_live` at the
-loss threshold like any holder who stops reporting.
+Two kinds of row are neither, and each costs something bounded when lost:
+
+- **A `withdrawal`** — once the share is gone, nothing re-emits it. The owner misses the explicit
+  answer, not the share's safety: a monitored holder who has stopped holding stops naming the
+  secret, falls silent for it, and drops out of `n_live` at the loss threshold like any holder
+  who stops reporting.
+- **A rotation** — sent once, and the key that signed it is gone. The contact it was meant for
+  keeps the old key and has to be relinked in person, as after recovery; the rotating device's
+  *awaiting relink* nudge already lists them.
 
 **The rule binds the relay too.** Approving a `removal` sweeps the rest of that
 (`secret_id`, `sender_key`, `recipient_key`) triple — the `deposit` above all, which may
@@ -323,9 +345,9 @@ With every row a message, retention has one question to answer — how long to w
 addressee who never comes — and it wants a generous answer, so an offline counterparty can still
 act. The relay answers it itself, with a sweep that runs inside the app (`jobs.RetentionSweep`),
 so a self-hosted relay expires rows the same way without its operator doing anything. The period
-for each table is configuration, under `relay.retention` in `application.conf`. Only
-`custody_heartbeats` has one so far, described above. `key_rotations` and `share_requests` have
-none yet, so a row on either stays until its addressee deletes it.
+for each table is configuration, under `relay.retention` in `application.conf`.
+`custody_heartbeats` and `key_rotations` have one, described above. `share_requests` has none
+yet, so a row there stays until its addressee deletes it.
 
 **One exception needs care.** A `deposit` row carries the only copy of an encrypted share
 in transit, so collection before pickup would appear to lose it — and the polynomial is not

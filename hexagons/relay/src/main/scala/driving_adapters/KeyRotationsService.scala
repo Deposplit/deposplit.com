@@ -71,3 +71,6 @@ class KeyRotationsService @Inject() (repository: KeyRotationRepository) extends 
       case Some(_)                                           =>
         repository.deleteRotationById(id)
         Right(())
+
+  override def expireRotations(receivedBefore: Instant): Int =
+    repository.deleteRotationsReceivedBefore(receivedBefore)

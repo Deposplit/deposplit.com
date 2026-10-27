@@ -38,3 +38,8 @@ trait KeyRotationRepository:
   def getRotationsForRecipient(recipientKey: PublicKey): Seq[KeyRotation]
 
   def deleteRotationById(id: UUID): Unit
+
+  /** Deletes every rotation notice whose `createdAt` — its receipt — lies before `cutoff`. Returns how many rows it
+    * deleted.
+    */
+  def deleteRotationsReceivedBefore(cutoff: java.time.Instant): Int

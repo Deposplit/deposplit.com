@@ -113,6 +113,10 @@ CREATE INDEX ON share_requests (secret_id);
 -- No state machine: like inventory, this is a fire-and-forget push, not a consent request. The
 -- recipient polls, auto-verifies against the old key it already trusts, updates its local
 -- contact record in place, and deletes the row once consumed.
+--
+-- A rotation is sent once and can never be sent again, so one nobody reads waits generously,
+-- then expires once created_at, its receipt time, is older than relay.retention.key-rotations in
+-- application.conf. That contact is then relinked in person, as after recovery.
 CREATE TABLE key_rotations (
     id                UUID  DEFAULT gen_random_uuid() PRIMARY KEY,
     old_verify_key    BYTEA NOT NULL,

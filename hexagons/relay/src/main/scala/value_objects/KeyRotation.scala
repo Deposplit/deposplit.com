@@ -37,6 +37,9 @@ import java.util.UUID
   *
   * `newCipherSuite` is the signing + key-agreement algorithm pairing `newVerifyKey`/ `newEncKey` use. No
   * `oldCipherSuite` field — the recipient already has it pinned on the existing contact record being rotated away from.
+  *
+  * `createdAt` is this relay's receipt time, unsigned. A notice nobody reads expires once it is older than the relay's
+  * retention period for rotations.
   */
 case class KeyRotation(
     id: UUID,

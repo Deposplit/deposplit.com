@@ -25,6 +25,7 @@
 package jobs
 
 import driving_ports.CustodyHeartbeats
+import driving_ports.KeyRotations
 import jakarta.inject.*
 import play.api.Configuration
 import play.api.Logging
@@ -46,17 +47,27 @@ import scala.util.control.NonFatal
   * second sweep finds nothing left to expire.
   */
 @Singleton
-class RetentionSweep @Inject() (config: Configuration, lifecycle: ApplicationLifecycle, heartbeats: CustodyHeartbeats)
-    extends Logging:
+class RetentionSweep @Inject() (
+    config: Configuration,
+    lifecycle: ApplicationLifecycle,
+    heartbeats: CustodyHeartbeats,
+    rotations: KeyRotations
+) extends Logging:
 
   private val custodyHeartbeatsRetention: Duration = config.get[Duration]("relay.retention.custody-heartbeats")
+  private val keyRotationsRetention: Duration = config.get[Duration]("relay.retention.key-rotations")
 
   /** One sweep, now. Never throws: a task that throws cancels every later run of a `ScheduledExecutorService`, and does
-    * so silently.
+    * so silently. Each table is swept on its own, so a failure on one does not spare the rest.
     */
   def sweep(): Unit =
-    try heartbeats.expireHeartbeats(Instant.now().minus(custodyHeartbeatsRetention))
-    catch case NonFatal(e) => logger.warn("Relay retention sweep failed", e)
+    val now = Instant.now()
+    expire("custody_heartbeats")(heartbeats.expireHeartbeats(now.minus(custodyHeartbeatsRetention)))
+    expire("key_rotations")(rotations.expireRotations(now.minus(keyRotationsRetention)))
+
+  private def expire(table: String)(expiry: => Int): Unit =
+    try expiry
+    catch case NonFatal(e) => logger.warn(s"Relay retention sweep failed for $table", e)
 
   if config.get[Boolean]("relay.retention.enabled") then
     val interval = config.get[Duration]("relay.retention.sweep-interval")

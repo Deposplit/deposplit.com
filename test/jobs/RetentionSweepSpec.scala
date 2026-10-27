@@ -54,20 +54,35 @@ class RetentionSweepSpec extends PlaySpec with GuiceOneAppPerSuite:
     status(result) mustBe CREATED
     (contentAsJson(result) \ "id").as[String]
 
-  /** Backdates a heartbeat's receipt, as if its holder had last pushed it that long ago. */
-  private def receivedAgo(id: String, ago: Duration): Unit =
+  private def pushRotation(oldKey: RequestSigner, recipient: RequestSigner): String =
+    val newKey = new RequestSigner()
+    val cipherSuite = "ed25519+x25519-v1"
+    // Any 32 bytes will do for the new encryption key: the relay checks its length, not what it is.
+    val newEncKey = new RequestSigner().publicKeyHeader
+    val sig = oldKey.signRotation(recipient.publicKeyHeader, newKey.publicKeyHeader, newEncKey, cipherSuite)
+    val body =
+      s"""{"recipientKey":"${recipient.publicKeyHeader}","newVerifyKey":"${newKey.publicKeyHeader}","newEncKey":"$newEncKey","newCipherSuite":"$cipherSuite","signature":"$sig"}"""
+        .getBytes("UTF-8")
+    val result = route(app, oldKey.post("/key-rotations", body)).get
+    status(result) mustBe CREATED
+    (contentAsJson(result) \ "id").as[String]
+
+  /** Backdates a row's receipt, as if the relay had received it that long ago. */
+  private def receivedAgo(table: String, id: String, ago: Duration): Unit =
     app.injector.instanceOf[Database].withConnection { implicit conn =>
-      SQL("UPDATE custody_heartbeats SET created_at = {createdAt} WHERE id = {id}::uuid")
+      SQL(s"UPDATE $table SET created_at = {createdAt} WHERE id = {id}::uuid")
         .on("createdAt" -> Instant.now().minus(ago), "id" -> id)
         .executeUpdate()
     }
 
-  private def heartbeatIdsFor(owner: RequestSigner): Seq[String] =
-    contentAsJson(route(app, owner.get("/custody-heartbeats")).get)
+  private def idsListed(path: String, addressee: RequestSigner): Seq[String] =
+    contentAsJson(route(app, addressee.get(path)).get)
       .as[JsArray]
       .value
       .map(j => (j \ "id").as[String])
       .toSeq
+
+  private def sweep(): Unit = app.injector.instanceOf[RetentionSweep].sweep()
 
   "RetentionSweep.sweep" should {
 
@@ -75,20 +90,41 @@ class RetentionSweepSpec extends PlaySpec with GuiceOneAppPerSuite:
       val alice = new RequestSigner()
       val stale = pushHeartbeat(new RequestSigner(), alice)
       val fresh = pushHeartbeat(new RequestSigner(), alice)
-      receivedAgo(stale, Duration.ofDays(31))
+      receivedAgo("custody_heartbeats", stale, Duration.ofDays(31))
 
-      app.injector.instanceOf[RetentionSweep].sweep()
+      sweep()
 
-      heartbeatIdsFor(alice) mustBe Seq(fresh)
+      idsListed("/custody-heartbeats", alice) mustBe Seq(fresh)
     }
 
     "keep a heartbeat last pushed less than 28 days ago" in {
       val alice = new RequestSigner()
       val unread = pushHeartbeat(new RequestSigner(), alice)
-      receivedAgo(unread, Duration.ofDays(27))
+      receivedAgo("custody_heartbeats", unread, Duration.ofDays(27))
 
-      app.injector.instanceOf[RetentionSweep].sweep()
+      sweep()
 
-      heartbeatIdsFor(alice) mustBe Seq(unread)
+      idsListed("/custody-heartbeats", alice) mustBe Seq(unread)
+    }
+
+    "expire a rotation received more than 180 days ago, and keep a fresh one" in {
+      val bob = new RequestSigner()
+      val stale = pushRotation(new RequestSigner(), bob)
+      val fresh = pushRotation(new RequestSigner(), bob)
+      receivedAgo("key_rotations", stale, Duration.ofDays(181))
+
+      sweep()
+
+      idsListed("/key-rotations", bob) mustBe Seq(fresh)
+    }
+
+    "keep a rotation received less than 180 days ago" in {
+      val bob = new RequestSigner()
+      val unread = pushRotation(new RequestSigner(), bob)
+      receivedAgo("key_rotations", unread, Duration.ofDays(179))
+
+      sweep()
+
+      idsListed("/key-rotations", bob) mustBe Seq(unread)
     }
   }

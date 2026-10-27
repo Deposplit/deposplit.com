@@ -58,3 +58,10 @@ trait KeyRotations:
     * sender-side reason to read one back.
     */
   def deleteRotation(recipientKey: PublicKey, id: UUID): Either[Error, Unit]
+
+  /** Expires every rotation notice received before `receivedBefore` and still unread — one addressed to a key its
+    * recipient no longer lists under, or from a key the recipient knows no contact by. A rotation is sent once and can
+    * never be sent again, because the old signing key is gone once the new identity is active, so an expired one leaves
+    * that contact to be relinked in person. Returns how many it expired.
+    */
+  def expireRotations(receivedBefore: java.time.Instant): Int

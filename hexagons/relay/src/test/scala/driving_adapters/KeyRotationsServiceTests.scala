@@ -27,6 +27,8 @@ package driving_adapters
 import driven_ports.persistence.KeyRotationRepository
 import value_objects.*
 
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
@@ -49,6 +51,11 @@ class InMemoryKeyRotationRepository extends KeyRotationRepository:
 
   override def deleteRotationById(id: UUID): Unit =
     rotations = rotations.filterNot(_.id == id)
+
+  override def deleteRotationsReceivedBefore(cutoff: Instant): Int =
+    val (expired, kept) = rotations.partition(_.createdAt.isBefore(cutoff))
+    rotations = kept
+    expired.size
 
 // ---------------------------------------------------------------------------
 // Tests — reuses ShareRequestsServiceTests's Fixtures (same package) for keypairs.
@@ -131,4 +138,17 @@ class KeyRotationsServiceTests extends munit.FunSuite:
   test("deleteRotation returns NotFound for an unknown id") {
     val (_, service) = newService()
     assertEquals(service.deleteRotation(bob, UUID.randomUUID()), Left(Error.NotFound))
+  }
+
+  // --- expireRotations ---
+
+  test("expireRotations expires only rotations received before the cutoff, and says how many") {
+    val (repo, service) = newService()
+    val stale = push(service, alice, bob).getOrElse(fail("push failed"))
+    val fresh = push(service, charlie, bob).getOrElse(fail("push failed"))
+    repo.deleteRotationById(stale.id)
+    repo.saveRotation(stale.copy(createdAt = Instant.now().minus(Duration.ofDays(181))))
+
+    assertEquals(service.expireRotations(Instant.now().minus(Duration.ofDays(180))), 1)
+    assertEquals(repo.getRotationsForRecipient(bob).map(_.id), Seq(fresh.id))
   }
