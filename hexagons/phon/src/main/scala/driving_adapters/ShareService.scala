@@ -26,7 +26,6 @@ package driving_adapters
 
 import driven_ports.ContactRepository
 import driven_ports.KeyConflictRepository
-import driven_ports.RetainedDepositRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelay
@@ -50,7 +49,6 @@ import value_objects.svo.ReconstructionResult
 import value_objects.svo.RegenerateIdentityResult
 import value_objects.svo.RelayFanOut
 import value_objects.svo.RelayRefusedException
-import value_objects.svo.RetainedDepositBlob
 import value_objects.svo.Role
 import value_objects.svo.Secret
 import value_objects.svo.SecretLimits
@@ -80,7 +78,6 @@ class ShareService @Inject() (
     contactRepository: ContactRepository,
     contactManagement: ContactManagement,
     keyConflictRepository: KeyConflictRepository,
-    retainedDepositRepository: RetainedDepositRepository,
     identity: Identity
 ) extends ShareManagement:
 
@@ -260,16 +257,6 @@ class ShareService @Inject() (
         senderSignature = senderSignature
       )
       shareMetadataRepository.save(ShareMetadata(req.id, secretId, contact.id))
-      // Retained until this holder's pickup is confirmed (relay-observed or
-      // heartbeat-attested), or until this holder's record goes, then discarded. Safe to
-      // retain: the box was sealed under an ephemeral key discarded at sealing, so only the
-      // holder can open it, not this device.
-      Try(
-        retainedDepositRepository
-          .save(
-            RetainedDepositBlob(req.id, secretId, contact.id, label, createdAt, ct, threshold, contacts.size, mimeType)
-          )
-      )
     }
     secretRepository.save(Secret(secretId, label, mimeType, threshold, contacts.size, createdAt, SecretState.Active))
 
@@ -278,21 +265,18 @@ class ShareService @Inject() (
   override def syncDistributed(): SyncReport =
     val existingMetadata = shareMetadataRepository.getAll()
     val failures = RelayFailures()
+    val now = Instant.now()
     allRelays().foreach { relay =>
       fromRelay(relay, failures)(relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Deposit)))
         .foreach { req =>
           if req.state == ShareRequestState.Approved then
-            // The pickup, seen (relay-observed channel). Stamped once, while the retained blob still marks it
-            // unconfirmed by any channel. Only a record that exists is touched: a withdrawal may have dropped this
-            // holder since, and a row whose deletion failed on an earlier pass must not bring them back. Matched by
-            // id, which is the request id, so a holder who has rotated keys since is found all the same.
-            if isRetentionStillPending(req.id) then
-              existingMetadata
-                .find(_.id == req.id)
-                .foreach(meta => shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(Instant.now()))))
-              Try(retainedDepositRepository.delete(req.id))
-            // Then the row goes. It was a message, and it has been read: keeping it would leave the relay holding a
-            // record of who keeps what for whom for as long as the share is held.
+            // The pickup, seen (relay-observed channel). Only a record that exists is touched: a withdrawal may have
+            // dropped this holder since, and a row whose deletion failed on an earlier pass must not bring them back.
+            // Matched by id, which is the request id.
+            if verifyRespond(req) then
+              existingMetadata.find(_.id == req.id).foreach(meta => confirmFromApproval(meta.id, req, now))
+            // Then the row goes, whether or not it verified. It was a message, and it has been read: keeping it would
+            // leave the relay holding a record of who keeps what for whom for as long as the share is held.
             Try(relay.deleteShareRequest(req.id))
           else
             // A row for a holder we no longer have a contact record for can't be re-anchored to
@@ -308,13 +292,14 @@ class ShareService @Inject() (
       fromRelay(relay, failures)(
         relay.listShareRequests(Role.Sender, Some(ShareTransactionType.Retrieval), Some(ShareRequestState.Approved))
       )
+        .filter(verifyRespond)
         .foreach { req =>
           // Matched on secretId plus the holder's key, the same pair requestAll fans out on —
           // the row itself carries no pointer back to this device's records, and needs none.
           contactRepository.getByVerifyKey(req.recipientKey).foreach { contact =>
-            existingMetadata.find(m => m.secretId == req.secretId && m.contactId == contact.id).foreach { meta =>
-              Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(Instant.now()))))
-            }
+            existingMetadata
+              .find(m => m.secretId == req.secretId && m.contactId == contact.id)
+              .foreach(meta => confirmFromApproval(meta.id, req, now))
           }
         }
     }
@@ -323,8 +308,26 @@ class ShareService @Inject() (
     processHeartbeats(failures)
     failures.report
 
-  private def isRetentionStillPending(depositId: UUID): Boolean =
-    Try(retainedDepositRepository.getAll()).getOrElse(Nil).exists(_.id == depositId)
+  /** An approval is proof of custody only once the holder's signature on it verifies, and it is dated by when the
+    * holder answered, never by when this device happened to read it — so an approved retrieval read on every pass until
+    * its copy is cleared refreshes nothing after the first, and a row whose deletion failed changes nothing either.
+    * Like a heartbeat it only ever moves the clock forward, and never past this device's own clock.
+    *
+    * Two limits. The answer's time is the relay's, and unsigned: a relay can no longer invent an approval, but it can
+    * re-date a real one, which only a signed time would prevent. And an approval signed under a key the holder has
+    * since rotated away from no longer verifies, because a contact keeps no previous keys — their next heartbeat
+    * confirms them instead.
+    *
+    * Reads the record afresh rather than from the pass's snapshot, so two approvals for one holder in the same pass
+    * cannot undo each other.
+    */
+  private def confirmFromApproval(metaId: UUID, approval: ShareRequest, now: Instant): Unit =
+    for
+      respondedAt <- approval.respondedAt
+      answeredAt = if respondedAt.isAfter(now) then now else respondedAt
+      meta <- shareMetadataRepository.getAll().find(_.id == metaId)
+      if meta.lastConfirmedAt.forall(_.isBefore(answeredAt))
+    do Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(answeredAt))))
 
   /** Drops each holder who has told this device, signed, that they stopped holding a share. Runs before
     * `reconcileRemovals`, whose trailing clean-up then ends a Destroying secret this has emptied.
@@ -349,10 +352,7 @@ class ShareService @Inject() (
             shareMetadataRepository
               .getAll()
               .filter(m => m.secretId == req.secretId && m.contactId == holder.id)
-              .foreach { meta =>
-                Try(shareMetadataRepository.delete(meta.id))
-                if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
-              }
+              .foreach(meta => Try(shareMetadataRepository.delete(meta.id)))
             outstanding
               .filter { case (_, r) =>
                 r.secretId == req.secretId && r.recipientKey.sameElements(holder.verifyKey) &&
@@ -397,7 +397,6 @@ class ShareService @Inject() (
               // acting on it would leave a holder that can never be reconciled if this device dies
               // in between, which is the one failure this whole flow exists to avoid.
               Try(shareMetadataRepository.delete(meta.id))
-              if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
               Try(relay.deleteShareRequest(request.id))
             }
         }
@@ -598,17 +597,13 @@ class ShareService @Inject() (
       .foreach(share => Try(openRequest(share.id, ShareTransactionType.Removal)))
 
   /** Local-only teardown for a Destroying secret whose holders won't all respond (e.g. a permanently dark holder) —
-    * removes the Secret and its remaining `ShareMetadata` rows without waiting for relay confirmation, and the retained
-    * blob of any holder who never picked up.
+    * removes the Secret and its remaining `ShareMetadata` rows without waiting for relay confirmation.
     */
   override def forceForgetSecret(secretId: UUID): Unit =
     shareMetadataRepository
       .getAll()
       .filter(_.secretId == secretId)
-      .foreach { share =>
-        Try(shareMetadataRepository.delete(share.id))
-        if isRetentionStillPending(share.id) then Try(retainedDepositRepository.delete(share.id))
-      }
+      .foreach(share => Try(shareMetadataRepository.delete(share.id)))
     secretRepository.delete(secretId)
 
   // ── Recipient flows ───────────────────────────────────────────────────────
@@ -658,8 +653,8 @@ class ShareService @Inject() (
                     true
                   }
                 // Sent even when an earlier poll already stored the share but failed to acknowledge
-                // it: without the approval the sender never observes the pickup and keeps her
-                // retained blob forever.
+                // it: without the approval the sender never observes the pickup, and the deposit
+                // sits on the relay until it expires.
                 if stored then
                   val canon = PayloadCanonical.forRespond(req.id, approved = true, ciphertext = None)
                   relay.respondToShareRequest(req.id, approved = true, recipientSignature = identity.sign(canon))
@@ -755,7 +750,6 @@ class ShareService @Inject() (
                   existingMetadata.find(m => m.secretId == secretId && m.contactId == contact.id).foreach { meta =>
                     if meta.lastConfirmedAt.forall(_.isBefore(emittedAt)) then
                       Try(shareMetadataRepository.save(meta.copy(lastConfirmedAt = Some(emittedAt))))
-                    if isRetentionStillPending(meta.id) then Try(retainedDepositRepository.delete(meta.id))
                   }
                 }
           }

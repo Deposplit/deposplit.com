@@ -176,7 +176,7 @@ class IdentityServiceVerifyTests extends munit.FunSuite:
     assert(bob.decrypt(sealedBeforeAlicesRotations).sameElements("outgoing".getBytes("UTF-8")))
   }
 
-  // The property the retained deposits rest on: a box sealed for a holder stays closed to the owner.
+  // Only the recipient can open a box, not even the device that sealed it — see docs/security.md.
   test("a sender cannot open a box she sealed for somebody else") {
     val alice = newIdentity()
     val bob = newIdentity()

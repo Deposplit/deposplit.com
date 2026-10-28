@@ -198,7 +198,7 @@ C4Component
         Component(nports, "Driven ports", "interface / protocol", "IdentityStore, ContactRepository, ShareRepository, ShareRelay, ShareRelayResolver, RelaySettings")
 
         Component(keys, "Key custody", "Keystore / Keychain", "AndroidIdentityStore, KeychainIdentityStore")
-        Component(local, "Local repositories", "JSON on disk", "Contacts, secrets, shares, retained blobs, key conflicts")
+        Component(local, "Local repositories", "JSON on disk", "Contacts, secrets, shares, key conflicts")
         Component(api, "Relay client", "HTTP client", "DeposplitApiAdapter, DeposplitRelayResolver")
     }
 

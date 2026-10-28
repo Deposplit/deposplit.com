@@ -54,7 +54,7 @@ stateDiagram-v2
 
 | Transition | What runs | What the owner sees |
 |---|---|---|
-| → `Active`, by deposit | splits the secret, encrypts one share per holder, opens *n* deposit requests, saves *n* `ShareMetadata` rows and *n* retained blobs, then saves the `Secret` | a new entry in Split & shared |
+| → `Active`, by deposit | splits the secret, encrypts one share per holder, opens *n* deposit requests, saves *n* `ShareMetadata` rows, then saves the `Secret` | a new entry in Split & shared |
 | → `Active`, by recovery | `processRecoveryMetadata` rebuilds the record from a relinked holder's signed inventory notice — metadata only, never a share | the secret reappears, with the holders who have reported in so far |
 | `Active` → `Destroying` | `destroySecret` writes the state **first**, then fans out one removal request per holder | the badge reads *Destroying*; Retrieve goes quiet; Force Forget appears |
 | `Destroying` → gone | `reconcileRemovals` drops each holder's `ShareMetadata` as their removal comes back approved, and removes the `Secret` once none are left | it leaves the list |
@@ -180,7 +180,7 @@ stateDiagram-v2
 
 **The record has no state field.** `HeldShare` exists, or it does not; unlike `Secret`, there
 is no column to read. The phases above are phases of the *share*, not of a row: `InTransit`
-is a relay row plus the owner's retained blob, `Held` is a `HeldShare`, and the end is the
+is a relay row and nothing else, `Held` is a `HeldShare`, and the end is the
 absence of one. Nothing needs remembering after deletion, because a custodian who has
 stopped holding has nothing left to say about it.
 

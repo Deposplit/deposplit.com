@@ -55,8 +55,7 @@ class PhonScreensSpec extends PlaySpec {
     "secrets",
     "heldshares",
     "sharemetadata",
-    "keyconflicts",
-    "retaineddeposits"
+    "keyconflicts"
   ).map(name => File(s"./.devDBs/$name$port.ser"))
   private val relayFile = File(s"./.devDBs/relay$port.txt")
 

@@ -128,8 +128,7 @@ The HPKE `info` separates the uses: `"deposplit-share"` for a share and for a sh
 `"deposplit-label"` for a secret's label. A label box and a share box therefore never share a key,
 and the relay stores the sealed label without being able to read it.
 
-**Only the recipient can open a box — not even the device that sealed it.** That is what makes
-the retained deposits safe (see *Data at rest, and what a backup carries*). It also means opening
+**Only the recipient can open a box — not even the device that sealed it.** That means opening
 needs nothing but the recipient's own key, so a sender who rotates between deposit and pickup
 changes nothing for the holder.
 
@@ -196,7 +195,6 @@ directory on iOS, which is not exposed to the Files app:
 | `contacts.json` | pseudonyms, public keys, verification levels, relay overrides |
 | `distributed_shares.json` | which contact holds which secret's share |
 | `secrets.json` | your own secrets' labels, `k`, `n`, `mimeType` |
-| `retained_deposits.json` | ciphertext sealed to holders' keys under an ephemeral key discarded at sealing, which not even this device can open |
 | `key_conflicts.json`, `contact_relinks.json` | unresolved key changes, and who has re-verified this device |
 
 Plus a small amount of preference state: pseudonym, entitlement, default relay, and on Android
@@ -283,8 +281,7 @@ repair least of all.
 
 It is this modest because Shamir shares are byte-wise. An *S*-byte secret becomes *n* shares of
 *S* bytes each; every one is sealed, base64-encoded into its own request, and held by the relay
-until its holder picks it up, while the sender retains a copy of all *n* until every pickup is
-confirmed. A secret therefore costs several times its own size, several times over. Splitting
+until its holder picks it up. A secret therefore costs several times its own size. Splitting
 and reconstruction are linear in *S* too, and `combineWithIntegrity` is linear in *S* for every
 hypothesis it tries, so payload size buys latency at reconstruction as well as bytes at rest.
 

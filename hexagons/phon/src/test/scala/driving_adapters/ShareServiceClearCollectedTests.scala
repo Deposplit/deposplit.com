@@ -120,7 +120,6 @@ class ShareServiceClearCollectedTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = identity
     )
     (svc, metaRepo, secretRepo)

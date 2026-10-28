@@ -29,7 +29,6 @@ import driven_ports.ForgettableIdentityStore
 import driven_ports.IdentityStore
 import driven_ports.KeyConflictRepository
 import driven_ports.RelaySettings
-import driven_ports.RetainedDepositRepository
 import driven_ports.SecretRepository
 import driven_ports.ShareMetadataRepository
 import driven_ports.ShareRelayResolver
@@ -44,7 +43,6 @@ import driven_adapters.phon.FileContactRepository
 import driven_adapters.phon.FileIdentityStore
 import driven_adapters.phon.FileKeyConflictRepository
 import driven_adapters.phon.FileRelaySettings
-import driven_adapters.phon.FileRetainedDepositRepository
 import driven_adapters.phon.FileSecretRepository
 import driven_adapters.phon.FileShareMetadataRepository
 import driven_adapters.phon.FileShareRepository
@@ -73,5 +71,4 @@ class PhonModule extends AbstractModule:
     bind(classOf[RelaySettings]).to(classOf[FileRelaySettings])
     bind(classOf[ShareRelayResolver]).to(classOf[HttpClientRelayResolver])
     bind(classOf[ShareRepository]).to(classOf[FileShareRepository])
-    bind(classOf[RetainedDepositRepository]).to(classOf[FileRetainedDepositRepository])
     bind(classOf[CatalogManagement]).to(classOf[CatalogService])

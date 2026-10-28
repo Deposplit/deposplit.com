@@ -137,8 +137,7 @@ class ShareServiceDestroyTests extends munit.FunSuite:
     */
   private def serviceWithRemovalsOut(
       relay: CascadingFakeShareRelay,
-      state: SecretState,
-      retainedRepo: FakeRetainedDepositRepository = FakeRetainedDepositRepository()
+      state: SecretState
   ): (ShareService, FakeShareMetadataRepository, FakeSecretRepository, Map[String, ShareRequest]) =
     val identityStore = InMemoryForgettableIdentityStore()
     val identity = IdentityService(identityStore)
@@ -174,54 +173,9 @@ class ShareServiceDestroyTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = retainedRepo,
       identity = identity
     )
     (svc, metaRepo, secretRepo, rows)
-
-  private def retainedBlob(deposit: ShareRequest, holder: Contact): RetainedDepositBlob =
-    RetainedDepositBlob(
-      deposit.id,
-      secretId,
-      holder.id,
-      "destroy test",
-      secretCreatedAt,
-      Array[Byte](9),
-      2,
-      2,
-      MimeType.Default
-    )
-
-  // A holder who never picked up still has a retained blob, and it has nothing left to mark once their record is gone —
-  // the relay expires an uncollected deposit rather than waiting on it.
-  test("An approved removal discards the retained blob of a holder who never picked up") {
-    val relay = CascadingFakeShareRelay()
-    val retained = FakeRetainedDepositRepository()
-    val (svc, _, _, rows) = serviceWithRemovalsOut(relay, SecretState.Destroying, retained)
-    relay.pending = relay.pending.map(r =>
-      if r.transactionType == ShareTransactionType.Deposit then r.copy(state = ShareRequestState.Pending) else r
-    )
-    retained.save(retainedBlob(rows("alice.deposit"), aliceContact))
-    retained.save(retainedBlob(rows("charlie.deposit"), charlieContact))
-
-    relay.approveRemoval(rows("alice.removal"), aliceKeys)
-    svc.syncDistributed()
-
-    assertEquals(retained.getAll().map(_.id), List(rows("charlie.deposit").id))
-  }
-
-  test("Force Forget discards the retained blobs along with the records") {
-    val relay = CascadingFakeShareRelay()
-    val retained = FakeRetainedDepositRepository()
-    val (svc, metaRepo, _, rows) = serviceWithRemovalsOut(relay, SecretState.Destroying, retained)
-    retained.save(retainedBlob(rows("alice.deposit"), aliceContact))
-    retained.save(retainedBlob(rows("charlie.deposit"), charlieContact))
-
-    svc.forceForgetSecret(secretId)
-
-    assertEquals(metaRepo.getAll(), Nil)
-    assertEquals(retained.getAll(), Nil)
-  }
 
   test("A holder who approves their removal is dropped, and the secret waits for the other one") {
     val relay = CascadingFakeShareRelay()
@@ -354,7 +308,6 @@ class ShareServiceDestroyTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = identity
     )
 

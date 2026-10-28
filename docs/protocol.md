@@ -372,17 +372,17 @@ remedy for redundancy that was never there. Re-depositing automatically was cons
 rejected: it would keep an absent holder's ciphertext on the relay for as long as the owner's
 app ran — a vault for absent holders, not a mailbox.
 
-The sender keeps each encrypted blob until that holder's pickup is confirmed, the holder
-withdraws, or the holder's record goes with an approved removal or a Force Forget. Nothing reads
-it back: it only marks a pickup no channel has confirmed yet. It is safe to keep because the blob
-is sealed to the *holder's* key under an ephemeral key the sender discarded at sealing: she
-cannot open what she is retaining, so holding all *n* is *n* opaque forward-only blobs, not a
-reconstructable secret sitting on one device.
+Nothing of a share stays with its sender. Once a deposit is open she keeps only the record that
+this holder was given a piece of this secret; the ciphertext lives on the relay until pickup or
+expiry, and nowhere else.
 
-Pickup counts as confirmed through either channel — the relay showing the deposit accepted
-(fast, but collectable before she ever polls), or the holder's signed heartbeat naming that
-`secretId` (durable, immune to collection). A *later* loss is a different problem with a
-different remedy; see [trust-model.md](trust-model.md).
+Pickup counts as confirmed through either channel — the holder's approval of the deposit (fast,
+but gone once she has read it or it expires), or the holder's signed heartbeat naming that
+`secretId` (re-sent every interval). An approval counts only once the holder's signature on it
+verifies, and it is dated by when the holder answered, never by when she happened to read it.
+That time is the relay's and unsigned, so a relay can no longer invent an approval but can still
+re-date a real one; see *Freshness* in [trust-model.md](trust-model.md). A *later* loss is a
+different problem with a different remedy, covered there too.
 
 Which makes a deposit approval an **acknowledgement, not the delivery**. The pending row
 must already carry the ciphertext — the sender's signature covers it, so a holder cannot

@@ -240,7 +240,8 @@ present a weeks-old "healthy" as live truth. Every holder falls into one bucket:
 | **Silent / overdue** | Heartbeats expected, none within the threshold | **No — drops out of `n_live`** |
 
 *Any* signed proof of custody refreshes the clock — a heartbeat, a pickup approval, or a
-retrieval approval — so a holder you recently retrieved from is fresh automatically.
+retrieval approval — so a holder you recently retrieved from is fresh automatically. An approval
+counts only once the holder's signature on it verifies, so a relay cannot invent one.
 
 A heartbeat is dated by the time the holder signed into it, never by when the relay received it,
 and it only ever moves the clock forward: one older than what your phone already knows changes
@@ -249,6 +250,18 @@ date custody later than your phone's own clock, which is what a holder whose clo
 would otherwise do. The opt-out follows the same rule, with one gap left open on purpose: a
 replayed old opt-out can still mark a holder *Unmonitored by choice*. That takes them out of
 `n_live`, so it can raise an alarm, never silence one.
+
+An approval is dated by when the holder answered, under the same two rules: never later than
+your phone's clock, and never moving the clock back. So an approved retrieval that stays on the
+relay until its copy is cleared refreshes nothing after the first time it is read. Two limits
+remain, and both are known:
+
+- **The answer's time is the relay's, and unsigned.** A relay can no longer invent an approval,
+  but it can re-date a real one. Only a signed time on approvals, as heartbeats carry, would
+  close that.
+- **An approval signed under a key the holder has since rotated away from no longer verifies**,
+  because a contact keeps no previous keys. Their next heartbeat confirms them instead, so this
+  costs a few days at most, not the holder.
 
 Dropping out at the threshold, rather than merely being annotated, is the point: erosion has
 to show up in the number you plan against, not in a footnote. It is also **reversible** — a

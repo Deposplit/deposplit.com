@@ -153,7 +153,6 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
 
@@ -182,7 +181,6 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
 
@@ -218,7 +216,6 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
 
@@ -271,7 +268,6 @@ class ShareRelayResolverFanOutTests extends munit.FunSuite:
       contactManagement =
         ContactService(contactRepo, identityStore, InMemoryContactRelinkRepositoryForShareServiceTests()),
       keyConflictRepository = FakeKeyConflictRepository(),
-      retainedDepositRepository = FakeRetainedDepositRepository(),
       identity = bobIdentity
     )
     (svc, bobIdentity)
