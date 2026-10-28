@@ -7,3 +7,15 @@ updates:
     groups:
       github-actions:
         patterns: [ "*" ]
+
+  - package-ecosystem: "sbt"
+    directories: [ "/", "/hexagons/*" ]
+    schedule:
+      interval: "weekly"
+    groups:
+      sbt:
+        patterns: [ "*" ]
+    ignore:
+      # pinned to the Scala 3.9 LTS line on purpose; bump minor versions manually
+      - dependency-name: "org.scala-lang:scala3-library_3"
+        update-types: [ "version-update:semver-minor", "version-update:semver-major" ]
