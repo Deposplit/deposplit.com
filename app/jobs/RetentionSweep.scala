@@ -26,6 +26,7 @@ package jobs
 
 import driving_ports.CustodyHeartbeats
 import driving_ports.KeyRotations
+import driving_ports.ShareRequests
 import jakarta.inject.*
 import play.api.Configuration
 import play.api.Logging
@@ -51,11 +52,13 @@ class RetentionSweep @Inject() (
     config: Configuration,
     lifecycle: ApplicationLifecycle,
     heartbeats: CustodyHeartbeats,
-    rotations: KeyRotations
+    rotations: KeyRotations,
+    requests: ShareRequests
 ) extends Logging:
 
   private val custodyHeartbeatsRetention: Duration = config.get[Duration]("relay.retention.custody-heartbeats")
   private val keyRotationsRetention: Duration = config.get[Duration]("relay.retention.key-rotations")
+  private val shareRequestsRetention: Duration = config.get[Duration]("relay.retention.share-requests")
 
   /** One sweep, now. Never throws: a task that throws cancels every later run of a `ScheduledExecutorService`, and does
     * so silently. Each table is swept on its own, so a failure on one does not spare the rest.
@@ -64,6 +67,7 @@ class RetentionSweep @Inject() (
     val now = Instant.now()
     expire("custody_heartbeats")(heartbeats.expireHeartbeats(now.minus(custodyHeartbeatsRetention)))
     expire("key_rotations")(rotations.expireRotations(now.minus(keyRotationsRetention)))
+    expire("share_requests")(requests.expireShareRequests(now.minus(shareRequestsRetention)))
 
   private def expire(table: String)(expiry: => Int): Unit =
     try expiry

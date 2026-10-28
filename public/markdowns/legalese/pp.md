@@ -108,8 +108,9 @@ know them.
 **How long:** entries on the relay exist only to be delivered. An encrypted share is deleted from
 the relay as soon as its holder has picked it up, and a share returned to its owner as soon as the
 owner clears the collected copies in the app. Every other entry is deleted by the app it is meant
-for once that app has acted on it. An entry that no app picks up any more, for example because a
-phone was lost or a contact was deleted, may be deleted by Squeng AG at any time.
+for once that app has acted on it. Whatever is still there after 28 days without a change, for
+example because a phone was lost or a contact was deleted, is deleted automatically. A notice that
+a key has been replaced waits 180 days instead, because it cannot be sent a second time.
 
 Legal basis under the GDPR: Art. 6(1)(b), because the processing is necessary to provide the service.
 

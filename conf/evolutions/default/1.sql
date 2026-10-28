@@ -53,6 +53,10 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 -- sender_key and recipient_key are Ed25519 public keys (32 bytes).
 -- secret_created_at is the client-supplied secret creation timestamp.
 -- requested_at is the server-side timestamp when this request was opened.
+-- responded_at is when its recipient answered it (set at creation for inventory and withdrawal).
+-- A row expires once COALESCE(responded_at, requested_at), its last change, is older than
+-- relay.retention.share-requests in application.conf. That includes a pending deposit, ciphertext
+-- and all, whose holder never counted toward redundancy (see docs/protocol.md).
 --
 -- sender_signature and recipient_signature are Ed25519 signatures (64 bytes) that ride with the
 -- row so any reader (not just this relay) can independently re-verify authorship — required for

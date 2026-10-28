@@ -50,7 +50,9 @@ import java.util.UUID
   * `deleteShareRequestById` any party may already call.
   *
   * Every row is a message, deleted by the party it is addressed to once acted on: an approved Deposit by its sender as
-  * soon as she has seen the pickup, an answered Retrieval or Removal by its sender, a push by its recipient.
+  * soon as she has seen the pickup, an answered Retrieval or Removal by its sender, a push by its recipient. One nobody
+  * acts on expires once its last change — `respondedAt`, else `requestedAt` — is older than the relay's retention
+  * period, a pending Deposit included.
   *
   * `senderSignature` and `recipientSignature` are Ed25519 signatures over `PayloadCanonical`'s byte constructions —
   * independent of the transport-auth signature, they let any reader re-verify authorship, which is what makes BYOR (a

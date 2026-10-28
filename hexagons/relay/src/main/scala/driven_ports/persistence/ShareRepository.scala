@@ -86,3 +86,8 @@ trait ShareRepository:
       secretId: SecretId,
       keeping: UUID
   ): Unit
+
+  /** Deletes every request whose `respondedAt`, or `requestedAt` if it has not been answered, lies before `cutoff`.
+    * Returns how many rows it deleted.
+    */
+  def deleteShareRequestsLastChangedBefore(cutoff: Instant): Int

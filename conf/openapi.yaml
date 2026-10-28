@@ -236,13 +236,18 @@ components:
         requestedAt:
           type: string
           format: date-time
+          description: >
+            When the request was opened. A request nobody answers is deleted by the relay once this
+            is older than its retention period, 28 days by default — a pending deposit included.
         respondedAt:
           type: string
           format: date-time
           nullable: true
           description: >
             Set when the recipient responds via PATCH. For `inventory` and `withdrawal` this is set
-            immediately at creation (self-approved, no PATCH phase).
+            immediately at creation (self-approved, no PATCH phase). Once set, it is what expiry
+            counts from: an answered request is deleted once this is older than the retention
+            period, 28 days by default.
         ciphertext:
           type: string
           format: byte

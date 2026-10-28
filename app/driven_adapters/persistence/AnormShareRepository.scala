@@ -297,3 +297,10 @@ class AnormShareRepository @Inject() (db: Database) extends ShareRepository:
         )
         .executeUpdate()
     }
+
+  override def deleteShareRequestsLastChangedBefore(cutoff: Instant): Int =
+    db.withConnection { implicit conn =>
+      SQL("DELETE FROM share_requests WHERE COALESCE(responded_at, requested_at) < {cutoff}")
+        .on("cutoff" -> cutoff)
+        .executeUpdate()
+    }

@@ -109,3 +109,10 @@ trait ShareRequests:
     * opened in the meantime must survive that.
     */
   def deleteShareRequestById(callerKey: PublicKey, requestId: UUID): Either[Error, Unit]
+
+  /** Expires every request whose last change — its answer if it has one, its opening otherwise — lies before
+    * `lastChangedBefore`: one its addressee never came for. A pending Deposit expires the same way, ciphertext and all.
+    * A holder who has not picked a share up by then never counted toward the owner's redundancy, so nothing the owner
+    * believes changes with it. Returns how many it expired.
+    */
+  def expireShareRequests(lastChangedBefore: Instant): Int

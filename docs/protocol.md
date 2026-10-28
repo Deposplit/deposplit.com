@@ -161,6 +161,16 @@ enforces while a deposit is in flight — so both parties match on it. A row tha
 deposit would point at a row that is gone once its pickup has been seen, and would be worthless
 to a holder whose sender has since recovered onto a fresh device.
 
+**Expiry.** A row nobody acts on is deleted by the relay 28 days after its last change —
+`responded_at` if it has been answered, `requested_at` otherwise — so an answer given late
+still gets its full 28 days to be read. That covers an ask whose holder never answers, an
+answer or a collected copy its owner never comes back for, the rows Force Forget leaves behind,
+and a push from a holder the owner has not relinked. It covers a **pending deposit** too,
+ciphertext and all: a holder who has not picked a share up within 28 days never counted toward
+the owner's `n_live`, because there is no *awaiting pickup* bucket, so nothing the owner
+believes changes when it goes, and repair is the remedy for the redundancy it never added. See
+*Absence is never a signal* below.
+
 `sealed_label` is the secret's label, sealed by the sender to the recipient's encryption key with the
 same box as a share, under HPKE info of its own (see [security.md](security.md)). Every type
 carries one, because the recipient shows it: a holder sees it on a retrieval or removal request,
@@ -318,11 +328,16 @@ that safe:
 > means "lost".
 
 Everything is therefore either idempotently re-emitted on the next poll (heartbeats, inventory
-pushes) or re-issuable by the user (action requests).
+pushes) or re-issuable by the user (retrievals and removals).
 Clients follow one rule when reconciling: **upsert, never delete.** A row's disappearance
 must never cause a client to forget something.
 
-Two kinds of row are neither, and each costs something bounded when lost:
+Three kinds of row are neither, and each costs something bounded when lost:
+
+- **A pending `deposit`** — the polynomial is gone, so nobody can mint that share again. The
+  holder never picked it up, so they never counted toward `n_live`; the owner loses redundancy
+  she was never shown, and repair is the remedy. See *A deposit expires like any other row*
+  below.
 
 - **A `withdrawal`** — once the share is gone, nothing re-emits it. The owner misses the explicit
   answer, not the share's safety: a monitored holder who has stopped holding stops naming the
@@ -342,26 +357,27 @@ deleting the answer as well would leave the sender an absence to read, and an ab
 nothing. She deletes the row herself once she has acted on it.
 
 With every row a message, retention has one question to answer — how long to wait for an
-addressee who never comes — and it wants a generous answer, so an offline counterparty can still
-act. The relay answers it itself, with a sweep that runs inside the app (`jobs.RetentionSweep`),
-so a self-hosted relay expires rows the same way without its operator doing anything. The period
-for each table is configuration, under `relay.retention` in `application.conf`.
-`custody_heartbeats` and `key_rotations` have one, described above. `share_requests` has none
-yet, so a row there stays until its addressee deletes it.
+addressee who never comes. The relay answers it itself, with a sweep that runs inside the app
+(`jobs.RetentionSweep`), so a self-hosted relay expires rows the same way without its operator
+doing anything. The period for each table is configuration, under `relay.retention` in
+`application.conf`: 28 days for `custody_heartbeats` and `share_requests`, 180 for
+`key_rotations`, each described above.
 
-**One exception needs care.** A `deposit` row carries the only copy of an encrypted share
-in transit, so collection before pickup would appear to lose it — and the polynomial is not
-retained, so a single share cannot be cheaply re-minted. The sender therefore keeps each
-encrypted blob until that holder's pickup is confirmed, then discards it. This is safe
-precisely because the blob is sealed to the *holder's* key under an ephemeral key the sender
-discarded at sealing: she cannot open what she is retaining, so holding all *n* is *n* opaque
-forward-only blobs, not a reconstructable secret sitting on one device.
+**A deposit expires like any other row.** A `deposit` carries the only copy of an encrypted
+share in transit, and the polynomial is not retained, so a share that expires before its holder
+picks it up cannot be re-minted. That costs nothing the owner was counting on. A holder who has
+not picked up has confirmed nothing, so they never counted toward `n_live`, and the health ladder
+already treats them as silent; repair, which re-splits from *k* reconstructed shares, is the
+remedy for redundancy that was never there. Re-depositing automatically was considered and
+rejected: it would keep an absent holder's ciphertext on the relay for as long as the owner's
+app ran — a vault for absent holders, not a mailbox.
 
-**The blob is the prerequisite, not yet the mechanism.** Nothing re-deposits from it today,
-and that path lands with collection itself. Nothing costs anything meanwhile, because the
-retention sweep does not collect `share_requests` rows in the first place — but extending it to
-deposits *without* the client half is what would turn this into the very loss the retention
-exists to prevent.
+The sender keeps each encrypted blob until that holder's pickup is confirmed, the holder
+withdraws, or the holder's record goes with an approved removal or a Force Forget. Nothing reads
+it back: it only marks a pickup no channel has confirmed yet. It is safe to keep because the blob
+is sealed to the *holder's* key under an ephemeral key the sender discarded at sealing: she
+cannot open what she is retaining, so holding all *n* is *n* opaque forward-only blobs, not a
+reconstructable secret sitting on one device.
 
 Pickup counts as confirmed through either channel — the relay showing the deposit accepted
 (fast, but collectable before she ever polls), or the holder's signed heartbeat naming that

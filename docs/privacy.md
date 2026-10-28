@@ -71,7 +71,9 @@ software nobody thinks of as part of the product.
 Retention makes it worse rather than better. Every row on the relay is a message, deleted by the
 app it is addressed to once that app has acted on it — a deposit's ciphertext the moment its holder
 picks it up, the rest of the deposit once its sender has seen the pickup — so nothing there records
-who keeps what for whom. And no client ever reads a row's absence as evidence, because
+who keeps what for whom. A row nobody comes for is deleted by the relay itself after 28 days
+without a change, or 180 for a key rotation, which cannot be sent twice. And no client ever reads
+a row's absence as evidence, because
 [absence is never a signal](protocol.md). Logs are the opposite: appended, rotated, archived,
 shipped elsewhere. An access log outlives the data it describes, inverting the property the
 protocol works to hold.

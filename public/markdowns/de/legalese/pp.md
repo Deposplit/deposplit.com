@@ -112,8 +112,10 @@ mit denen Schlüssel ausgetauscht wurden, kennen sie natürlich.
 **Wie lange:** Einträge auf dem Relais existieren nur, um zugestellt zu werden. Ein verschlüsselter
 Teil wird vom Relais gelöscht, sobald er abgeholt worden ist, und ein zurückgegebener Teil, sobald
 die gesammelten Kopien in der App freigegeben werden. Jeden anderen Eintrag löscht die App, für die
-er bestimmt ist, sobald sie darauf reagiert hat. Einen Eintrag, den keine App mehr abholt, etwa weil
-ein Telefon verloren ging oder ein Kontakt gelöscht wurde, kann die Squeng AG jederzeit löschen.
+er bestimmt ist, sobald sie darauf reagiert hat. Was nach 28 Tagen ohne Änderung noch vorhanden ist,
+etwa weil ein Telefon verloren ging oder ein Kontakt gelöscht wurde, wird automatisch gelöscht. Eine
+Mitteilung, dass ein Schlüssel ersetzt wurde, wartet stattdessen 180 Tage, weil sie sich kein
+zweites Mal senden lässt.
 
 Rechtsgrundlage nach DSGVO: Art. 6 Abs. 1 lit. b, weil die Bearbeitung für die Erbringung des
 Dienstes nötig ist.

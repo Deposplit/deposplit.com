@@ -58,7 +58,7 @@ stateDiagram-v2
 | → `Active`, by recovery | `processRecoveryMetadata` rebuilds the record from a relinked holder's signed inventory notice — metadata only, never a share | the secret reappears, with the holders who have reported in so far |
 | `Active` → `Destroying` | `destroySecret` writes the state **first**, then fans out one removal request per holder | the badge reads *Destroying*; Retrieve goes quiet; Force Forget appears |
 | `Destroying` → gone | `reconcileRemovals` drops each holder's `ShareMetadata` as their removal comes back approved, and removes the `Secret` once none are left | it leaves the list |
-| `Destroying` → gone, forced | `forceForgetSecret` removes the same records locally, without waiting | it leaves the list; the shares stay exactly where they are |
+| `Destroying` → gone, forced | `forceForgetSecret` removes the same records locally, without waiting — the way out for a holder who will never answer, including one whose removal expired unanswered after 28 days | it leaves the list; the shares stay exactly where they are |
 
 **Two states, and no `Destroyed` tombstone.** The second state exists because there is a
 phase where the *decision* outlives the *fact*: Alice has decided, and the holders have not
@@ -138,7 +138,8 @@ decrypts, combines and returns, and leaves everything exactly as it found it. No
 records that a secret was read. The collected copies outlive the reading, each still
 carrying its ciphertext on the relay, which is why **clearing is a separate act and the only
 way back** — and why nothing on the screen may claim to know whether the reader has seen
-their secret. It knows only whether the secret is in front of them right now.
+their secret. It knows only whether the secret is in front of them right now. Copies nobody
+clears do not wait for ever: the relay expires each one 28 days after it was handed back.
 
 Clearing takes the asks nobody has answered yet along with the copies, so that afterwards
 there is no retrieval flow for this secret at all. That is also what makes a *second* round
@@ -164,6 +165,7 @@ stateDiagram-v2
     direction LR
     [*] --> InTransit : the owner opens a deposit request
     InTransit --> Held : this phone polls and picks it up
+    InTransit --> [*] : not picked up within 28 days, so the relay expires it
     Held --> [*] : a removal request approved
     Held --> [*] : deleteHeldShare, unilaterally
 
@@ -182,10 +184,11 @@ is a relay row plus the owner's retained blob, `Held` is a `HeldShare`, and the 
 absence of one. Nothing needs remembering after deletion, because a custodian who has
 stopped holding has nothing left to say about it.
 
-**There is no failure exit before `Held`**, and that absence is honest: a share that never
-arrives leaves no trace whatsoever on this phone, because this phone never knew. The whole
+**The only exit before `Held` is expiry**, and it leaves no trace whatsoever on this phone,
+because this phone never knew. A deposit nobody picks up within 28 days is deleted by the relay,
+ciphertext and all, and the polynomial is gone, so nobody can mint that share again. The whole
 record of the attempt lives on the owner's side, where the holder simply never confirms and
-never counts toward `n_live`.
+never counts toward `n_live`, so the expiry changes nothing she believes.
 
 **Nobody is asked whether to accept a deposit.** Deposits never appear in the Requests tab:
 a pending one from a **known** contact whose signature verifies is picked up automatically,
@@ -249,4 +252,4 @@ row below is a designed-for gap, not a defect:
 | the share is still out there | deleted, unilaterally | the holder's signed withdrawal, read on the next poll. Never a row's disappearance, nor a heartbeat that stops naming the secret |
 | the secret is `Destroying`, waiting on one holder | the share, with the removal denied | nothing. Force Forget is the owner's escape, and it deliberately does not reach the phone that holds the share |
 | nothing — the secret was force-forgotten | a share nobody will ever ask about again | the holder may delete it at will; or, if they relink, their inventory push brings the owner's record back as `Active` |
-| a holder has never picked up | nothing at all | the retained blob, which is why an uncollected deposit is not yet a lost share |
+| a holder has never picked up | nothing at all | the next poll, within 28 days. After that the relay expires the deposit, the holder never counted, and repair restores the redundancy |

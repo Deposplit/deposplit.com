@@ -207,3 +207,6 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       case Some(_) =>
         repository.deleteShareRequestById(requestId)
         Right(())
+
+  override def expireShareRequests(lastChangedBefore: Instant): Int =
+    repository.deleteShareRequestsLastChangedBefore(lastChangedBefore)

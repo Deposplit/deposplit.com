@@ -67,6 +67,42 @@ class RetentionSweepSpec extends PlaySpec with GuiceOneAppPerSuite:
     status(result) mustBe CREATED
     (contentAsJson(result) \ "id").as[String]
 
+  private def openDeposit(sender: RequestSigner, recipient: RequestSigner): String =
+    val secretId = UUID.randomUUID().toString
+    val secretCreatedAt = "2026-01-01T00:00:00Z"
+    val label = "dGVzdCBzZWNyZXQ="
+    val sig = sender.signOpen(
+      secretId,
+      "deposit",
+      recipient.publicKeyHeader,
+      label,
+      secretCreatedAt,
+      Some("AQID"),
+      Some(2),
+      Some(3),
+      Some("text/plain")
+    )
+    val body =
+      s"""{"transactionType":"deposit","secretId":"$secretId","sealedLabel":"$label","recipientKey":"${recipient.publicKeyHeader}","secretCreatedAt":"$secretCreatedAt","ciphertext":"AQID","k":2,"n":3,"mimeType":"text/plain","senderSignature":"$sig"}"""
+        .getBytes("UTF-8")
+    val result = route(app, sender.post("/share-requests", body)).get
+    status(result) mustBe CREATED
+    (contentAsJson(result) \ "id").as[String]
+
+  private def approve(recipient: RequestSigner, requestId: String): Unit =
+    val sig = recipient.signRespond(requestId, true, None)
+    val body = s"""{"state":"approved","recipientSignature":"$sig"}""".getBytes("UTF-8")
+    status(route(app, recipient.patch(s"/share-requests/$requestId", body)).get) mustBe OK
+
+  /** Backdates a request's opening and, if given, its answer. */
+  private def changedAgo(id: String, requestedAgo: Duration, respondedAgo: Option[Duration]): Unit =
+    val now = Instant.now()
+    app.injector.instanceOf[Database].withConnection { implicit conn =>
+      SQL("UPDATE share_requests SET requested_at = {requestedAt}, responded_at = {respondedAt} WHERE id = {id}::uuid")
+        .on("requestedAt" -> now.minus(requestedAgo), "respondedAt" -> respondedAgo.map(now.minus(_)), "id" -> id)
+        .executeUpdate()
+    }
+
   /** Backdates a row's receipt, as if the relay had received it that long ago. */
   private def receivedAgo(table: String, id: String, ago: Duration): Unit =
     app.injector.instanceOf[Database].withConnection { implicit conn =>
@@ -126,5 +162,28 @@ class RetentionSweepSpec extends PlaySpec with GuiceOneAppPerSuite:
       sweep()
 
       idsListed("/key-rotations", bob) mustBe Seq(unread)
+    }
+
+    "expire a deposit nobody picked up within 28 days, ciphertext and all, and keep a fresh one" in {
+      val alice = new RequestSigner()
+      val stale = openDeposit(alice, new RequestSigner())
+      val fresh = openDeposit(alice, new RequestSigner())
+      changedAgo(stale, Duration.ofDays(29), None)
+
+      sweep()
+
+      idsListed("/share-requests?role=sender", alice) mustBe Seq(fresh)
+    }
+
+    "count a request's 28 days from its answer, not from its opening" in {
+      val alice = new RequestSigner()
+      val bob = new RequestSigner()
+      val answered = openDeposit(alice, bob)
+      approve(bob, answered)
+      changedAgo(answered, Duration.ofDays(30), Some(Duration.ofDays(1)))
+
+      sweep()
+
+      idsListed("/share-requests?role=sender", alice) mustBe Seq(answered)
     }
   }

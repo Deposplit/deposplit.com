@@ -132,6 +132,15 @@ class InMemoryShareRepository extends ShareRepository:
         r.id != keeping
     )
 
+  override def deleteShareRequestsLastChangedBefore(cutoff: Instant): Int =
+    val (expired, kept) = requests.partition(r => r.respondedAt.getOrElse(r.requestedAt).isBefore(cutoff))
+    requests = kept
+    expired.size
+
+  /** Moves a row's timestamps into the past, as if it had been opened and answered that long ago. */
+  def backdate(id: UUID, requestedAt: Instant, respondedAt: Option[Instant]): Unit =
+    requests = requests.map(r => if r.id == id then r.copy(requestedAt = requestedAt, respondedAt = respondedAt) else r)
+
 // ---------------------------------------------------------------------------
 // Fixtures — real Ed25519 keypairs, since senderSignature/recipientSignature now
 // require a genuinely valid signature, not just a well-formed public key.
@@ -1415,4 +1424,28 @@ class ShareRequestsServiceTests extends munit.FunSuite:
       .getOrElse(fail("push failed"))
     assertEquals(service.deleteShareRequestById(alice, req.id), Right(()))
     assertEquals(repo.getShareRequestById(req.id), None)
+  }
+
+  // --- expireShareRequests ---
+
+  test("expireShareRequests expires a pending Deposit opened before the cutoff, ciphertext and all") {
+    val (repo, service) = newService()
+    val stale = deposit(service)
+    val fresh = deposit(service)
+    repo.backdate(stale.id, Instant.now().minus(java.time.Duration.ofDays(29)), None)
+
+    assertEquals(service.expireShareRequests(Instant.now().minus(java.time.Duration.ofDays(28))), 1)
+    assertEquals(repo.getShareRequestById(stale.id), None)
+    assert(repo.getShareRequestById(fresh.id).isDefined)
+  }
+
+  test("expireShareRequests counts from the answer, so a request opened long ago but answered recently stays") {
+    val (repo, service) = newService()
+    val answered = deposit(service)
+    respond(service, bob, answered.id, approved = true).getOrElse(fail("respond failed"))
+    val now = Instant.now()
+    repo.backdate(answered.id, now.minus(java.time.Duration.ofDays(30)), Some(now.minus(java.time.Duration.ofDays(1))))
+
+    assertEquals(service.expireShareRequests(now.minus(java.time.Duration.ofDays(28))), 0)
+    assert(repo.getShareRequestById(answered.id).isDefined)
   }
