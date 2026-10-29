@@ -108,7 +108,7 @@ The sibling repositories, for reference:
 ./gradlew assembleDebug
 
 # from iOS/hexagon/
-swift test                        # 207 tests
+swift test                        # 208 tests
 swift build
 ```
 
