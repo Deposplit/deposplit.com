@@ -192,6 +192,14 @@ rotation notice is signed with the old `signKey`, which is precisely what did no
 is the rule from *Key rotation* holding exactly as written — a change not backed by `K_old` is
 recovery rather than rotation, and needs a human to re-verify it.
 
+A switch between iPhone and Android is not this case. Neither platform's backup restores onto
+the other, so the new phone starts with nothing, and it is the heavier case above: holders
+relink, and their inventory pushes rebuild your records. A catalogue export carried across by
+hand shortens it, bringing back your contacts, your secrets and who holds which, so you know
+whom to ask. What it cannot bring back are the shares you held for other people. Those owners
+see you go silent, and repair — the redundancy loss described under *Custody monitoring*,
+arriving all at once. The file and its format are in [security.md](security.md).
+
 ## Custody monitoring
 
 A holder losing their device is genuine redundancy loss, and their new device cannot tell

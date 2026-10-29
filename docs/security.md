@@ -237,6 +237,44 @@ since version 16 under Google Backup — and on Android doing so also deletes wh
 been backed up. So this is a decision the app states rather than one it makes, and both apps
 state it in Settings, consequence included.
 
+### The catalogue export
+
+Neither platform's backup restores onto the other, so a switch between iPhone and Android
+starts from nothing. The catalogue export is the one thing that crosses: a file the user saves
+and carries over by hand, holding contacts, verification levels, secrets and who holds which —
+never a share, never a key. It cannot bring back the shares held for other people, and every
+contact still has to relink; what it saves is remembering who to ask. See *After a phone
+switch* in [trust-model.md](trust-model.md).
+
+It is unencrypted, and it names every holder of every secret under that secret's label — the
+combination the section above rates as worth more to a targeted attacker than any share. It
+should travel the way the user would carry that list on paper.
+
+Both apps read and write the same format, version 1. It is a commitment the way the relay's wire
+format is: a file exported today has to import on whatever the apps have become by then.
+
+```json
+{
+  "version": 1,
+  "contacts": [{ "id", "pseudonym", "verifyKey", "encKey", "verificationLevel", "verifiedAt",
+                 "addedAt", "relayBaseUrl", "cipherSuite", "nickname", "revokedVerifyKeys",
+                 "keyChangedAt", "heartbeatOptedOutAt", "lastHeartbeatSentAt",
+                 "heartbeatEmissionOptedOut" }],
+  "secrets": [{ "id", "label", "k", "n", "mimeType", "secretCreatedAt", "state" }],
+  "shareMetadata": [{ "id", "secretId", "contactId", "lastConfirmedAt" }]
+}
+```
+
+- **Identifiers** are UUIDs, written in lower case and read in either.
+- **Keys** are base64url without padding, as on the wire and in the QR payload.
+- **Enumerations** are lower camel case: `verificationLevel` is `veryLow`, `low`, `high` or
+  `veryHigh`; `state` is `active` or `destroying`. `cipherSuite` is its wire value and
+  `mimeType` a bare type string.
+- **Times** are ISO-8601 in UTC. Writers give exactly three fractional digits, the milliseconds
+  a signature covers; readers accept none up to nine.
+- **Readers** refuse any `version` but 1 and ignore fields they do not know. A nullable field
+  may be absent or null, an absent list is empty and an absent flag is false.
+
 ## Rendering a reconstructed secret
 
 Every secret carries a sender-declared `mimeType` — `text/plain` for typed text, `image/png` or
