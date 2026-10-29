@@ -26,8 +26,11 @@ package value_objects
 
 import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoUnit
 import java.util.Base64
 import java.util.UUID
+import scala.util.Try
 
 /** Canonical byte constructions for the two payload-level signatures that ride with a ShareRequest row
   * (`senderSignature`, `recipientSignature`), independent of the per-call transport-auth signature verified by
@@ -49,6 +52,7 @@ import java.util.UUID
 object PayloadCanonical:
 
   private val base64Std = Base64.getEncoder
+  private val wireFormat = DateTimeFormatterBuilder().appendInstant(3).toFormatter
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
@@ -135,3 +139,16 @@ object PayloadCanonical:
       optedOut.toString,
       emittedAt.toEpochMilli.toString
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
+
+  /** A timestamp as text, wherever one travels as text: in UTC with exactly three fractional digits, the milliseconds a
+    * signature covers, so the string a receiver parses gives back the very integer that was signed. `Instant.toString`
+    * is not that: it writes no fraction on a whole second, and six or nine digits when the clock has them.
+    */
+  def wireInstant(instant: Instant): String = wireFormat.format(instant.truncatedTo(ChronoUnit.MILLIS))
+
+  /** A timestamp read from text with any number of fractional digits, none to nine, cut to the millisecond. Cut and not
+    * rounded, because cutting is what `toEpochMilli` does when signing: a `secretCreatedAt` sent as `.457999999` was
+    * signed as 457, and kept at full precision a database rounding to microseconds would store `.458`, which a receiver
+    * re-derives as 458 and refuses as forged.
+    */
+  def parseWireInstant(text: String): Option[Instant] = Try(Instant.parse(text).truncatedTo(ChronoUnit.MILLIS)).toOption

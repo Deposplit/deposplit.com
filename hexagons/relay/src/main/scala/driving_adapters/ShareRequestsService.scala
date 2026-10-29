@@ -30,6 +30,7 @@ import jakarta.inject.Inject
 import value_objects.*
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class ShareRequestsService @Inject() (repository: ShareRepository) extends ShareRequests:
@@ -113,7 +114,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
         if ciphertext.isDefined || k.isDefined || n.isDefined || mimeType.isDefined then return Left(Error.BadRequest)
         if repository.hasPendingRequest(secretId, senderKey, recipientKey, transactionType) then
           return Left(Error.Conflict)
-    val now = Instant.now()
+    // Whole milliseconds, the one precision of every Deposplit timestamp (see PayloadCanonical.wireInstant).
+    val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     val selfApproved =
       transactionType == ShareTransactionType.Inventory || transactionType == ShareTransactionType.Withdrawal
     val request = ShareRequest(
@@ -175,7 +177,8 @@ class ShareRequestsService @Inject() (repository: ShareRepository) extends Share
       case Some(req)                                             =>
         if approved && req.transactionType == ShareTransactionType.Retrieval && ciphertext.isEmpty then
           return Left(Error.BadRequest)
-        val now = Instant.now()
+        // Whole milliseconds, the one precision of every Deposplit timestamp (see PayloadCanonical.wireInstant).
+        val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
         val newState = if approved then ShareRequestState.Approved else ShareRequestState.Denied
         // For Deposit approval: return stored ciphertext to Bob and clear it from relay.
         // For Retrieval approval: store Bob's ciphertext for Alice to collect later.

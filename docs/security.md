@@ -270,8 +270,9 @@ format is: a file exported today has to import on whatever the apps have become 
 - **Enumerations** are lower camel case: `verificationLevel` is `veryLow`, `low`, `high` or
   `veryHigh`; `state` is `active` or `destroying`. `cipherSuite` is its wire value and
   `mimeType` a bare type string.
-- **Times** are ISO-8601 in UTC. Writers give exactly three fractional digits, the milliseconds
-  a signature covers; readers accept none up to nine.
+- **Times** follow the one rule every Deposplit timestamp does, in
+  [protocol.md](protocol.md#canonical-payload-byte-sequences): written in UTC with exactly three
+  fractional digits, read with none to nine and cut to the millisecond.
 - **Readers** refuse any `version` but 1 and ignore fields they do not know. A nullable field
   may be absent or null, an absent list is empty and an absent flag is false.
 

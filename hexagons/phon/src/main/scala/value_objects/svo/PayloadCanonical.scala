@@ -26,8 +26,11 @@ package value_objects.svo
 
 import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoUnit
 import java.util.Base64
 import java.util.UUID
+import scala.util.Try
 
 /** Client-side mirror of `hexagons/relay`'s `PayloadCanonical` (this module can't depend on `relay` — separate sbt
   * subprojects with no dependency between them). Byte-for-byte identical construction; keep both in sync. See the relay
@@ -38,6 +41,7 @@ object PayloadCanonical:
 
   private val base64Std = Base64.getEncoder
   private val base64Url = Base64.getUrlEncoder.withoutPadding
+  private val wireFormat = DateTimeFormatterBuilder().appendInstant(3).toFormatter
 
   /** Signed by the sender when opening a share request (`senderSignature`).
     *
@@ -119,3 +123,11 @@ object PayloadCanonical:
       optedOut.toString,
       emittedAt.toEpochMilli.toString
     ).mkString("\n").getBytes(StandardCharsets.UTF_8)
+
+  /** A timestamp as text: in UTC with exactly three fractional digits, the milliseconds a signature covers. The relay
+    * module's `PayloadCanonical.wireInstant` says why `Instant.toString` will not do.
+    */
+  def wireInstant(instant: Instant): String = wireFormat.format(instant.truncatedTo(ChronoUnit.MILLIS))
+
+  /** A timestamp read from text with none to nine fractional digits, cut to the millisecond as signing cuts it. */
+  def parseWireInstant(text: String): Option[Instant] = Try(Instant.parse(text).truncatedTo(ChronoUnit.MILLIS)).toOption

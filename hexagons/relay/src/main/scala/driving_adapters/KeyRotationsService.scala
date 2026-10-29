@@ -30,6 +30,7 @@ import jakarta.inject.Inject
 import value_objects.*
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class KeyRotationsService @Inject() (repository: KeyRotationRepository) extends KeyRotations:
@@ -56,7 +57,8 @@ class KeyRotationsService @Inject() (repository: KeyRotationRepository) extends 
       newEncKey = newEncKey,
       newCipherSuite = newCipherSuite,
       signature = signature,
-      createdAt = Instant.now()
+      // Whole milliseconds, the one precision of every Deposplit timestamp (see PayloadCanonical.wireInstant).
+      createdAt = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     )
     repository.saveRotation(rotation)
     Right(rotation)

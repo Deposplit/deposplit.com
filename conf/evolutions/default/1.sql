@@ -3,6 +3,11 @@
 CREATE TYPE share_transaction_type AS ENUM ('deposit', 'retrieval', 'removal', 'inventory', 'withdrawal');
 CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 
+-- Every timestamp column holds whole milliseconds, the precision a signature covers, and the relay
+-- binds each one itself. None defaults to now(), so the database's clock never stands in for the
+-- relay's. They are not declared TIMESTAMP(3) because H2 and PostgreSQL round to a column's
+-- precision, and a millisecond rounded up no longer matches the one that was signed.
+
 -- One row per share request of any type.
 -- deposit, retrieval, and removal share a symmetric consent model: sender Alice requests
 -- something of recipient Bob (deposit a share, send it back, or remove it), and Bob can approve
@@ -89,7 +94,7 @@ CREATE TABLE share_requests (
     n                 INTEGER,
     mime_type         TEXT,
     secret_created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    requested_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    requested_at      TIMESTAMP WITH TIME ZONE NOT NULL,
     responded_at      TIMESTAMP WITH TIME ZONE,
     sender_signature    BYTEA NOT NULL,
     recipient_signature BYTEA
@@ -129,7 +134,7 @@ CREATE TABLE key_rotations (
     new_enc_key       BYTEA NOT NULL,
     new_cipher_suite  TEXT  NOT NULL,
     signature         BYTEA NOT NULL,
-    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX ON key_rotations (recipient_key);
@@ -163,7 +168,7 @@ CREATE TABLE custody_heartbeats (
     opted_out    BOOLEAN NOT NULL DEFAULT false,
     emitted_at   TIMESTAMP WITH TIME ZONE NOT NULL,
     signature    BYTEA   NOT NULL,
-    created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    created_at   TIMESTAMP WITH TIME ZONE NOT NULL,
     UNIQUE (holder_key, owner_key)
 );
 

@@ -34,6 +34,7 @@ import value_objects.CipherSuite
 import value_objects.CustodyHeartbeat
 import value_objects.Error
 import value_objects.KeyRotation
+import value_objects.PayloadCanonical
 import value_objects.ShareRequest
 import value_objects.ShareRequestState
 import value_objects.ShareTransactionType
@@ -93,14 +94,14 @@ trait ApiSupport { self: BaseController =>
       "senderKey" -> req.senderKey.toBase64Url,
       "recipientKey" -> req.recipientKey.toBase64Url,
       "sealedLabel" -> req.sealedLabel.toBase64,
-      "secretCreatedAt" -> req.secretCreatedAt.toString,
+      "secretCreatedAt" -> PayloadCanonical.wireInstant(req.secretCreatedAt),
       "transactionType" -> req.transactionType.wireValue,
       "state" -> (req.state match
         case ShareRequestState.Pending  => "pending"
         case ShareRequestState.Approved => "approved"
         case ShareRequestState.Denied   => "denied"),
-      "requestedAt" -> req.requestedAt.toString,
-      "respondedAt" -> req.respondedAt.map(_.toString),
+      "requestedAt" -> PayloadCanonical.wireInstant(req.requestedAt),
+      "respondedAt" -> req.respondedAt.map(PayloadCanonical.wireInstant),
       "senderSignature" -> req.senderSignature.toBase64Url
     )
     val withRecipientSig =
@@ -122,7 +123,7 @@ trait ApiSupport { self: BaseController =>
       "newEncKey" -> r.newEncKey.toBase64Url,
       "newCipherSuite" -> r.newCipherSuite.wireValue,
       "signature" -> r.signature.toBase64Url,
-      "createdAt" -> r.createdAt.toString
+      "createdAt" -> PayloadCanonical.wireInstant(r.createdAt)
     )
 
   protected def custodyHeartbeatJson(h: CustodyHeartbeat): JsValue =
@@ -132,8 +133,8 @@ trait ApiSupport { self: BaseController =>
       "ownerKey" -> h.ownerKey.toBase64Url,
       "secretIds" -> h.secretIds.map(_.toString),
       "optedOut" -> h.optedOut,
-      "emittedAt" -> h.emittedAt.toString,
+      "emittedAt" -> PayloadCanonical.wireInstant(h.emittedAt),
       "signature" -> h.signature.toBase64Url,
-      "createdAt" -> h.createdAt.toString
+      "createdAt" -> PayloadCanonical.wireInstant(h.createdAt)
     )
 }

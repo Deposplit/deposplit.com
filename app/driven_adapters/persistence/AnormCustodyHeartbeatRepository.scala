@@ -26,6 +26,7 @@ package driven_adapters.persistence
 
 import anorm.*
 import anorm.SqlParser.*
+import driven_adapters.persistence.AnormInstant.given
 import driven_ports.persistence.CustodyHeartbeatRepository
 import jakarta.inject.*
 import play.api.db.Database
@@ -36,22 +37,6 @@ import java.util.UUID
 
 @Singleton
 class AnormCustodyHeartbeatRepository @Inject() (db: Database) extends CustodyHeartbeatRepository:
-
-  // Instant conversion — H2 returns TIMESTAMP WITH TIME ZONE as OffsetDateTime. Duplicated from
-  // AnormKeyRotationRepository rather than shared: a small adapter-local concern, not domain
-  // logic worth a shared abstraction across otherwise-unrelated tables.
-  private given Column[Instant] = Column.nonNull { (value, meta) =>
-    value match
-      case ts: java.sql.Timestamp        => Right(ts.toInstant)
-      case odt: java.time.OffsetDateTime => Right(odt.toInstant)
-      case d: java.util.Date             => Right(d.toInstant)
-      case _                             =>
-        Left(
-          TypeDoesNotMatch(
-            s"Cannot convert $value: ${value.getClass.getName} to Instant for column ${meta.column}"
-          )
-        )
-  }
 
   private def parseKey(bytes: Array[Byte]): PublicKey =
     PublicKey.fromBytes(bytes).getOrElse(sys.error(s"corrupt public key in DB (${bytes.length} bytes)"))

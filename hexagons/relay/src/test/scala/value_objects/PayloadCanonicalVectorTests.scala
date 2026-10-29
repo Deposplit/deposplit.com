@@ -248,3 +248,32 @@ class PayloadCanonicalVectorTests extends munit.FunSuite:
     val sig = Signature.fromBase64Url(expectedHeartbeatSignatureBase64Url).getOrElse(fail("bad fixture signature"))
     assert(pk.verify(canon, sig))
   }
+
+  // ── Wire timestamps ────────────────────────────────────────────────────────
+  // The same table is checked into phon's, Android's and iOS's suites, so all four read any timestamp's text to the
+  // same millisecond and write that millisecond back the same way.
+
+  private val wireInstants = Seq(
+    ("2026-10-29T07:27:35Z", 1793258855000L, "2026-10-29T07:27:35.000Z"),
+    ("2026-10-29T07:27:35.457Z", 1793258855457L, "2026-10-29T07:27:35.457Z"),
+    ("2026-10-29T07:27:35.457123Z", 1793258855457L, "2026-10-29T07:27:35.457Z"),
+    ("2026-10-29T07:27:35.457999999Z", 1793258855457L, "2026-10-29T07:27:35.457Z"),
+    ("2026-10-29T07:27:35.999999999Z", 1793258855999L, "2026-10-29T07:27:35.999Z")
+  )
+
+  test("a wire timestamp is read to the millisecond, cut and never rounded") {
+    wireInstants.foreach((text, epochMs, _) =>
+      assertEquals(PayloadCanonical.parseWireInstant(text), Some(Instant.ofEpochMilli(epochMs)), text)
+    )
+  }
+
+  test("a wire timestamp is written with exactly the three fractional digits a signature covers") {
+    wireInstants.foreach((text, _, written) =>
+      assertEquals(PayloadCanonical.wireInstant(Instant.parse(text)), written, text)
+    )
+  }
+
+  test("a wire timestamp that is not ISO-8601 is not read") {
+    assertEquals(PayloadCanonical.parseWireInstant("2026-10-29 07:27:35.457"), None)
+    assertEquals(PayloadCanonical.parseWireInstant(""), None)
+  }

@@ -32,6 +32,7 @@ import value_objects.svo.CipherSuite
 import value_objects.svo.CustodyHeartbeat
 import value_objects.svo.KeyRotation
 import value_objects.svo.MimeType
+import value_objects.svo.PayloadCanonical
 import value_objects.svo.RelayRefusedException
 import value_objects.svo.Role
 import value_objects.svo.ShareRequest
@@ -74,7 +75,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
         "secretId" -> secretId.toString,
         "recipientKey" -> encodeBase64Url(recipientKey),
         "sealedLabel" -> encodeBase64(sealedLabel),
-        "secretCreatedAt" -> secretCreatedAt.toString,
+        "secretCreatedAt" -> PayloadCanonical.wireInstant(secretCreatedAt),
         "transactionType" -> transactionType.wireValue,
         "senderSignature" -> encodeBase64Url(senderSignature)
       )
@@ -150,7 +151,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       "ownerKey" -> encodeBase64Url(ownerKey),
       "secretIds" -> secretIds.map(_.toString),
       "optedOut" -> optedOut,
-      "emittedAt" -> emittedAt.toString,
+      "emittedAt" -> PayloadCanonical.wireInstant(emittedAt),
       "signature" -> encodeBase64Url(signature)
     )
     send("POST", "/custody-heartbeats", Some(body))
@@ -214,7 +215,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       senderKey = decodeBase64Url((json \ "senderKey").as[String]),
       recipientKey = decodeBase64Url((json \ "recipientKey").as[String]),
       sealedLabel = decodeBase64((json \ "sealedLabel").as[String]),
-      secretCreatedAt = Instant.parse((json \ "secretCreatedAt").as[String]),
+      secretCreatedAt = instant((json \ "secretCreatedAt").as[String]),
       transactionType = ShareTransactionType
         .fromWire((json \ "transactionType").as[String])
         .getOrElse(
@@ -225,8 +226,8 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
         case "approved" => ShareRequestState.Approved
         case "denied"   => ShareRequestState.Denied
         case other      => throw IllegalArgumentException(s"Unknown state: $other"),
-      requestedAt = Instant.parse((json \ "requestedAt").as[String]),
-      respondedAt = (json \ "respondedAt").asOpt[String].map(Instant.parse),
+      requestedAt = instant((json \ "requestedAt").as[String]),
+      respondedAt = (json \ "respondedAt").asOpt[String].map(instant),
       ciphertext = (json \ "ciphertext").asOpt[String].map(decodeBase64),
       k = (json \ "k").asOpt[Int],
       n = (json \ "n").asOpt[Int],
@@ -246,7 +247,7 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
         .fromWire((json \ "newCipherSuite").as[String])
         .getOrElse(throw IllegalArgumentException(s"Unknown cipher suite: ${(json \ "newCipherSuite").as[String]}")),
       signature = decodeBase64Url((json \ "signature").as[String]),
-      createdAt = Instant.parse((json \ "createdAt").as[String])
+      createdAt = instant((json \ "createdAt").as[String])
     )
 
   private def parseCustodyHeartbeat(json: JsValue): CustodyHeartbeat =
@@ -256,9 +257,12 @@ class HttpClientShareRelay @Inject() (identity: Identity, val baseUrl: String = 
       ownerKey = decodeBase64Url((json \ "ownerKey").as[String]),
       secretIds = (json \ "secretIds").as[Seq[String]].map(UUID.fromString),
       optedOut = (json \ "optedOut").as[Boolean],
-      emittedAt = Instant.parse((json \ "emittedAt").as[String]),
+      emittedAt = instant((json \ "emittedAt").as[String]),
       signature = decodeBase64Url((json \ "signature").as[String])
     )
+
+  private def instant(text: String): Instant =
+    PayloadCanonical.parseWireInstant(text).getOrElse(throw IllegalArgumentException(s"Not a timestamp: $text"))
 
   // ── Base64 ────────────────────────────────────────────────────────────────
 

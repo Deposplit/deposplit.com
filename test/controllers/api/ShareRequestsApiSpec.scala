@@ -660,3 +660,55 @@ class ShareRequestsApiSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(result) mustBe REQUEST_ENTITY_TOO_LARGE
     }
   }
+
+  // ── Timestamps ─────────────────────────────────────────────────────────────
+
+  "Timestamps on /share-requests" should {
+
+    "keep a secretCreatedAt sent with nanoseconds at the millisecond it was signed at" in {
+      // H2 and PostgreSQL round to microseconds on the way in. Stored as sent, .457999999 would come
+      // back as .458, a millisecond the signature does not cover, and its holder would refuse the
+      // deposit as forged.
+      val sender = new RequestSigner()
+      val recipient = new RequestSigner()
+      val sid = UUID.randomUUID().toString
+      def signedAt(at: String) =
+        sender.signOpen(
+          sid,
+          "deposit",
+          recipient.publicKeyHeader,
+          "eA==",
+          at,
+          Some("AQID"),
+          Some(2),
+          Some(3),
+          Some("text/plain")
+        )
+      val sentAt = "2026-10-29T07:27:35.457999999Z"
+      val body =
+        s"""{"transactionType":"deposit","secretId":"$sid","sealedLabel":"eA==","recipientKey":"${recipient.publicKeyHeader}","secretCreatedAt":"$sentAt","ciphertext":"AQID","k":2,"n":3,"mimeType":"text/plain","senderSignature":"${signedAt(
+            sentAt
+          )}"}"""
+      val created = route(app, sender.post("/share-requests", body.getBytes("UTF-8"))).get
+      status(created) mustBe CREATED
+      val id = (contentAsJson(created) \ "id").as[String]
+
+      val fetched = contentAsJson(route(app, recipient.get(s"/share-requests/$id")).get)
+      val servedAt = (fetched \ "secretCreatedAt").as[String]
+      servedAt mustBe "2026-10-29T07:27:35.457Z"
+      // Ed25519 is deterministic, so signing what was served reproduces the stored signature only if
+      // it re-derives the very millisecond that was signed.
+      signedAt(servedAt) mustBe (fetched \ "senderSignature").as[String]
+    }
+
+    "be written with exactly three fractional digits, whatever the clock or the sender gave" in {
+      val wireInstant = """\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z""".r
+      val rows = contentAsJson(route(app, alice.get("/share-requests?role=sender")).get).as[JsArray].value
+      val times =
+        rows.flatMap(row => Seq("secretCreatedAt", "requestedAt", "respondedAt").flatMap(f => (row \ f).asOpt[String]))
+      rows must not be empty
+      times.filterNot(wireInstant.matches) mustBe empty
+      // createdAt, the fixture every body above sends, has no fraction at all.
+      times must contain("2026-01-01T00:00:00.000Z")
+    }
+  }

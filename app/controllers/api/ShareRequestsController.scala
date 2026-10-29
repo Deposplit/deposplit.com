@@ -30,7 +30,6 @@ import play.api.libs.json.*
 import play.api.mvc.*
 import value_objects.*
 
-import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
@@ -75,7 +74,8 @@ class ShareRequestsController @Inject() (
       createdAtStr <- (json \ "secretCreatedAt")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "secretCreatedAt is required")))
-      secretCreatedAt <- parseInstant(createdAtStr)
+      secretCreatedAt <- PayloadCanonical
+        .parseWireInstant(createdAtStr)
         .toRight(BadRequest(errorJson("invalid_field", "secretCreatedAt must be a valid ISO-8601 date-time")))
       ciphertext = (json \ "ciphertext").asOpt[String].flatMap(decodeBase64)
       k = (json \ "k").asOpt[Int]
@@ -191,8 +191,4 @@ class ShareRequestsController @Inject() (
 
   private def decodeBase64(s: String): Option[Array[Byte]] =
     try Some(b64Dec.decode(s))
-    catch case _: Exception => None
-
-  private def parseInstant(s: String): Option[Instant] =
-    try Some(Instant.parse(s))
     catch case _: Exception => None

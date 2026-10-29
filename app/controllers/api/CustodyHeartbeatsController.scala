@@ -30,7 +30,6 @@ import play.api.libs.json.*
 import play.api.mvc.*
 import value_objects.*
 
-import java.time.Instant
 import java.util.UUID
 
 /** The signed custodial-heartbeat push — see `driving_ports.CustodyHeartbeats`. */
@@ -62,7 +61,8 @@ class CustodyHeartbeatsController @Inject() (
       emittedAtStr <- (json \ "emittedAt")
         .asOpt[String]
         .toRight(BadRequest(errorJson("missing_field", "emittedAt is required")))
-      emittedAt <- parseInstant(emittedAtStr)
+      emittedAt <- PayloadCanonical
+        .parseWireInstant(emittedAtStr)
         .toRight(BadRequest(errorJson("invalid_field", "emittedAt must be an ISO-8601 instant")))
       sigStr <- (json \ "signature")
         .asOpt[String]
@@ -101,10 +101,6 @@ class CustodyHeartbeatsController @Inject() (
 
   private def parseUuid(s: String): Option[UUID] =
     try Some(UUID.fromString(s))
-    catch case _: Exception => None
-
-  private def parseInstant(s: String): Option[Instant] =
-    try Some(Instant.parse(s))
     catch case _: Exception => None
 
   private def parseUuids(strs: Seq[String]): Option[Seq[UUID]] =

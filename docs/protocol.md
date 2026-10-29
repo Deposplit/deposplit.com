@@ -68,11 +68,21 @@ Defined in `PayloadCanonical` and reimplemented identically on every platform.
 | `forRotation` | `recipientKey`, `newVerifyKey`, `newEncKey`, `newCipherSuite` |
 | `forHeartbeat` | `ownerKey`, `secretIds` **sorted** then comma-joined, `optedOut`, `emittedAt` (epoch ms) |
 
-**A signed timestamp has to survive the wire.** The receiver never verifies against the bytes the
-sender built — it rebuilds them from the JSON it parsed — so `secretCreatedAt` and a heartbeat's
-`emittedAt` must be transmitted with their milliseconds intact: `2026-01-01T00:00:00.123Z`, never
-`2026-01-01T00:00:00Z`. Java's `Instant.toString` keeps them; Foundation's default
-`ISO8601DateFormatter` drops them, and a dropped millisecond makes every signature fail to verify.
+**One time format, one precision.** A timestamp is a whole number of milliseconds since the
+epoch. Signed bytes and the nonce carry it as that integer. Wherever it is text — the wire in
+both directions, every app's local stores, the catalogue file — it is RFC 3339 in UTC with
+exactly three fractional digits: `2026-01-01T00:00:00.123Z`. Writers write exactly that.
+Readers accept none to nine fractional digits and cut them to the millisecond, which is what
+signing does too, so reading never changes a signed value.
+
+This matters because a receiver never verifies against the bytes the sender built: it rebuilds
+them from the timestamp it parsed. A millisecond dropped or rounded on the way makes the
+signature fail. `.457999999` rounded to `.458` signs as 458 where the sender signed 457. Every
+platform therefore reads and writes through one pair, `PayloadCanonical.wireInstant` and
+`parseWireInstant`. The platforms' defaults do not qualify: `Instant.toString` writes no
+fraction on a whole second and six or nine digits when the clock has them, and Foundation's
+default `ISO8601DateFormatter` drops the fraction altogether. The relay's database keeps the
+same whole milliseconds, for the reason `1.sql` gives.
 
 Three rules govern changes here:
 

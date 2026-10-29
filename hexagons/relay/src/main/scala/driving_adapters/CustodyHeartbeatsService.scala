@@ -30,6 +30,7 @@ import jakarta.inject.Inject
 import value_objects.*
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository) extends CustodyHeartbeats:
@@ -47,7 +48,8 @@ class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository
   ): Either[Error, CustodyHeartbeat] =
     val canon = PayloadCanonical.forHeartbeat(ownerKey, secretIds, optedOut, emittedAt)
     if !holderKey.verify(canon, signature) then return Left(Error.BadRequest)
-    val now = Instant.now()
+    // Whole milliseconds, the one precision of every Deposplit timestamp (see PayloadCanonical.wireInstant).
+    val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     if emittedAt.isAfter(now) then return Left(Error.BadRequest)
     val heartbeat = CustodyHeartbeat(
       id = UUID.randomUUID(),
