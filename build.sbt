@@ -1,6 +1,6 @@
 name := "Deposplit"
 
-version := "ToBeDetermined"
+version := "1.0.0"
 
 organization := "com.squeng"
 organizationName := "Squeng AG"
@@ -24,7 +24,7 @@ libraryDependencies += guice
 libraryDependencies += jdbc
 libraryDependencies += evolutions
 libraryDependencies += "org.playframework.anorm" %% "anorm" % "3.1.0"
-libraryDependencies += "org.postgresql" % "postgresql" % "42.7.13"
+libraryDependencies += "org.postgresql" % "postgresql" % "42.7.14"
 libraryDependencies += "com.h2database" % "h2" % "2.5.252"
 libraryDependencies += "org.typelevel" %% "laika-core" % "1.3.2"
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "7.0.2" % Test
@@ -37,7 +37,7 @@ libraryDependencies += "com.google.zxing" % "javase" % "3.5.4"
 
 libraryDependencies += "org.webjars.npm" % "popperjs__core" % "2.11.8"
 libraryDependencies += "org.webjars.npm" % "bootstrap" % "5.3.8"
-libraryDependencies += "org.webjars.npm" % "bootstrap-icons" % "1.13.1"
+libraryDependencies += "org.webjars.npm" % "bootstrap-icons" % "1.13.2"
 
 // Adds additional packages into conf/routes
 // play.sbt.routes.RoutesKeys.routesImport += "com.deposplit.binders._"
