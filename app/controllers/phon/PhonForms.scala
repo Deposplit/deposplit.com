@@ -27,6 +27,7 @@ package controllers.phon
 import play.api.data.*
 import play.api.data.Forms.*
 import value_objects.svo.MimeType
+import value_objects.svo.RelayBaseUrl
 import value_objects.svo.VerificationLevel
 
 import java.nio.charset.StandardCharsets
@@ -158,8 +159,15 @@ object PhonForms:
 
   final case class RelayRecord(relayBaseUrl: Option[String])
 
+  /** Nothing between this form and the settings file would refuse a relay that is not one, unlike a contact's, which
+    * the hexagon checks on the way in. Blank resets to the fallback.
+    */
   val relayForm: Form[RelayRecord] = Form(
-    mapping("relayBaseUrl" -> optional(text))(RelayRecord.apply)(r => Some(r.relayBaseUrl))
+    mapping(
+      "relayBaseUrl" -> optional(
+        text.verifying("phon.error.relayBaseUrl", url => url.isBlank || RelayBaseUrl.parse(url).isDefined)
+      )
+    )(RelayRecord.apply)(r => Some(r.relayBaseUrl))
   )
 
   final case class ResponseRecord(approved: Boolean)

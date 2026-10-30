@@ -334,6 +334,68 @@ class ContactServiceTests extends munit.FunSuite:
     }
   }
 
+  // Stored, a relay that is not one fails on every sync for as long as the contact exists, so it is refused on the way
+  // in, by either door.
+  test("addManually and addFromQr refuse a relay that is not an http URL") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
+
+    intercept[IllegalArgumentException] {
+      svc.addManually(
+        "bob",
+        Array.fill(32)(0x01.toByte),
+        Array.fill(32)(0x02.toByte),
+        VerificationLevel.Low,
+        relayBaseUrl = Some("172.22.114.13:9000")
+      )
+    }
+    intercept[IllegalArgumentException] {
+      svc.addFromQr(
+        "carol",
+        Array.fill(32)(0x03.toByte),
+        Array.fill(32)(0x04.toByte),
+        CipherSuite.current,
+        VerificationLevel.VeryHigh,
+        relayBaseUrl = Some("file:///etc/hosts")
+      )
+    }
+    assert(repo.getAll().isEmpty)
+  }
+
+  test("addManually and addFromQr store the relay trimmed and without a trailing slash") {
+    val repo = InMemoryContactRepositoryForContactServiceTest()
+    val svc = ContactService(
+      repo,
+      FakeIdentityStoreForContactServiceTest(),
+      InMemoryContactRelinkRepositoryForContactServiceTest()
+    )
+
+    svc.addManually(
+      "bob",
+      Array.fill(32)(0x01.toByte),
+      Array.fill(32)(0x02.toByte),
+      VerificationLevel.Low,
+      relayBaseUrl = Some(" https://relay.example/ ")
+    )
+    svc.addFromQr(
+      "carol",
+      Array.fill(32)(0x03.toByte),
+      Array.fill(32)(0x04.toByte),
+      CipherSuite.current,
+      VerificationLevel.VeryHigh,
+      relayBaseUrl = Some("http://172.22.114.13:9000/")
+    )
+
+    assertEquals(
+      repo.getAll().flatMap(_.relayBaseUrl).toSet,
+      Set("https://relay.example", "http://172.22.114.13:9000")
+    )
+  }
+
   test("updateContact rejects a new key whose length does not match the effective cipherSuite") {
     val repo = InMemoryContactRepositoryForContactServiceTest()
     val svc = ContactService(

@@ -264,4 +264,49 @@ class PhonScreensSpec extends PlaySpec {
       }
     }
   }
+
+  "A relay" should {
+
+    def saveRelay(app: Application, typed: String) =
+      route(
+        app,
+        FakeRequest(POST, "/phonyPhone/settings/relay").withFormUrlEncodedBody("relayBaseUrl" -> typed).withCSRFToken
+      ).get
+
+    // Nothing else stands between the settings form and the file, and this phone's QR code hands out what is in it.
+    "be refused as the default when it is not an http URL, keeping the one there was" in {
+      withPhone(registered = true) { app =>
+        contentAsString(saveRelay(app, "172.22.114.13:9000")) must include("is-invalid")
+        java.nio.file.Files.readString(relayFile.toPath) mustBe "http://127.0.0.1:1"
+      }
+    }
+
+    "be stored as the default without its trailing slash" in {
+      withPhone(registered = true) { app =>
+        contentAsString(saveRelay(app, " http://127.0.0.1:2/ ")) must not include "is-invalid"
+        java.nio.file.Files.readString(relayFile.toPath) mustBe "http://127.0.0.1:2"
+      }
+    }
+
+    // A contact's relay is the hexagon's to refuse, and the add screen says what it said.
+    "be refused on a contact when it is not an http URL" in {
+      withPhone(registered = true) { app =>
+        val result = route(
+          app,
+          FakeRequest(POST, "/phonyPhone/contacts")
+            .withFormUrlEncodedBody(
+              "pseudonym" -> "Bob",
+              "verifyKey" -> QrPayload.encodeKey(Array.fill(32)(1.toByte)),
+              "encKey" -> QrPayload.encodeKey(Array.fill(32)(2.toByte)),
+              "verificationLevel" -> "High",
+              "relayBaseUrl" -> "172.22.114.13:9000"
+            )
+            .withCSRFToken
+        ).get
+        status(result) mustBe BAD_REQUEST
+        contentAsString(result) must include("A relay must be an http:// or https:// address")
+        contentAsString(route(app, FakeRequest(GET, "/phonyPhone/contacts")).get) must not include "Bob"
+      }
+    }
+  }
 }

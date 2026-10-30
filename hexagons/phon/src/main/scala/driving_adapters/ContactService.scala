@@ -32,6 +32,7 @@ import jakarta.inject.Inject
 import value_objects.svo.CipherSuite
 import value_objects.svo.Contact
 import value_objects.svo.ContactRelink
+import value_objects.svo.RelayBaseUrl
 import value_objects.svo.VerificationLevel
 
 import java.time.Instant
@@ -87,6 +88,7 @@ class ContactService @Inject() (
       encKey.length == cipherSuite.encKeyLength,
       s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite"
     )
+    val relay = normalizeRelayBaseUrl(relayBaseUrl)
     val now = Instant.now()
     contactRepository.save(
       Contact(
@@ -97,7 +99,7 @@ class ContactService @Inject() (
         verificationLevel = verificationLevel,
         verifiedAt = Some(now),
         addedAt = now,
-        relayBaseUrl = relayBaseUrl,
+        relayBaseUrl = relay,
         cipherSuite = cipherSuite,
         nickname = normalizeNickname(nickname)
       )
@@ -121,6 +123,7 @@ class ContactService @Inject() (
       encKey.length == cipherSuite.encKeyLength,
       s"Enc key must be ${cipherSuite.encKeyLength} bytes for $cipherSuite"
     )
+    val relay = normalizeRelayBaseUrl(relayBaseUrl)
     val now = Instant.now()
     contactRepository.save(
       Contact(
@@ -131,7 +134,7 @@ class ContactService @Inject() (
         verificationLevel = verificationLevel,
         verifiedAt = Some(now),
         addedAt = now,
-        relayBaseUrl = relayBaseUrl,
+        relayBaseUrl = relay,
         cipherSuite = cipherSuite,
         nickname = normalizeNickname(nickname)
       )
@@ -205,3 +208,12 @@ class ContactService @Inject() (
   // caller — UI, tests, a future relink flow — gets consistent normalization for free.
   private def normalizeNickname(nickname: Option[String]): Option[String] =
     nickname.map(_.strip()).filter(_.nonEmpty)
+
+  // None stays None, meaning this phone's own default relay; anything else has to name one. Its message is what the
+  // add screen shows, since phon says what the hexagon said rather than checking twice.
+  private def normalizeRelayBaseUrl(relayBaseUrl: Option[String]): Option[String] =
+    relayBaseUrl.map(url =>
+      RelayBaseUrl
+        .parse(url)
+        .getOrElse(throw IllegalArgumentException("A relay must be an http:// or https:// address"))
+    )

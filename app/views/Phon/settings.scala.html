@@ -43,11 +43,14 @@
         @notice.map { key =>
             <div class="alert alert-success py-2">@messages(key)</div>
         }
-        <form class="input-group" hx-post="@controllers.phon.routes.PhonyPhoneController.saveRelay()"
+        <form class="input-group has-validation" hx-post="@controllers.phon.routes.PhonyPhoneController.saveRelay()"
             hx-target="#screen" hx-swap="outerHTML">
-            <input type="url" class="form-control" name="relayBaseUrl" value="@relayForm("relayBaseUrl").value"
-                aria-label="@messages("phon.settings.relay")">
+            <input type="url" class="form-control @if(relayForm("relayBaseUrl").hasErrors){is-invalid}" name="relayBaseUrl"
+                value="@relayForm("relayBaseUrl").value" aria-label="@messages("phon.settings.relay")">
             <button class="btn btn-outline-primary" type="submit">@messages("phon.action.save")</button>
+            @for(error <- relayForm("relayBaseUrl").errors) {
+                <div class="invalid-feedback">@error.format</div>
+            }
         </form>
         <button type="button" class="btn btn-sm btn-link px-0"
             hx-post="@controllers.phon.routes.PhonyPhoneController.saveRelay()"

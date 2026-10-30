@@ -273,6 +273,9 @@ format is: a file exported today has to import on whatever the apps have become 
 - **Times** follow the one rule every Deposplit timestamp does, in
   [protocol.md](protocol.md#canonical-payload-byte-sequences): written in UTC with exactly three
   fractional digits, read with none to nine and cut to the millisecond.
+- **`relayBaseUrl`** is held to the rule every relay is, in
+  [interaction.md](interaction.md#contacts): an `http` or `https` URL with a host and nothing after
+  its path. A reader refuses a catalogue carrying any other, as it does a malformed key.
 - **Readers** refuse any `version` but 1 and ignore fields they do not know. A nullable field
   may be absent or null, an absent list is empty and an absent flag is false.
 

@@ -38,6 +38,7 @@ import play.api.mvc.AnyContent
 import play.api.mvc.ControllerComponents
 import play.api.mvc.Request
 import value_objects.svo.RegenerateIdentityResult
+import value_objects.svo.RelayBaseUrl
 
 import scala.util.Try
 
@@ -114,7 +115,7 @@ class PhonyPhoneController @Inject() (
         .fold(
           withErrors => renderSettings(withErrors),
           record => {
-            relaySettings.setDefaultRelayBaseUrl(record.relayBaseUrl)
+            relaySettings.setDefaultRelayBaseUrl(record.relayBaseUrl.flatMap(RelayBaseUrl.parse))
             renderSettings(
               PhonForms.relayForm.fill(PhonForms.RelayRecord(Some(relaySettings.defaultRelayBaseUrl()))),
               notice = Some("phon.settings.relaySaved")

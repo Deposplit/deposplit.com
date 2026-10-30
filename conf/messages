@@ -251,3 +251,4 @@ phon.error.secretMissing = Type a secret, or pick a picture.
 phon.error.secretAmbiguous = You gave both text and a picture. Clear one of them - phon will not choose for you.
 phon.error.unsupportedType = Only PNG and JPEG can be split. This file is neither, judged by its contents rather than its name.
 phon.error.relinkEmpty = Paste their details, or type both keys.
+phon.error.relayBaseUrl = The relay must be an address starting with http:// or https://.

@@ -287,6 +287,15 @@ user is looking for the way in.
 someone else's relay says where *their* mailbox is and makes the person entering it reachable
 nowhere new, so gating it would protect nothing. Naming your own is the self-hosting feature.
 
+**A relay is an `http` or `https` URL with a host, and is refused where it is entered otherwise** —
+typed on a contact, carried in a scanned QR code, set as the default, or read from a catalogue.
+`172.22.114.13:9000` without its scheme looks like an address and is not one, and stored it would
+fail on every sync for as long as the contact exists. A query, a fragment or user info is refused
+too, because every request appends its path to the relay as given, and a trailing slash is dropped
+for the same reason. A scanned code naming a bad relay says so rather than failing as unreadable:
+the fix is in the other device's Settings, and scanning again cannot help. The rule is
+`RelayBaseUrl`, one per hexagon, with the same cases tested on all three.
+
 **Relinking always re-chooses the verification level.** It can never inherit the old one, because
 the old one was a claim about a key that no longer exists.
 

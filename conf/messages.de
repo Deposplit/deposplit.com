@@ -250,4 +250,5 @@ phon.error.thresholdAboveHolders = Es werden mehr Teile verlangt, als es Verwahr
 phon.error.secretMissing = Tippen Sie ein Geheimnis oder wählen Sie ein Bild.
 phon.error.secretAmbiguous = Sie haben Text und ein Bild angegeben. Leeren Sie eines davon - phon wählt nicht für Sie.
 phon.error.unsupportedType = Nur PNG und JPEG lassen sich aufteilen. Diese Datei ist keines von beiden, gemessen an ihrem Inhalt und nicht an ihrem Namen.
-phon.error.relinkEmpty = fügen Sie ihre Daten ein oder tippen Sie beide Schlüssel.
+phon.error.relinkEmpty = Fügen Sie ihre Daten ein oder tippen Sie beide Schlüssel.
+phon.error.relayBaseUrl = Die Adresse des Relais muss mit http:// oder https:// beginnen.
