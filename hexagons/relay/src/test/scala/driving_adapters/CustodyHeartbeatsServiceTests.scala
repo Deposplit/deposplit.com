@@ -117,7 +117,14 @@ class CustodyHeartbeatsServiceTests extends munit.FunSuite:
     assertEquals(result, Left(Error.BadRequest))
   }
 
-  test("pushHeartbeat returns BadRequest when emittedAt lies in the relay's future") {
+  test("pushHeartbeat accepts an emittedAt from a holder whose clock runs up to a minute ahead") {
+    val (repo, service) = newService()
+    val emittedAt = Instant.now().truncatedTo(ChronoUnit.MILLIS).plus(Duration.ofSeconds(30))
+    assert(push(service, bob, alice, emittedAt = emittedAt).isRight)
+    assertEquals(repo.getHeartbeatsForOwner(alice).map(_.emittedAt), Seq(emittedAt))
+  }
+
+  test("pushHeartbeat returns BadRequest when emittedAt lies more than a minute in the relay's future") {
     val (repo, service) = newService()
     val result = push(service, bob, alice, emittedAt = Instant.now().plus(Duration.ofMinutes(10)))
     assertEquals(result, Left(Error.BadRequest))

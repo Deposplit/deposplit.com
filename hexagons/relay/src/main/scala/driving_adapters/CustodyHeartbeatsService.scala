@@ -50,7 +50,7 @@ class CustodyHeartbeatsService @Inject() (repository: CustodyHeartbeatRepository
     if !holderKey.verify(canon, signature) then return Left(Error.BadRequest)
     // Whole milliseconds, the one precision of every Deposplit timestamp (see PayloadCanonical.wireInstant).
     val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
-    if emittedAt.isAfter(now) then return Left(Error.BadRequest)
+    if emittedAt.isAfter(now.plus(ClockSkew.MaxAhead)) then return Left(Error.BadRequest)
     val heartbeat = CustodyHeartbeat(
       id = UUID.randomUUID(),
       holderKey = holderKey,

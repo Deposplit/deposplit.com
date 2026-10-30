@@ -66,7 +66,9 @@ object AuthHelper extends Results:
       _ <- Either.cond(
         !nonce.isExpired,
         (),
-        Unauthorized(err("expired_nonce", "Nonce timestamp is outside the 5-minute window"))
+        Unauthorized(
+          err("expired_nonce", "Nonce timestamp is more than five minutes old or a minute ahead of the relay's clock")
+        )
       )
       sig <- Signature.fromBase64Url(sigStr).left.map(e => BadRequest(err("invalid_header", e)))
       canon = canonical(nonce, request.method, request.uri, bodyBytes)

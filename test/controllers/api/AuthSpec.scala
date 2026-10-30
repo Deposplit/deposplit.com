@@ -82,6 +82,25 @@ class AuthSpec extends PlaySpec with GuiceOneAppPerSuite:
       status(result) mustBe UNAUTHORIZED
     }
 
+    // Through adb reverse a request takes a millisecond, so a phone a tenth of a second fast arrives before its own
+    // nonce has come due here.
+    "accept a request from a clock slightly ahead of the relay's" in {
+      val signer = new RequestSigner()
+      val result =
+        route(app, FakeRequest("GET", path).withHeaders(signer.authHeaders("GET", path, clockAheadMs = 85)*)).get
+      status(result) mustBe OK
+    }
+
+    "reject a request whose nonce is more than a minute ahead of the relay's clock" in {
+      val signer = new RequestSigner()
+      val result = route(
+        app,
+        FakeRequest("GET", path).withHeaders(signer.authHeaders("GET", path, clockAheadMs = 2 * 60 * 1000L)*)
+      ).get
+      status(result) mustBe UNAUTHORIZED
+      contentAsString(result) must include("expired_nonce")
+    }
+
     "reject a request with an invalid signature" in {
       // 86 base64url 'A' chars = 64 zero-bytes: valid length for Ed25519 but won't verify.
       val signer = new RequestSigner()

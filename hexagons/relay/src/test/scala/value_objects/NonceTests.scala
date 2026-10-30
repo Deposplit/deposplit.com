@@ -57,10 +57,18 @@ class NonceTests extends munit.FunSuite:
     assert(nonce.isExpired)
   }
 
-  test("nonce from the future is expired") {
-    val ms = Instant.now().toEpochMilli + 10 * 60 * 1000L
-    val nonce = Nonce(s"$ms.abc").get
-    assert(nonce.isExpired)
+  // A phone a tenth of a second fast, a millisecond away through adb reverse, is the case that had every request
+  // refused while no clock ahead of the relay's was allowed at all.
+  test("nonce from a clock up to a minute ahead is not expired") {
+    val now = Instant.now().toEpochMilli
+    assert(!Nonce(s"${now + 85}.abc").get.isExpired)
+    assert(!Nonce(s"${now + 59 * 1000L}.abc").get.isExpired)
+  }
+
+  test("nonce more than a minute in the future is expired") {
+    val now = Instant.now().toEpochMilli
+    assert(Nonce(s"${now + 61 * 1000L}.abc").get.isExpired)
+    assert(Nonce(s"${now + 10 * 60 * 1000L}.abc").get.isExpired)
   }
 
   test("value round-trips") {

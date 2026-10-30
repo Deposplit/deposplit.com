@@ -32,6 +32,7 @@ opaque type Nonce = String
 
 object Nonce:
   private val MaxAgeMs = 5 * 60 * 1000L
+  private val MaxAheadMs = ClockSkew.MaxAhead.toMillis
 
   /** Returns `Some(nonce)` if `s` is in the form `<unix-ms>.<random>`, `None` otherwise. */
   def apply(s: String): Option[Nonce] =
@@ -42,8 +43,10 @@ object Nonce:
   extension (n: Nonce)
     def value: String = n
 
-    /** True if the nonce's embedded timestamp is outside the 5-minute acceptance window. */
+    /** True if the nonce's embedded timestamp is more than five minutes old, or further ahead of this relay's clock
+      * than [[ClockSkew.MaxAhead]].
+      */
     def isExpired: Boolean =
       val ms = n.substring(0, n.indexOf('.')).toLong
       val age = Instant.now().toEpochMilli - ms
-      age < 0 || age > MaxAgeMs
+      age < -MaxAheadMs || age > MaxAgeMs

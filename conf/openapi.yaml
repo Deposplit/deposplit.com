@@ -13,7 +13,7 @@ info:
     | Header | Content |
     |---|---|
     | `X-Deposplit-Verify-Key` | Caller's public verify key (base64url — see `PublicKey` schema) |
-    | `X-Deposplit-Nonce` | Per-request unique string in the form `<unix-ms>.<random>` — server rejects requests whose embedded timestamp is more than 5 minutes old |
+    | `X-Deposplit-Nonce` | Per-request unique string in the form `<unix-ms>.<random>` — server rejects requests whose embedded timestamp is more than 5 minutes old or more than 1 minute ahead of its clock |
     | `X-Deposplit-Signature` | Base64url signature under the caller's cipher suite (see `CipherSuite`) |
 
     The signature covers the canonical string:
@@ -490,8 +490,8 @@ components:
           format: date-time
           description: >
             Covered by `signature` as epoch milliseconds, which verification re-derives from
-            this string (see Timestamps above). Refused with `400` if it lies in this relay's
-            future.
+            this string (see Timestamps above). Refused with `400` if it lies more than a minute
+            in this relay's future.
           example: '2026-01-02T03:04:05.678Z'
         signature:
           type: string
@@ -842,8 +842,8 @@ paths:
         a fire-and-forget push, the same shape as `inventory`/`key-rotations`, consumed and
         deleted by the owner once read. Until then this upserts by `(holderKey, ownerKey)`,
         replacing an unread heartbeat from the same holder to the same owner rather than
-        accumulating, under a fresh `id`. `emittedAt` must be signed and must not lie in this
-        relay's future.
+        accumulating, under a fresh `id`. `emittedAt` must be signed and must not lie more than
+        a minute in this relay's future.
       tags: [CustodyHeartbeats]
       requestBody:
         required: true

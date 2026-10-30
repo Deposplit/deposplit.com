@@ -35,8 +35,8 @@ trait CustodyHeartbeats:
 
   /** Pushes (upserts) a signed heartbeat for one owner, replacing any unread heartbeat from the same holder to the same
     * owner. The authenticated caller becomes `holderKey` — `signature` must verify against it over
-    * `PayloadCanonical.forHeartbeat`. Returns `BadRequest` if it doesn't verify, or if `emittedAt` lies in this relay's
-    * future, the same posture the transport nonce takes.
+    * `PayloadCanonical.forHeartbeat`. Returns `BadRequest` if it doesn't verify, or if `emittedAt` lies further in this
+    * relay's future than `ClockSkew.MaxAhead`, the same posture the transport nonce takes.
     */
   def pushHeartbeat(
       holderKey: PublicKey,

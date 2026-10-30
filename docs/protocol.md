@@ -40,8 +40,12 @@ nonce || "\n" || UPPERCASE(method) || "\n" || path_with_query || "\n" || hex(SHA
 ```
 
 with the empty string as `body` for requests that have none. The relay rejects a nonce
-whose embedded timestamp is more than five minutes old *or* dated in the future — there is
-no forward skew allowance.
+whose embedded timestamp is more than five minutes old *or* more than a minute ahead of its own
+clock. The minute is for clocks that do not agree exactly: over a short link a request arrives
+before its timestamp has come due on the relay, so a phone only a tenth of a second fast had every
+request refused while there was no allowance at all. It stretches a captured request's life only
+by however far its sender's clock already runs ahead, since the nonce still expires five minutes
+after the time it carries. A heartbeat's `emittedAt` is held to the same minute.
 
 The header is named *verify* key deliberately: it carries only the public key needed to
 verify the accompanying signature, never a signing key.

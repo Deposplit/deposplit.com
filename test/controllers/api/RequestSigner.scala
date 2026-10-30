@@ -54,8 +54,14 @@ class RequestSigner:
   private def sha256Hex(bytes: Array[Byte]): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).map("%02x".format(_)).mkString
 
-  def authHeaders(method: String, path: String, body: Array[Byte] = Array.empty): Seq[(String, String)] =
-    val nonce = s"${System.currentTimeMillis()}.${UUID.randomUUID().toString.take(8)}"
+  /** `clockAheadMs` stamps the nonce as a client whose clock runs that far ahead of this one would. */
+  def authHeaders(
+      method: String,
+      path: String,
+      body: Array[Byte] = Array.empty,
+      clockAheadMs: Long = 0
+  ): Seq[(String, String)] =
+    val nonce = s"${System.currentTimeMillis() + clockAheadMs}.${UUID.randomUUID().toString.take(8)}"
     val canon = s"$nonce\n${method.toUpperCase}\n$path\n${sha256Hex(body)}".getBytes("UTF-8")
     Seq(
       "X-Deposplit-Verify-Key" -> publicKeyHeader,
