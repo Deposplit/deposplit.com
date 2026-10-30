@@ -38,7 +38,8 @@ import scala.concurrent.Future
 /** Keeps the REST API on `api.` and everything else on `www.`.
   *
   * A request that arrives on the wrong host is redirected to the right one rather than served, so there is exactly one
-  * canonical host per surface.
+  * canonical host per surface. The bare domain is no surface of its own: its browsing traffic goes to `www.` and its
+  * API calls to `api.`.
   *
   * The API surface is enumerated in [[ApiHostPathFilter.apiPathPrefixes]]. That list must cover every path routed to a
   * `controllers.api.*` action — a path missing from it is redirected off `api.` and away from the endpoint the native
@@ -47,6 +48,7 @@ import scala.concurrent.Future
   */
 class ApiHostPathFilter @Inject() (implicit val mat: Materializer, env: Environment) extends Filter:
 
+  import ApiHostPathFilter.apexDomain
   import ApiHostPathFilter.isApiPath
 
   def apply(nextFilter: RequestHeader => Future[Result])(requestHeader: RequestHeader): Future[Result] =
@@ -68,6 +70,11 @@ class ApiHostPathFilter @Inject() (implicit val mat: Materializer, env: Environm
       // to GET and drop the body.
       val newHost = "api." + requestHeader.host.replaceFirst("www\\.", "")
       Future.successful(Results.Redirect(s"$scheme://$newHost$pathAndQuery", Status.PERMANENT_REDIRECT))
+    else if requestHeader.domain == apexDomain then
+      // Browsing traffic on the bare domain: send it to www. for good. A 301, because the move
+      // is permanent and these are GETs from a browser.
+      val newHost = "www." + requestHeader.host
+      Future.successful(Results.Redirect(s"$scheme://$newHost$pathAndQuery", Status.MOVED_PERMANENTLY))
     else nextFilter(requestHeader)
 
 object ApiHostPathFilter:
@@ -79,3 +86,8 @@ object ApiHostPathFilter:
     Seq("/share-requests", "/key-rotations", "/custody-heartbeats")
 
   def isApiPath(path: String): Boolean = apiPathPrefixes.exists(path.startsWith)
+
+  /** The bare domain, redirected rather than served. Named outright rather than recognised by its lack of an `api.` or
+    * `www.` prefix, which `localhost`, `10.0.2.2` and the `cleverapps.io` domain lack as well.
+    */
+  val apexDomain: String = "deposplit.com"

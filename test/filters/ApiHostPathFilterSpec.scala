@@ -26,9 +26,15 @@ package filters
 
 import org.scalatestplus.play.*
 import org.scalatestplus.play.guice.*
+import play.api.mvc.RequestHeader
+import play.api.mvc.Result
+import play.api.mvc.Results
+import play.api.mvc.request.RemoteConnection
 import play.api.routing.Router
 import play.api.test.*
 import play.api.test.Helpers.*
+
+import scala.concurrent.Future
 
 /** `ApiHostPathFilter` splits one deployment across two hostnames: the REST API on `api.` and everything else on
   * `www.`.
@@ -104,5 +110,41 @@ class ApiHostPathFilterSpec extends PlaySpec with GuiceOneAppPerSuite {
       ApiHostPathFilter.isApiPath("/assets/main.css") mustBe false
       ApiHostPathFilter.isApiPath("/origin") mustBe false
     }
+
+    "send browsing traffic on the bare domain to www. for good" in {
+      val result = filtered(GET, "/", "deposplit.com")
+      status(result) mustBe MOVED_PERMANENTLY
+      redirectLocation(result) mustBe Some("https://www.deposplit.com/")
+    }
+
+    "keep the path and query when it does" in {
+      redirectLocation(filtered(GET, "/origin?embedded=false", "deposplit.com")) mustBe
+        Some("https://www.deposplit.com/origin?embedded=false")
+    }
+
+    "send API calls on the bare domain straight to api., keeping their method" in {
+      val result = filtered(POST, "/share-requests", "deposplit.com")
+      status(result) mustBe PERMANENT_REDIRECT
+      redirectLocation(result) mustBe Some("https://api.deposplit.com/share-requests")
+    }
+
+    "pass the canonical hosts through" in {
+      contentAsString(filtered(GET, "/", "www.deposplit.com")) mustBe "passed"
+      contentAsString(filtered(POST, "/share-requests", "api.deposplit.com")) mustBe "passed"
+    }
+
+    "pass the development hosts through" in {
+      contentAsString(filtered(GET, "/", "localhost:9000")) mustBe "passed"
+      contentAsString(filtered(GET, "/", "10.0.2.2:9000")) mustBe "passed"
+    }
   }
+
+  // Secure, as every request is in production once the trusted proxy has said so.
+  private def filtered(method: String, uri: String, host: String): Future[Result] =
+    val request = FakeRequest(method, uri)
+      .withHeaders(HOST -> host)
+      .withConnection(RemoteConnection("127.0.0.1", true, None))
+    val next: RequestHeader => Future[Result] = _ => Future.successful(Results.Ok("passed"))
+    val filter = app.injector.instanceOf[ApiHostPathFilter]
+    filter(next)(request)
 }
