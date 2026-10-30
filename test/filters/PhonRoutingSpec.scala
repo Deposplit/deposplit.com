@@ -27,6 +27,7 @@ package filters
 import org.scalatestplus.play.*
 import play.api.Mode
 import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.mvc.request.RemoteConnection
 import play.api.routing.Router
 import play.api.test.*
 import play.api.test.Helpers.*
@@ -114,7 +115,10 @@ class PhonRoutingSpec extends PlaySpec {
         .configure(prodSecret)
         .disable(Class.forName("PhonModule"))
         .build()
-      try status(route(app, FakeRequest(GET, "/phonyPhone")).get) mustBe NOT_FOUND
+      // Secure, as every request is in production once the trusted proxy has said so: a plain one
+      // would only meet RedirectHttpsFilter's 308 and never reach the router this is about.
+      val request = FakeRequest(GET, "/phonyPhone").withConnection(RemoteConnection("127.0.0.1", true, None))
+      try status(route(app, request).get) mustBe NOT_FOUND
       finally app.stop()
     }
   }

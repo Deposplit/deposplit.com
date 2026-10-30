@@ -1,0 +1,41 @@
+name: Deploy to Clever Cloud
+
+on:
+  workflow_run:
+    branches: [ main ]
+    workflows: ["Test"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clever-deploy-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    env: # read by the Clever Tools in place of a `clever login`, https://www.clever.cloud/developers/doc/manage/cli/profiles/
+      CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+      CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # the commit that passed Test rather than whatever main has moved on to since
+        ref: ${{ github.event.workflow_run.head_sha }}
+        fetch-depth: 0
+    - name: Put the commit on a branch for the Clever Tools to push
+      run: git switch -C main
+    - name: Set up Node.js 24
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: '24'
+    - name: Install the Clever Tools # https://www.clever.cloud/developers/doc/manage/cli/install/
+      run: npm install -g clever-tools@5.3.0
+    - name: Link to the app # https://github.com/CleverCloud/clever-tools/blob/master/src/commands/link/link.docs.md
+      run: clever link ${{ secrets.CLEVER_APP_ID }}
+    - name: Deploy, or rebuild if this commit is already deployed # https://github.com/CleverCloud/clever-tools/blob/master/src/commands/deploy/deploy.docs.md
+      run: clever deploy --same-commit-policy rebuild

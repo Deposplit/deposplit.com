@@ -21,11 +21,11 @@ It listens on port 9000 and uses a file-backed H2 database, so state survives re
 
 Until launch, `conf/evolutions/default/1.sql` is edited in place rather than followed by a
 `2.sql`, so a relay that has run an older version of it needs a fresh database. Stop it, delete
-`.devDBs/`, and append `-Dplay.evolutions.db.default.autoApply=true` to the `run` above. Without
-the flag every request answers 500 until the evolutions are applied, phon's included, which makes
-it look like a phon bug. `.devDBs/` also holds every phony phone's stores, so those phones start
-over too; reset the apps along with them, so that no device remembers contacts or requests that
-the relay and the phony phones have forgotten.
+`.devDBs/`, and run it again: `conf/application.conf` applies the evolutions automatically. It
+never applies their downs, though, so a relay restarted on an older database without deleting
+`.devDBs/` stops at the evolutions page instead of dropping its tables. `.devDBs/` also holds every
+phony phone's stores, so those phones start over too; reset the apps along with them, so that no
+device remembers contacts or requests that the relay and the phony phones have forgotten.
 
 ## Point a device at it
 
