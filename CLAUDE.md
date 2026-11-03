@@ -52,6 +52,8 @@ not add `2.sql`. Test relays and devices are reset to a clean slate instead.
 - `DEFAULT <expr>` comes *before* `PRIMARY KEY` in a column definition
 - semicolons inside `--` comments still split statements, so they are safe only
   *between* statements, never inside one
+- **no enum types.** H2 turns a bound string into an enum silently, PostgreSQL refuses to, so
+  the tests pass and production fails. Use `TEXT` with a `CHECK` instead
 - **no partial indexes.** The one-pending-request-per-type constraint is therefore enforced
   in `ShareRequestsService`, not by the schema, and must be added manually to production
   PostgreSQL. There is a comment in `1.sql` saying so.

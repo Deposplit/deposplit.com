@@ -1,8 +1,5 @@
 # --- !Ups
 
-CREATE TYPE share_transaction_type AS ENUM ('deposit', 'retrieval', 'removal', 'inventory', 'withdrawal');
-CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
-
 -- Every timestamp column holds whole milliseconds, the precision a signature covers, and the relay
 -- binds each one itself. None defaults to now(), so the database's clock never stands in for the
 -- relay's. They are not declared TIMESTAMP(3) because H2 and PostgreSQL round to a column's
@@ -55,6 +52,11 @@ CREATE TYPE share_request_state    AS ENUM ('pending', 'approved', 'denied');
 -- the same box as a share, so the relay stores bytes it cannot read. Required on every type, because
 -- the recipient shows it. Signed as part of sender_signature.
 --
+-- transaction_type and state are TEXT held to their values by a CHECK, not PostgreSQL enums. The
+-- relay binds both as strings, and PostgreSQL neither compares nor stores a string as an enum
+-- without a cast, whereas H2 converts one silently, so an enum passes every test and fails in
+-- production.
+--
 -- sender_key and recipient_key are Ed25519 public keys (32 bytes).
 -- secret_created_at is the client-supplied secret creation timestamp.
 -- requested_at is the server-side timestamp when this request was opened.
@@ -87,8 +89,8 @@ CREATE TABLE share_requests (
     sealed_label      BYTEA                    NOT NULL,
     sender_key        BYTEA                    NOT NULL,
     recipient_key     BYTEA                    NOT NULL,
-    transaction_type  share_transaction_type   NOT NULL,
-    state             share_request_state      NOT NULL DEFAULT 'pending',
+    transaction_type  TEXT                     NOT NULL,
+    state             TEXT                     NOT NULL DEFAULT 'pending',
     ciphertext        BYTEA,
     k                 INTEGER,
     n                 INTEGER,
@@ -97,7 +99,9 @@ CREATE TABLE share_requests (
     requested_at      TIMESTAMP WITH TIME ZONE NOT NULL,
     responded_at      TIMESTAMP WITH TIME ZONE,
     sender_signature    BYTEA NOT NULL,
-    recipient_signature BYTEA
+    recipient_signature BYTEA,
+    CHECK (transaction_type IN ('deposit', 'retrieval', 'removal', 'inventory', 'withdrawal')),
+    CHECK (state IN ('pending', 'approved', 'denied'))
 );
 
 CREATE INDEX ON share_requests (sender_key);
@@ -179,6 +183,3 @@ CREATE INDEX ON custody_heartbeats (owner_key);
 DROP TABLE custody_heartbeats;
 DROP TABLE key_rotations;
 DROP TABLE share_requests;
-
-DROP TYPE share_request_state;
-DROP TYPE share_transaction_type;
