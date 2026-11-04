@@ -29,10 +29,10 @@ jobs:
         fetch-depth: 0
     - name: Put the commit on a branch for the Clever Tools to push
       run: git switch -C main
-    - name: Set up Node.js 24
+    - name: Set up Node.js 26
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: '24'
+        node-version: '26'
     - name: Install the Clever Tools # https://www.clever.cloud/developers/doc/manage/cli/install/
       run: npm install -g clever-tools@5.3.0
     - name: Link to the app # https://github.com/CleverCloud/clever-tools/blob/master/src/commands/link/link.docs.md
