@@ -1,6 +1,6 @@
 # Privacy Policy
 
-As of November 1, 2026
+As of November 4, 2026
 
 This policy covers the website deposplit.com and the Deposplit apps for Android and iOS. It says
 what personal data Squeng AG processes, why, and for how long. It follows the Swiss Federal Act on
@@ -125,11 +125,22 @@ what: the unlock is recorded on the device. Apple and Google provide Squeng AG w
 statistics, such as downloads, countries, and crash reports from people who allowed them in their
 phone's settings. These do not identify anybody.
 
+## Email
+
+Messages to deposplit@squeng.com, such as support requests, contain the sender's address and
+whatever the message itself says. Squeng AG uses them only to answer.
+
+**How long:** a message is deleted once the request has been dealt with, unless the law requires
+keeping it.
+
+Legal basis under the GDPR: Art. 6(1)(f), the legitimate interest in answering requests.
+
 ## Disclosure and transfers abroad
 
 Personal data is neither sold nor shared for advertising. For the website, the apps and the relay,
 the only party processing it on behalf of Squeng AG is the hosting provider Clever Cloud SAS, with
-data stored in France.
+data stored in France. Email is handled by Microsoft as part of Microsoft 365, with data stored in
+the EU and the EFTA.
 
 Nobody is profiled, and no decision is made automatically about anybody.
 

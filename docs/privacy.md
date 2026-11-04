@@ -241,6 +241,11 @@ written for developers, while the policy (`public/markdowns/legalese/pp.md` and 
 counterpart) is a legal one addressed to users. It is derived from this one and must claim nothing
 this one does not permit.
 
+**Support is by email** to deposplit@squeng.com, which Squeng AG runs on Microsoft 365 with data
+held in the EU and the EFTA. A message is something its sender chose to send, so it sits with
+rule 3 rather than against it. It is used only to answer, and deleted once the request has been
+dealt with. The support page asks people never to include a secret or a share.
+
 Squeng AG appoints no representative in the EU under GDPR Art. 27. The relay is built so that
 nothing it keeps identifies a person: an IP address is used to answer a request and never written
 down, and a key carries no name. So the policy has no representative paragraph.

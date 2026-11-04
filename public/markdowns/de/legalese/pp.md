@@ -1,6 +1,6 @@
 # Datenschutzerklärung
 
-Stand: 1. November 2026
+Stand: 4. November 2026
 
 Diese Erklärung gilt für die Website deposplit.com und für die Deposplit-Apps für Android und iOS.
 Sie legt dar, welche Personendaten die Squeng AG bearbeitet, wozu und wie lange. Sie richtet sich
@@ -132,11 +132,23 @@ hat: Die Freischaltung wird auf dem Gerät vermerkt. Apple und Google stellen de
 zusammengefasste Statistiken zur Verfügung, etwa Downloads, Länder und Absturzberichte von Personen,
 die diese in den Einstellungen ihres Telefons erlaubt haben. Daraus lässt sich niemand erkennen.
 
+## E-Mail
+
+Nachrichten an deposplit@squeng.com, etwa Support-Anfragen, enthalten die Absenderadresse und
+alles, was in der Nachricht steht. Die Squeng AG verwendet sie nur, um sie zu beantworten.
+
+**Wie lange:** Eine Nachricht wird gelöscht, sobald die Anfrage erledigt ist, es sei denn, das
+Gesetz verlangt, sie aufzubewahren.
+
+Rechtsgrundlage nach DSGVO: Art. 6 Abs. 1 lit. f, das berechtigte Interesse, Anfragen zu
+beantworten.
+
 ## Bekanntgabe und Übermittlung ins Ausland
 
 Personendaten werden weder verkauft noch für Werbung weitergegeben. Für die Website, die Apps und
 das Relais bearbeitet sie einzig der Hosting-Anbieter Clever Cloud SAS im Auftrag der Squeng AG,
-mit Speicherort in Frankreich.
+mit Speicherort in Frankreich. E-Mails verwaltet Microsoft im Rahmen von Microsoft 365, mit
+Speicherort in der EU und der EFTA.
 
 Niemand wird profiliert, und über niemanden wird automatisiert entschieden.
 
