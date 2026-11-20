@@ -637,7 +637,8 @@
                 if (p === Symbol.iterator) return () => elts.values();
                 if (p === 'q') return s => {
                     let out = new Set();
-                    for (let e of elts) for (let r of makeQ(e, e)(s).arr()) out.add(r);
+                    let isPositional = /^(next|previous)\s/.test(s);
+                    for (let e of elts) for (let r of makeQ(e, isPositional ? e.parentElement : e)(s).arr()) out.add(r);
                     return qProxy([...out]);
                 };
                 if (p === 'trigger') return (t, d, b) => { elts.forEach(e => htmx.trigger(e, t, d, b)); return proxy; };
@@ -781,6 +782,10 @@
 
     function writeAttrBinding(elt, attrName, value) {
         if (typeof value === 'function') throw new TypeError('hx-live: binding returned a function');
+        if (attrName.startsWith('?')) {
+            elt.toggleAttribute(attrName.slice(1), !!value);
+            return;
+        }
         if (attrName === 'text') {
             let s = value == null ? '' : String(value);
             if (elt.textContent !== s) elt.textContent = s;
@@ -800,20 +805,20 @@
         writeAttr(elt, attrName, value);
     }
 
-    htmx.live = {
-        q: s => makeQ(document.documentElement)(s),
-        debounce: makeDebounce(),
-        refresh: () => schedule(),
-        take: (target, name, scope) => applyTake(htmx.live.q(target).arr(), name, scope),
-        toggle: (target, name, ...values) => htmx.live.q(target).forEach(e => applyToggle(e, name, ...values)),
-        forEvent: (...args) => forEvent(null, ...args),
-        nextFrame: () => new Promise(r => requestAnimationFrame(r))
-    };
-    htmx.live.$ = htmx.live.q;
-
     htmx.registerExtension('hx-live', {
         init: (internalAPI) => {
             api = internalAPI;
+
+            htmx.live = {
+                q: s => makeQ(document.documentElement)(s),
+                debounce: makeDebounce(),
+                refresh: () => schedule(),
+                take: (target, name, scope) => applyTake(htmx.live.q(target).arr(), name, scope),
+                toggle: (target, name, ...values) => htmx.live.q(target).forEach(e => applyToggle(e, name, ...values)),
+                forEvent: (...args) => forEvent(null, ...args),
+                nextFrame: () => new Promise(r => requestAnimationFrame(r))
+            };
+            htmx.live.$ = htmx.live.q;
         },
         htmx_before_cleanup: (elt) => {
             cleanupLive(elt);
