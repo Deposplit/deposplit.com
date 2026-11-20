@@ -36,7 +36,7 @@ libraryDependencies += "com.google.zxing" % "javase" % "3.5.4"
 //TwirlKeys.templateImports += "com.deposplit.controllers._"
 
 libraryDependencies += "org.webjars.npm" % "popperjs__core" % "2.11.8"
-libraryDependencies += "org.webjars.npm" % "bootstrap" % "5.3.8"
+libraryDependencies += "org.webjars.npm" % "bootstrap" % "5.3.9"
 libraryDependencies += "org.webjars.npm" % "bootstrap-icons" % "1.13.2"
 
 // Adds additional packages into conf/routes
