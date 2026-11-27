@@ -90,8 +90,8 @@ document store.
 ```bash
 sbt run                                     # dev server, auto-reloads on change
 sbt run -Dconfig.file=conf/localhost.conf   # dev server against the local H2 database
-sbt test                                    # all tests (276)
-sbt relay/test                              # the relay hexagon only (95)
+sbt test                                    # all tests (500)
+sbt relay/test                              # the relay hexagon only (124)
 sbt compile
 sbt dist                                    # production distribution zip
 ```
@@ -99,7 +99,7 @@ sbt dist                                    # production distribution zip
 Tests need no external services: `conf/test.conf` runs against in-memory H2.
 
 For the apps, see each repository's own README. In short: `./gradlew test` in `Android/`
-(115 in `:hexagon`, 20 in `:app`) and `swift test` in `iOS/hexagon/` (110).
+(221 in `:hexagon`, 27 in `:app`) and `swift test` in `iOS/hexagon/` (226).
 
 ## Continuous integration
 
@@ -110,6 +110,11 @@ tests the `hexagon` package and compiles the app target for the Simulator withou
 
 A green test run from a push to `main` deploys the relay to Clever Cloud
 (`cleverCloud.yml`), which then checks that the public relay answers a signed request.
+
+CodeQL scans all three repositories. Here it runs as GitHub's *default setup* and covers the
+workflows only, since CodeQL has no Scala. JavaScript is left out, so that the vendored htmx
+is not scanned. `Android` and `iOS` run their own `codeql.yml` instead, for the app code and
+the workflows, because the default setup could not build either app; their READMEs say why.
 
 ## Licence
 
