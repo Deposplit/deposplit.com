@@ -46,3 +46,7 @@ jobs:
       run: clever link ${{ secrets.CLEVER_APP_ID }}
     - name: Deploy, or rebuild if this commit is already deployed # https://github.com/CleverCloud/clever-tools/blob/master/src/commands/deploy/deploy.docs.md
       run: clever deploy --same-commit-policy rebuild
+    - name: Check that the relay answers a signed request
+      # `clever deploy` returns once Clever Cloud sees the process up, which is not yet the public
+      # relay answering from its database. The script says what it proves and what it cannot.
+      run: node .github/scripts/smoke-check.mjs https://api.deposplit.com

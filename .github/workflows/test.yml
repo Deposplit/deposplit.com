@@ -5,12 +5,18 @@ on:
     branches: [ '**' ]
   pull_request:
     branches: [ main ]
+  # Weekly as well, so a change to the runner image or the toolchain shows up on a Monday rather
+  # than on whichever push comes next.
+  schedule:
+    - cron: '23 5 * * 1'
 
 permissions:
   contents: read
 
 concurrency:
-  group: test-${{ github.head_ref || github.ref }}
+  # The event is part of the group so that the Monday run and a push to main never cancel each
+  # other. A cancelled push run would also mean no deploy, since Deploy follows push runs only.
+  group: test-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,6 +29,7 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '25'
+        cache: 'sbt'
     - uses: sbt/setup-sbt@67d461eba2c4753196c230e02da850757ba4775e # v1.5.14
     - name: Check formatting
       run: sbt scalafmtCheckAll scalafmtSbtCheck

@@ -103,10 +103,13 @@ For the apps, see each repository's own README. In short: `./gradlew test` in `A
 
 ## Continuous integration
 
-Each repository has a `test.yml` workflow running its own suite on every push and on pull
-requests targeting `main`, plus weekly Dependabot updates. Third-party actions are pinned
-to commit SHAs. No job needs a device, emulator or simulator — the iOS workflow builds and
-tests the `hexagon` package only, since the app target needs a simulator.
+Each repository has a `test.yml` workflow running its own suite on every push, on pull
+requests targeting `main`, and weekly, plus weekly Dependabot updates. Third-party actions
+are pinned to commit SHAs. No job starts a device, emulator or simulator: the iOS workflow
+tests the `hexagon` package and compiles the app target for the Simulator without running it.
+
+A green test run from a push to `main` deploys the relay to Clever Cloud
+(`cleverCloud.yml`), which then checks that the public relay answers a signed request.
 
 ## Licence
 
